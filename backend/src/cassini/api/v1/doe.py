@@ -20,6 +20,7 @@ from cassini.api.deps import (
 )
 from cassini.api.schemas.doe import (
     ANOVARowResponse,
+    ConfirmationAnalysisResponse,
     DOEAnalysisResponse,
     DOEFactorResponse,
     DOERunBatchUpdate,
@@ -117,6 +118,8 @@ def _build_study_response(
         design_type=study.design_type,
         resolution=study.resolution,
         sn_type=getattr(study, "sn_type", None),
+        is_confirmation=getattr(study, "is_confirmation", False),
+        parent_study_id=getattr(study, "parent_study_id", None),
         status=study.status,
         response_name=study.response_name,
         response_unit=study.response_unit,
@@ -877,3 +880,180 @@ async def get_analysis(
         )
 
     return _build_analysis_response(analysis)
+
+
+# ===========================================================================
+# CONFIRMATION RUNS
+# ===========================================================================
+
+
+@router.post(
+    "/studies/{study_id}/confirmation",
+    response_model=DOEStudyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_confirmation(
+    study_id: int,
+    request: Request,
+    n_runs: int = Query(3, ge=1, le=10, description="Number of confirmation runs (1-10)"),
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> DOEStudyResponse:
+    """Create a confirmation study from an analyzed parent.
+
+    The parent must be in 'analyzed' status with optimal settings.
+    Creates a new study with ``is_confirmation=True``, pre-populated
+    runs at optimal factor settings, in 'collecting' status.
+
+    Reference: Montgomery, "Design and Analysis of Experiments",
+    Ch. 11 — Confirmation experiments.
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    from cassini.core.doe import DOEEngine
+
+    engine = DOEEngine()
+    try:
+        conf_study = await engine.create_confirmation_study(
+            session, study_id,
+            n_runs=n_runs,
+            created_by=user.id,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "doe_confirmation_create_failed",
+            study_id=study_id, error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create confirmation study. Check that the parent study is analyzed with optimal settings.",
+        )
+
+    await session.commit()
+
+    # Reload with children for response
+    conf_study_loaded = await _get_study_or_404(
+        session, conf_study.id, load_children=True,
+    )
+    run_count = len(conf_study_loaded.runs)
+
+    logger.info(
+        "doe_confirmation_created",
+        study_id=study_id,
+        confirmation_study_id=conf_study.id,
+        n_runs=n_runs,
+        user=user.username,
+    )
+
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": conf_study.id,
+        "action": "confirm",
+        "summary": (
+            f"Confirmation study created for DOE study {study_id} "
+            f"({n_runs} runs)"
+        ),
+        "fields": {
+            "parent_study_id": study_id,
+            "confirmation_study_id": conf_study.id,
+            "n_runs": n_runs,
+        },
+    }
+
+    return _build_study_response(
+        conf_study_loaded,
+        factors=list(conf_study_loaded.factors),
+        run_count=run_count,
+        completed_run_count=0,
+    )
+
+
+@router.post(
+    "/studies/{study_id}/analyze-confirmation",
+    response_model=ConfirmationAnalysisResponse,
+)
+async def analyze_confirmation(
+    study_id: int,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> ConfirmationAnalysisResponse:
+    """Analyze a confirmation study against its parent model.
+
+    Computes prediction intervals and confidence intervals for each
+    confirmation run, then returns a verdict (Confirmed / Warning /
+    Not confirmed).
+
+    Reference: Montgomery, "Design and Analysis of Experiments",
+    Ch. 11 — Confirmation experiments.
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id, load_children=True)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    if not getattr(study, "is_confirmation", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Study is not a confirmation study",
+        )
+
+    if study.status not in ("collecting", "analyzed"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Study is in '{study.status}' status — "
+                "confirmation analysis requires 'collecting' or 'analyzed' status"
+            ),
+        )
+
+    # Validate all runs have response values
+    missing_runs = [r.run_order for r in study.runs if r.response_value is None]
+    if missing_runs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Runs missing response values (run_order): {missing_runs}",
+        )
+
+    from cassini.core.doe import DOEEngine
+
+    engine = DOEEngine()
+    try:
+        result = await engine.analyze_confirmation(session, study_id)
+    except ValueError as exc:
+        logger.warning(
+            "doe_confirmation_analysis_failed",
+            study_id=study_id, error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation analysis failed. Check study data and parent model.",
+        )
+
+    await session.commit()
+
+    logger.info(
+        "doe_confirmation_analyzed",
+        study_id=study_id,
+        verdict=result["verdict"],
+        user=user.username,
+    )
+
+    request.state.audit_context = {
+        "resource_type": "doe_study",
+        "resource_id": study_id,
+        "action": "analyze",
+        "summary": f"Confirmation analysis: {result['verdict']}",
+        "fields": {
+            "study_id": study_id,
+            "parent_study_id": result["parent_study_id"],
+            "verdict": result["verdict"],
+            "predicted": result["predicted_value"],
+            "mean_actual": result["mean_actual"],
+        },
+    }
+
+    return ConfirmationAnalysisResponse(**result)

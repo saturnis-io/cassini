@@ -495,6 +495,20 @@ class DOEEngine:
                 "if interaction estimation is needed."
             ]
 
+        # Compute and store (X'X)^-1 for prediction intervals
+        # (used by confirmation runs)
+        xtx_inv_json: str | None = None
+        try:
+            _XtX = _X_full.T @ _X_full
+            _XtX_inv = np.linalg.inv(_XtX)
+            xtx_inv_json = json.dumps(_XtX_inv.tolist())
+        except np.linalg.LinAlgError:
+            logger.warning(
+                "Could not compute (X'X)^-1 for study %d — "
+                "confirmation run prediction intervals unavailable",
+                study_id,
+            )
+
         # RSM regression for CCD and Box-Behnken designs
         regression_json: str | None = None
         optimal_json: str | None = None
@@ -643,6 +657,7 @@ class DOEEngine:
             outlier_indices_json=json.dumps(result.get("outlier_indices")),
             residual_stats_json=json.dumps(result.get("residual_stats")),
             desirability_json=desirability_json,
+            regression_xtx_inv=xtx_inv_json,
         )
         session.add(analysis)
 
@@ -819,3 +834,416 @@ class DOEEngine:
             return taguchi(n_factors, n_levels=n_levels, seed=seed)
         else:
             raise ValueError(f"Unknown design type: {design_type}")
+
+    # ------------------------------------------------------------------
+    # Confirmation runs
+    # ------------------------------------------------------------------
+
+    async def create_confirmation_study(
+        self,
+        session: AsyncSession,
+        parent_study_id: int,
+        n_runs: int = 3,
+        created_by: int | None = None,
+    ) -> DOEStudy:
+        """Create a confirmation study linked to an analyzed parent.
+
+        Pre-populates *n_runs* confirmation runs at the parent's optimal
+        factor settings.  The new study is set to ``'collecting'`` status
+        immediately (no design generation needed).
+
+        Args:
+            session: Active async database session.
+            parent_study_id: PK of the parent (analyzed) study.
+            n_runs: Number of confirmation runs (default 3, max 10).
+            created_by: User ID of the creator (optional).
+
+        Returns:
+            The newly created confirmation :class:`DOEStudy`.
+
+        Raises:
+            ValueError: If the parent is not found, not analyzed, or has
+                        no optimal settings.
+        """
+        if n_runs < 1 or n_runs > 10:
+            raise ValueError("n_runs must be between 1 and 10")
+
+        repo = DOEStudyRepository(session)
+        parent = await repo.get_with_details(parent_study_id)
+
+        if parent is None:
+            raise ValueError(f"Parent study {parent_study_id} not found")
+
+        if parent.status != "analyzed":
+            raise ValueError(
+                f"Parent study must be in 'analyzed' status, "
+                f"got '{parent.status}'"
+            )
+
+        # Get latest analysis with optimal settings
+        analysis_repo = DOEAnalysisRepository(session)
+        analysis = await analysis_repo.get_latest(parent_study_id)
+        if analysis is None:
+            raise ValueError("Parent study has no analysis results")
+
+        if not analysis.optimal_settings:
+            raise ValueError(
+                "Parent study has no optimal settings — "
+                "confirmation runs require a model with optimal settings"
+            )
+
+        optimal = json.loads(analysis.optimal_settings)
+
+        # Create the confirmation study
+        conf_study = DOEStudy(
+            plant_id=parent.plant_id,
+            name=f"{parent.name} — Confirmation",
+            design_type=parent.design_type,
+            resolution=parent.resolution,
+            n_runs=n_runs,
+            sn_type=getattr(parent, "sn_type", None),
+            status="collecting",
+            response_name=parent.response_name,
+            response_unit=parent.response_unit,
+            is_confirmation=True,
+            parent_study_id=parent.id,
+            created_by=created_by,
+            notes=(
+                f"Confirmation runs for '{parent.name}'. "
+                f"{n_runs} runs at optimal settings."
+            ),
+        )
+        session.add(conf_study)
+        await session.flush()  # get conf_study.id
+
+        # Copy factor definitions from parent
+        parent_factors = sorted(parent.factors, key=lambda f: f.display_order)
+        for f in parent_factors:
+            new_factor = DOEFactor(
+                study_id=conf_study.id,
+                name=f.name,
+                low_level=f.low_level,
+                high_level=f.high_level,
+                center_point=f.center_point,
+                unit=f.unit,
+                display_order=f.display_order,
+            )
+            session.add(new_factor)
+        await session.flush()
+
+        # Build factor values at optimal settings (coded → actual)
+        factor_values: dict[str, float] = {}
+        for f in parent_factors:
+            coded_val = optimal.get(f.name, 0.0)
+            center = (
+                f.center_point
+                if f.center_point is not None
+                else (f.low_level + f.high_level) / 2.0
+            )
+            half_range = (f.high_level - f.low_level) / 2.0
+            actual_val = center + coded_val * half_range
+            factor_values[f.name] = actual_val
+
+        # Create confirmation runs
+        run_repo = DOERunRepository(session)
+        runs: list[DOERun] = []
+        for i in range(n_runs):
+            run = DOERun(
+                study_id=conf_study.id,
+                run_order=i + 1,
+                standard_order=i + 1,
+                factor_values=json.dumps(factor_values),
+                factor_actuals=json.dumps(factor_values),
+                is_center_point=False,
+                replicate=i + 1,
+            )
+            runs.append(run)
+        await run_repo.bulk_create(runs)
+
+        logger.info(
+            "Created confirmation study %d for parent %d: %d runs",
+            conf_study.id, parent_study_id, n_runs,
+        )
+
+        return conf_study
+
+    async def analyze_confirmation(
+        self,
+        session: AsyncSession,
+        study_id: int,
+        alpha: float = 0.05,
+    ) -> dict[str, Any]:
+        """Analyze a confirmation study against its parent's model.
+
+        Computes prediction intervals (PI) and confidence intervals (CI)
+        for each confirmation run using the parent's regression model and
+        (X'X)^-1 matrix, then returns a verdict.
+
+        PI = y_hat(x0) +/- t_{alpha/2, df_resid} * sqrt(MSE * (1 + x0'(X'X)^-1 x0))
+        CI = y_hat(x0) +/- t_{alpha/2, df_resid} * sqrt(MSE * x0'(X'X)^-1 x0)
+
+        Reference: Montgomery, "Design and Analysis of Experiments",
+        Ch. 11: Confirmation experiments.
+
+        Args:
+            session: Active async database session.
+            study_id: PK of the confirmation study.
+            alpha: Significance level for intervals (default 0.05).
+
+        Returns:
+            Dict with confirmation analysis results including predicted
+            value, PI/CI bounds, actual values, and verdict.
+
+        Raises:
+            ValueError: If study is not a confirmation study, parent
+                        analysis is missing, or runs lack response values.
+        """
+        repo = DOEStudyRepository(session)
+        study = await repo.get_with_details(study_id)
+
+        if study is None:
+            raise ValueError(f"Study {study_id} not found")
+
+        if not study.is_confirmation:
+            raise ValueError(f"Study {study_id} is not a confirmation study")
+
+        if study.parent_study_id is None:
+            raise ValueError(
+                f"Confirmation study {study_id} has no parent study"
+            )
+
+        # Validate all runs have response values
+        if not study.runs:
+            raise ValueError(f"Study {study_id} has no runs")
+
+        missing = [
+            r.run_order for r in study.runs if r.response_value is None
+        ]
+        if missing:
+            raise ValueError(
+                f"Runs missing response values (run_order): {missing}"
+            )
+
+        # Load parent analysis
+        analysis_repo = DOEAnalysisRepository(session)
+        parent_analysis = await analysis_repo.get_latest(study.parent_study_id)
+        if parent_analysis is None:
+            raise ValueError(
+                f"Parent study {study.parent_study_id} has no analysis"
+            )
+
+        # Load parent study for factor definitions
+        parent_repo = DOEStudyRepository(session)
+        parent = await parent_repo.get_with_details(study.parent_study_id)
+        if parent is None:
+            raise ValueError(
+                f"Parent study {study.parent_study_id} not found"
+            )
+
+        # Reconstruct parent model information
+        if not parent_analysis.regression_xtx_inv:
+            raise ValueError(
+                "Parent analysis has no (X'X)^-1 matrix — "
+                "cannot compute prediction intervals"
+            )
+
+        xtx_inv = np.array(
+            json.loads(parent_analysis.regression_xtx_inv), dtype=float
+        )
+
+        # Get parent model coefficients (beta)
+        # Reconstruct the parent's full-model design matrix info
+        parent_factors = sorted(
+            parent.factors, key=lambda f: f.display_order
+        )
+        factor_names = [f.name for f in parent_factors]
+        n_factors = len(factor_names)
+
+        # Get the beta vector from the parent's full model
+        # We need to reconstruct it from the parent analysis
+        parent_sorted_runs = sorted(
+            parent.runs, key=lambda r: r.standard_order
+        )
+        parent_factor_defs = [
+            {
+                "name": f.name,
+                "low_level": f.low_level,
+                "high_level": f.high_level,
+                "center_point": f.center_point,
+            }
+            for f in parent_factors
+        ]
+
+        # Build the parent design matrix
+        n_parent_runs = len(parent_sorted_runs)
+        parent_design = np.zeros(
+            (n_parent_runs, n_factors), dtype=float
+        )
+        parent_response = np.zeros(n_parent_runs, dtype=float)
+
+        for row_idx, run in enumerate(parent_sorted_runs):
+            fv = json.loads(run.factor_values)
+            for col_idx, fdef in enumerate(parent_factor_defs):
+                low = fdef["low_level"]
+                high = fdef["high_level"]
+                center = (
+                    fdef.get("center_point") or (low + high) / 2.0
+                )
+                half_range = (high - low) / 2.0
+                if half_range > 0:
+                    actual_val = fv.get(fdef["name"], center)
+                    parent_design[row_idx, col_idx] = (
+                        (actual_val - center) / half_range
+                    )
+                else:
+                    parent_design[row_idx, col_idx] = 0.0
+            parent_response[row_idx] = run.response_value  # type: ignore
+
+        # Build parent full model matrix (intercept + main + interactions)
+        parent_design_type = parent.design_type.lower()
+        skip_interactions = parent_design_type in _NO_INTERACTION_DESIGNS
+
+        _cols_p = [np.ones(n_parent_runs)]
+        for c in range(n_factors):
+            _cols_p.append(parent_design[:, c])
+        if not skip_interactions:
+            for i, j in combinations(range(n_factors), 2):
+                _cols_p.append(
+                    parent_design[:, i] * parent_design[:, j]
+                )
+        X_parent = np.column_stack(_cols_p)
+        n_params = X_parent.shape[1]
+        df_resid = n_parent_runs - n_params
+
+        # Fit the parent model to get beta and MSE
+        beta = np.linalg.lstsq(X_parent, parent_response, rcond=None)[0]
+        resid = parent_response - X_parent @ beta
+        ss_resid = float(np.sum(resid ** 2))
+        mse = ss_resid / max(df_resid, 1)
+
+        # Get optimal coded values from parent analysis
+        optimal = json.loads(parent_analysis.optimal_settings)
+
+        # Build the x0 vector (model space) at the optimal point
+        x0_coded = np.array([
+            optimal.get(name, 0.0) for name in factor_names
+        ], dtype=float)
+
+        x0_model = [1.0]  # intercept
+        for c in range(n_factors):
+            x0_model.append(x0_coded[c])
+        if not skip_interactions:
+            for i, j in combinations(range(n_factors), 2):
+                x0_model.append(x0_coded[i] * x0_coded[j])
+        x0 = np.array(x0_model, dtype=float)
+
+        # Predicted response at optimal
+        y_hat = float(x0 @ beta)
+
+        # x0' (X'X)^-1 x0
+        x0_xtx_inv_x0 = float(x0 @ xtx_inv @ x0)
+
+        # t critical value
+        t_crit = float(
+            sp_stats.t.ppf(1.0 - alpha / 2.0, max(df_resid, 1))
+        )
+
+        # Prediction interval (for individual observations)
+        pi_half_width = t_crit * np.sqrt(mse * (1.0 + x0_xtx_inv_x0))
+        pi_lower = y_hat - pi_half_width
+        pi_upper = y_hat + pi_half_width
+
+        # Confidence interval (for the mean response)
+        ci_half_width = t_crit * np.sqrt(mse * x0_xtx_inv_x0)
+        ci_lower = y_hat - ci_half_width
+        ci_upper = y_hat + ci_half_width
+
+        # Evaluate confirmation runs
+        sorted_runs = sorted(study.runs, key=lambda r: r.run_order)
+        actual_values = [
+            float(r.response_value) for r in sorted_runs  # type: ignore
+        ]
+        mean_actual = float(np.mean(actual_values))
+
+        # Per-run PI check
+        run_results: list[dict[str, Any]] = []
+        warnings_list: list[str] = []
+        for r in sorted_runs:
+            val = float(r.response_value)  # type: ignore
+            within_pi = pi_lower <= val <= pi_upper
+            if not within_pi:
+                warnings_list.append(
+                    f"Warning: run {r.run_order} ({val:.4f}) is outside "
+                    f"the prediction interval [{pi_lower:.4f}, {pi_upper:.4f}]"
+                )
+            run_results.append({
+                "run_order": r.run_order,
+                "actual_value": val,
+                "within_pi": within_pi,
+            })
+
+        # Mean CI check
+        mean_within_ci = ci_lower <= mean_actual <= ci_upper
+        all_within_pi = all(rr["within_pi"] for rr in run_results)
+
+        # Verdict
+        if all_within_pi and mean_within_ci:
+            verdict = "Confirmed — model validated"
+        elif mean_within_ci:
+            verdict = "Confirmed"
+        else:
+            verdict = "Not confirmed — mean outside confidence interval"
+
+        result: dict[str, Any] = {
+            "parent_study_id": study.parent_study_id,
+            "predicted_value": y_hat,
+            "mse": mse,
+            "df_residual": df_resid,
+            "t_critical": t_crit,
+            "alpha": alpha,
+            "prediction_interval": {
+                "lower": float(pi_lower),
+                "upper": float(pi_upper),
+            },
+            "confidence_interval": {
+                "lower": float(ci_lower),
+                "upper": float(ci_upper),
+            },
+            "mean_actual": mean_actual,
+            "mean_within_ci": mean_within_ci,
+            "all_within_pi": all_within_pi,
+            "runs": run_results,
+            "warnings": warnings_list,
+            "verdict": verdict,
+        }
+
+        # Persist confirmation analysis
+        confirmation_analysis = DOEAnalysis(
+            study_id=study_id,
+            anova_table=json.dumps([]),
+            effects=json.dumps([]),
+            interactions=json.dumps([]),
+            r_squared=0.0,
+            adj_r_squared=0.0,
+            grand_mean=mean_actual,
+            optimal_settings=json.dumps(optimal),
+            residuals_json=json.dumps([
+                val - y_hat for val in actual_values
+            ]),
+            fitted_values_json=json.dumps([y_hat] * len(actual_values)),
+            regression_xtx_inv=parent_analysis.regression_xtx_inv,
+        )
+        session.add(confirmation_analysis)
+
+        # Advance study status
+        study.status = "analyzed"
+        study.updated_at = datetime.now(timezone.utc)
+        await session.flush()
+
+        logger.info(
+            "Analyzed confirmation study %d: verdict=%s, "
+            "predicted=%.4f, mean_actual=%.4f",
+            study_id, verdict, y_hat, mean_actual,
+        )
+
+        return result

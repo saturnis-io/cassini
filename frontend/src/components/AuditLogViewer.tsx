@@ -56,6 +56,7 @@ const ACTION_LABELS: Record<string, string> = {
   email_verified: 'Email Verified',
   profile_updated: 'Profile Updated',
   execute: 'Execute',
+  confirm: 'Confirm',
   batch_create: 'Batch Create',
   batch_create_async: 'Batch Create (Async)',
   batch_evaluate: 'Batch SPC Evaluate',

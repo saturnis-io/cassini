@@ -202,6 +202,8 @@ class DOEStudyResponse(BaseModel):
     resolution: int | None
     sn_type: str | None = None
     n_blocks: int | None = None
+    is_confirmation: bool = False
+    parent_study_id: int | None = None
     status: str
     response_name: str
     response_unit: str | None
@@ -303,3 +305,41 @@ class DOEAnalysisResponse(BaseModel):
     outlier_indices: list[int] | None = None
     residual_stats: ResidualStatsResponse | None = None
     computed_at: datetime
+
+
+class ConfirmationRunResult(BaseModel):
+    """Result for a single confirmation run."""
+
+    run_order: int
+    actual_value: float
+    within_pi: bool
+
+
+class IntervalBounds(BaseModel):
+    """Lower and upper bounds of an interval."""
+
+    lower: float
+    upper: float
+
+
+class ConfirmationAnalysisResponse(BaseModel):
+    """Confirmation run analysis results with prediction intervals.
+
+    Reference: Montgomery, "Design and Analysis of Experiments",
+    Ch. 11 — Confirmation experiments.
+    """
+
+    parent_study_id: int
+    predicted_value: float
+    mse: float
+    df_residual: int
+    t_critical: float
+    alpha: float
+    prediction_interval: IntervalBounds
+    confidence_interval: IntervalBounds
+    mean_actual: float
+    mean_within_ci: bool
+    all_within_pi: bool
+    runs: list[ConfirmationRunResult]
+    warnings: list[str]
+    verdict: str

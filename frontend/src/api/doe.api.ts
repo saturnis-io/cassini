@@ -36,6 +36,8 @@ export interface DOEStudy {
   design_type: string
   resolution: number | null
   sn_type: SNType | null
+  is_confirmation: boolean
+  parent_study_id: number | null
   response_name: string | null
   response_unit: string | null
   notes: string | null
@@ -151,6 +153,34 @@ export interface DOEAnalysis {
   residual_stats: DOEResidualStats | null
 }
 
+export interface ConfirmationRunResult {
+  run_order: number
+  actual_value: number
+  within_pi: boolean
+}
+
+export interface IntervalBounds {
+  lower: number
+  upper: number
+}
+
+export interface ConfirmationAnalysis {
+  parent_study_id: number
+  predicted_value: number
+  mse: number
+  df_residual: number
+  t_critical: number
+  alpha: number
+  prediction_interval: IntervalBounds
+  confidence_interval: IntervalBounds
+  mean_actual: number
+  mean_within_ci: boolean
+  all_within_pi: boolean
+  runs: ConfirmationRunResult[]
+  warnings: string[]
+  verdict: string
+}
+
 export const doeApi = {
   listStudies: (plantId: number, status?: string) => {
     const sp = new URLSearchParams({ plant_id: String(plantId) })
@@ -193,4 +223,14 @@ export const doeApi = {
 
   getAnalysis: (id: number) =>
     fetchApi<DOEAnalysis>(`/doe/studies/${id}/analysis`),
+
+  createConfirmation: (id: number, nRuns: number = 3) =>
+    fetchApi<DOEStudy>(`/doe/studies/${id}/confirmation?n_runs=${nRuns}`, {
+      method: 'POST',
+    }),
+
+  analyzeConfirmation: (id: number) =>
+    fetchApi<ConfirmationAnalysis>(`/doe/studies/${id}/analyze-confirmation`, {
+      method: 'POST',
+    }),
 }

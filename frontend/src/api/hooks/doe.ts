@@ -155,3 +155,35 @@ export function useDOEAnalysis(studyId: number) {
     },
   })
 }
+
+// -----------------------------------------------------------------------
+// Confirmation runs
+// -----------------------------------------------------------------------
+
+export function useCreateConfirmation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ studyId, nRuns }: { studyId: number; nRuns?: number }) =>
+      doeApi.createConfirmation(studyId, nRuns),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: doeKeys.all })
+      toast.success('Confirmation study created')
+    },
+    onError: handleMutationError('Failed to create confirmation study'),
+  })
+}
+
+export function useAnalyzeConfirmation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) => doeApi.analyzeConfirmation(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: doeKeys.analysis(id) })
+      queryClient.invalidateQueries({ queryKey: doeKeys.study(id) })
+      toast.success('Confirmation analysis complete')
+    },
+    onError: handleMutationError('Confirmation analysis failed'),
+  })
+}

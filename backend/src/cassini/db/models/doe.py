@@ -65,6 +65,14 @@ class DOEStudy(Base):
         doc="JSON list of multi-response desirability configs. Each entry: "
         "{name, direction, lower, target, upper, weight, shape, shape_upper}",
     )
+    is_confirmation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa.text("0"),
+        doc="True if this study is a confirmation run study.",
+    )
+    parent_study_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("doe_study.id", ondelete="SET NULL"), nullable=True,
+        doc="Self-referential FK to the parent study (for confirmation studies).",
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True
@@ -96,6 +104,18 @@ class DOEStudy(Base):
         "DOEAnalysis",
         back_populates="study",
         cascade="all, delete-orphan",
+    )
+    parent_study: Mapped[Optional["DOEStudy"]] = relationship(
+        "DOEStudy",
+        remote_side=[id],
+        foreign_keys=[parent_study_id],
+        uselist=False,
+    )
+    confirmation_studies: Mapped[list["DOEStudy"]] = relationship(
+        "DOEStudy",
+        foreign_keys=[parent_study_id],
+        uselist=True,
+        overlaps="parent_study",
     )
 
     def __repr__(self) -> str:
@@ -232,6 +252,11 @@ class DOEAnalysis(Base):
         Text, nullable=True,
         doc="Multi-response desirability results as JSON: "
         "individual_desirabilities, overall_desirability, response_values",
+    )
+    regression_xtx_inv: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        doc="JSON-serialized (X'X)^-1 matrix from OLS regression. "
+        "Used for prediction/confidence intervals in confirmation runs.",
     )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

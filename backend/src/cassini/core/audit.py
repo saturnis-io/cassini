@@ -184,6 +184,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "train"
     if "/generate" in path:
         return "generate"
+    if "/confirmation" in path:
+        return "confirm"
     if "/analyze" in path or "/analytics" in path:
         return "analyze"
     if "/sign" in path:
