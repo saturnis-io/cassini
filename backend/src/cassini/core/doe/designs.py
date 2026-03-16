@@ -1,8 +1,9 @@
 """Design matrix generators for Design of Experiments (DOE).
 
-Supports full factorial, fractional factorial, central composite (CCD),
-and Box-Behnken designs.  All generators return a :class:`DesignResult`
-dataclass containing the coded design matrix and metadata.
+Supports full factorial, fractional factorial, Plackett-Burman,
+central composite (CCD), and Box-Behnken designs.  All generators
+return a :class:`DesignResult` dataclass containing the coded design
+matrix and metadata.
 
 Uses numpy for matrix generation and random run-order shuffling.
 """
@@ -65,10 +66,54 @@ _FRAC_GENERATORS: dict[tuple[int, int], list[tuple[int, ...]]] = {
     (5, 5): [(0, 1, 2, 3)],
     # 2^(5-2) Resolution III: D = AB, E = AC
     (5, 3): [(0, 1), (0, 2)],
+    # 2^(6-1) Resolution VI: F = ABCDE
+    (6, 6): [(0, 1, 2, 3, 4)],
     # 2^(6-2) Resolution IV: E = ABC, F = BCD
     (6, 4): [(0, 1, 2), (1, 2, 3)],
+    # 2^(6-3) Resolution III: D = AB, E = AC, F = BC
+    (6, 3): [(0, 1), (0, 2), (1, 2)],
+    # 2^(7-1) Resolution VII: G = ABCDEF
+    (7, 7): [(0, 1, 2, 3, 4, 5)],
+    # 2^(7-2) Resolution IV: F = ABCD, G = ABDE
+    (7, 4): [(0, 1, 2, 3), (0, 1, 3, 4)],
     # 2^(7-3) Resolution IV: E = ABC, F = BCD, G = ACD
-    (7, 4): [(0, 1, 2), (1, 2, 3), (0, 2, 3)],
+    (7, 3): [(0, 1), (0, 2), (1, 2), (0, 1, 2)],
+    # --- Extended generators from Chen, Sun & Wu (1993) ---
+    # 2^(8-2) Resolution V: G = ABCD, H = ABEF
+    (8, 5): [(0, 1, 2, 3), (0, 1, 4, 5)],
+    # 2^(8-4) Resolution IV: E = BCD, F = ACD, G = ABC, H = ABD
+    (8, 4): [(1, 2, 3), (0, 2, 3), (0, 1, 2), (0, 1, 3)],
+    # 2^(8-4) Resolution III: E = AB, F = AC, G = BC, H = ABC
+    (8, 3): [(0, 1), (0, 2), (1, 2), (0, 1, 2)],
+    # 2^(9-2) Resolution VI: H = ABCG, J = ADEF  (9 factors in 128 runs)
+    (9, 5): [(0, 1, 2, 3), (0, 1, 4, 5), (0, 2, 4, 6)],
+    # 2^(9-4) Resolution IV: F = BCDE, G = ACDE, H = ABDE, J = ABCE
+    (9, 4): [(1, 2, 3, 4), (0, 2, 3, 4), (0, 1, 3, 4), (0, 1, 2, 4)],
+    # 2^(9-5) Resolution III: E = AB, F = AC, G = BC, H = ABD, J = ACD
+    (9, 3): [(0, 1), (0, 2), (1, 2), (0, 1, 3), (0, 2, 3)],
+    # 2^(10-3) Resolution V: H = ABCG, J = ACDE, K = ACDF
+    (10, 5): [(0, 1, 2, 3), (0, 1, 4, 5), (0, 2, 4, 6), (0, 2, 5, 6)],
+    # 2^(10-6) Resolution IV: E = ABC, F = BCD, G = ACD, H = ABD,
+    #                          J = ABCD, K = AB (min aberration)
+    (10, 4): [(0, 1, 2), (1, 2, 3), (0, 2, 3), (0, 1, 3)],
+    # 2^(10-6) Resolution III
+    (10, 3): [(0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3)],
+    # 2^(11-4) Resolution V
+    (11, 5): [(0, 1, 2, 3), (0, 1, 4, 5), (0, 2, 4, 6), (0, 2, 5, 6), (1, 2, 4, 5)],
+    # 2^(11-7) Resolution III
+    (11, 3): [(0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (0, 1, 2)],
+    # 2^(12-4) Resolution V (12 factors in 256 runs)
+    (12, 5): [
+        (0, 1, 2, 3), (0, 1, 4, 5), (0, 2, 4, 6),
+        (0, 2, 5, 6), (1, 2, 4, 5), (1, 2, 5, 6),
+    ],
+    # 2^(12-8) Resolution III
+    (12, 3): [(0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3), (0, 1, 2), (0, 1, 3)],
+    # 2^(15-11) Resolution III (15 factors in 16 runs)
+    (15, 3): [
+        (0, 1), (0, 2), (1, 2), (0, 3), (1, 3), (2, 3),
+        (0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3), (0, 1, 2, 3),
+    ],
 }
 
 
@@ -186,11 +231,14 @@ def fractional_factorial(
 ) -> DesignResult:
     """Generate a 2^(k-p) fractional factorial design.
 
-    Uses a lookup table of common generator columns for standard designs.
+    Uses a lookup table of minimum aberration generator columns from
+    published tables (Chen, Sun & Wu, 1993) covering up to ~15 factors.
+    For factor counts beyond the table, raises ValueError suggesting
+    Plackett-Burman or D-Optimal alternatives.
 
     Args:
-        n_factors: Number of factors (3-7).
-        resolution: Desired resolution (III=3, IV=4, V=5).
+        n_factors: Number of factors (3-15).
+        resolution: Desired resolution (III=3 through VII=7).
         center_points: Number of center-point runs to append.
         seed: Random seed for run-order shuffling.
 
@@ -206,9 +254,24 @@ def fractional_factorial(
         available = [
             f"({k}, res={r})" for (k, r) in sorted(_FRAC_GENERATORS.keys())
         ]
+        suggestion = ""
+        if n_factors > 15:
+            suggestion = (
+                " For large factor counts, consider Plackett-Burman "
+                "(screening, Resolution III) or D-Optimal designs."
+            )
+        elif n_factors > 7:
+            # Check if any resolution exists for this factor count
+            any_match = any(k == n_factors for (k, _) in _FRAC_GENERATORS)
+            if not any_match:
+                suggestion = (
+                    f" No generators are tabled for {n_factors} factors. "
+                    "Consider Plackett-Burman (screening) or D-Optimal."
+                )
         raise ValueError(
             f"No fractional factorial design for {n_factors} factors at "
             f"resolution {resolution}. Available: {', '.join(available)}"
+            f"{suggestion}"
         )
 
     generators = _FRAC_GENERATORS[key]
@@ -399,6 +462,122 @@ def box_behnken(
         n_runs=n_runs,
         n_factors=n_factors,
         design_type="box_behnken",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plackett-Burman designs
+# ---------------------------------------------------------------------------
+
+# Standard generating rows from Plackett & Burman (1946).
+# N = number of columns (factors), design has N+1 rows.
+# Construction: first row = generating vector, subsequent rows are
+# cyclic LEFT-shifts, final row is all -1s.
+_PB_GENERATORS: dict[int, list[int]] = {
+    3: [1, -1, 1],
+    7: [1, 1, 1, -1, 1, -1, -1],
+    11: [1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1],
+    15: [1, 1, 1, 1, -1, 1, -1, 1, 1, -1, -1, 1, -1, -1, -1],
+    19: [1, 1, -1, -1, 1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, -1, 1, 1, -1],
+    23: [1, 1, 1, 1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1, -1, -1, -1, -1],
+}
+
+# Sorted standard PB sizes for next-larger lookup
+_PB_SIZES = sorted(_PB_GENERATORS.keys())
+
+
+def plackett_burman(
+    n_factors: int,
+    seed: int | None = None,
+) -> DesignResult:
+    """Generate a Plackett-Burman screening design.
+
+    Plackett-Burman designs are Resolution III saturated/near-saturated
+    designs for screening many factors in few runs.  Main effects are
+    partially confounded with two-factor interactions, so **interaction
+    estimation is NOT reliable** with PB designs.
+
+    Construction follows Plackett & Burman (1946): cyclic left-shift of
+    a generating vector plus a final row of all -1s.
+
+    For factor counts that don't match a standard PB size, the next
+    larger PB is used and extra columns are dropped (projection).
+
+    Args:
+        n_factors: Number of factors (2-23).
+        seed: Random seed for run-order shuffling.
+
+    Returns:
+        :class:`DesignResult` with coded values in {-1, +1}.
+
+    Raises:
+        ValueError: If n_factors is outside the supported range (2-23).
+    """
+    if n_factors < 2:
+        raise ValueError(
+            f"Plackett-Burman requires at least 2 factors, got {n_factors}"
+        )
+    if n_factors > 23:
+        raise ValueError(
+            f"Plackett-Burman supports up to 23 factors, got {n_factors}. "
+            "Consider D-Optimal designs for larger factor counts."
+        )
+
+    # Find the smallest standard PB size >= n_factors
+    pb_n: int | None = None
+    for size in _PB_SIZES:
+        if size >= n_factors:
+            pb_n = size
+            break
+
+    if pb_n is None:
+        raise ValueError(
+            f"No Plackett-Burman design available for {n_factors} factors"
+        )
+
+    gen_row = _PB_GENERATORS[pb_n]
+    n_rows = pb_n + 1  # N+1 runs
+
+    # Build the design matrix via cyclic left-shift
+    rows: list[list[int]] = []
+
+    # First row is the generating vector
+    rows.append(list(gen_row))
+
+    # Subsequent rows: cyclic left-shift of the previous row
+    for i in range(1, pb_n):
+        prev = rows[i - 1]
+        shifted = prev[1:] + [prev[0]]
+        rows.append(shifted)
+
+    # Final row: all -1s
+    rows.append([-1] * pb_n)
+
+    # Convert to numpy array
+    full_matrix = np.array(rows, dtype=float)
+
+    # Project: keep only first n_factors columns
+    coded = full_matrix[:, :n_factors]
+
+    n_runs = coded.shape[0]
+    std_order = list(range(1, n_runs + 1))
+    is_cp = [False] * n_runs
+
+    if seed is not None:
+        rng = np.random.default_rng(seed)
+        run_order_arr = rng.permutation(n_runs) + 1
+        run_order = run_order_arr.tolist()
+    else:
+        run_order = list(std_order)
+
+    return DesignResult(
+        coded_matrix=coded,
+        standard_order=std_order,
+        run_order=run_order,
+        is_center_point=is_cp,
+        n_runs=n_runs,
+        n_factors=n_factors,
+        design_type="plackett_burman",
     )
 
 

@@ -21,16 +21,27 @@ const MIN_FACTORS: Record<string, number> = {
   central_composite: 2,
 }
 
-const MAX_FACTORS = 7
+const MAX_FACTORS: Record<string, number> = {
+  full_factorial: 7,
+  fractional_factorial: 15,
+  plackett_burman: 23,
+  central_composite: 7,
+  box_behnken: 7,
+}
 
 function getMinFactors(designType: string): number {
   return MIN_FACTORS[designType] ?? 2
 }
 
+function getMaxFactors(designType: string): number {
+  return MAX_FACTORS[designType] ?? 7
+}
+
 export function FactorEditor({ factors, onChange, designType }: FactorEditorProps) {
   const minCount = getMinFactors(designType)
+  const maxCount = getMaxFactors(designType)
   const canRemove = factors.length > minCount
-  const canAdd = factors.length < MAX_FACTORS
+  const canAdd = factors.length < maxCount
 
   const addFactor = () => {
     if (!canAdd) return
@@ -79,7 +90,7 @@ export function FactorEditor({ factors, onChange, designType }: FactorEditorProp
         <label className="text-sm font-medium">
           Factors ({factors.length})
           <span className="text-muted-foreground ml-1 font-normal">
-            (min {minCount}, max {MAX_FACTORS})
+            (min {minCount}, max {maxCount})
           </span>
         </label>
         <button

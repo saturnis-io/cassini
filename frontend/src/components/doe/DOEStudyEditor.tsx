@@ -46,7 +46,13 @@ const DESIGN_TYPES = [
   {
     value: 'fractional_factorial',
     label: 'Fractional Factorial',
-    description: 'Subset of runs using aliasing. Efficient for 4-7 factors.',
+    description: 'Subset of runs using aliasing. Efficient for 4-15 factors.',
+  },
+  {
+    value: 'plackett_burman',
+    label: 'Plackett-Burman',
+    description:
+      'Screening design for 2-23 factors in few runs. Resolution III — cannot estimate interactions.',
   },
   {
     value: 'central_composite',
@@ -570,6 +576,17 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
                 </button>
               )}
             </div>
+
+            {study.design_type === 'plackett_burman' && (
+              <div className="bg-warning/10 border-warning/30 rounded-lg border px-4 py-3 text-sm">
+                <span className="text-warning font-medium">Resolution III Design:</span>{' '}
+                <span className="text-muted-foreground">
+                  Plackett-Burman designs cannot estimate two-factor interactions. Main effects are
+                  partially confounded with interactions. Use a fractional factorial (Res IV+) or
+                  full factorial if interaction estimation is needed.
+                </span>
+              </div>
+            )}
 
             {analysis ? (
               <div className="space-y-8">

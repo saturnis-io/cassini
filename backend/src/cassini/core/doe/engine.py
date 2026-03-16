@@ -31,6 +31,7 @@ from cassini.core.doe.designs import (
     coded_to_actual,
     fractional_factorial,
     full_factorial,
+    plackett_burman,
 )
 from cassini.db.models.doe import DOEAnalysis, DOEFactor, DOERun, DOEStudy
 from cassini.db.repositories.doe_repo import (
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 _DESIGN_DISPATCH: dict[str, str] = {
     "full_factorial": "full_factorial",
     "fractional_factorial": "fractional_factorial",
+    "plackett_burman": "plackett_burman",
     "central_composite": "central_composite",
     "ccd": "central_composite",
     "box_behnken": "box_behnken",
@@ -52,6 +54,10 @@ _DESIGN_DISPATCH: dict[str, str] = {
 
 # Design types that support RSM (quadratic regression)
 _RSM_DESIGNS = {"central_composite", "ccd", "box_behnken"}
+
+# Design types where interaction estimation is unreliable (Resolution III
+# screening designs — main effects are partially confounded with 2FIs)
+_NO_INTERACTION_DESIGNS = {"plackett_burman"}
 
 
 class DOEEngine:
@@ -228,6 +234,7 @@ class DOEEngine:
         factors = sorted(study.factors, key=lambda f: f.display_order)
         factor_names = [f.name for f in factors]
         n_factors = len(factors)
+        design_type = study.design_type.lower()
 
         # Sort runs by standard_order for consistent matrix construction
         sorted_runs = sorted(study.runs, key=lambda r: r.standard_order)
@@ -268,17 +275,24 @@ class DOEEngine:
         # Grand mean of all response values
         grand_mean = float(np.mean(response_arr))
 
+        # Check if this design type supports interaction estimation
+        skip_interactions = design_type in _NO_INTERACTION_DESIGNS
+
         # Compute full-model MSE once (main effects + two-factor interactions)
         # so that both compute_main_effects and compute_interactions use the
         # same denominator for their t-tests, making p-values comparable.
+        # For PB designs, use main-effects-only model (no interactions).
         _n_obs = design_matrix.shape[0]
         _k = design_matrix.shape[1]
-        _int_pairs = list(combinations(range(_k), 2))
         _cols = [np.ones(_n_obs)]
         for _c in range(_k):
             _cols.append(design_matrix[:, _c])
-        for _i, _j in _int_pairs:
-            _cols.append(design_matrix[:, _i] * design_matrix[:, _j])
+
+        if not skip_interactions:
+            _int_pairs = list(combinations(range(_k), 2))
+            for _i, _j in _int_pairs:
+                _cols.append(design_matrix[:, _i] * design_matrix[:, _j])
+
         _X_full = np.column_stack(_cols)
         _p_full = _X_full.shape[1]
         _df_resid_full = _n_obs - _p_full
@@ -302,11 +316,15 @@ class DOEEngine:
             mse_override=_mse_full,
             df_resid_override=_df_resid_full,
         )
-        interactions = compute_interactions(
-            design_matrix, response_arr, factor_names,
-            mse_override=_mse_full,
-            df_resid_override=_df_resid_full,
-        )
+
+        if skip_interactions:
+            interactions: list = []
+        else:
+            interactions = compute_interactions(
+                design_matrix, response_arr, factor_names,
+                mse_override=_mse_full,
+                df_resid_override=_df_resid_full,
+            )
         anova = compute_anova(design_matrix, response_arr, factor_names)
 
         # Build result dict
@@ -354,10 +372,19 @@ class DOEEngine:
             "lack_of_fit_p": anova.lack_of_fit_p,
         }
 
+        # Add warning for designs that cannot estimate interactions
+        if skip_interactions:
+            result["warnings"] = [
+                "Plackett-Burman designs are Resolution III — main effects "
+                "are partially confounded with two-factor interactions. "
+                "Interaction estimates are not available. Use a higher-"
+                "resolution design (e.g., fractional factorial Res IV+) "
+                "if interaction estimation is needed."
+            ]
+
         # RSM regression for CCD and Box-Behnken designs
         regression_json: str | None = None
         optimal_json: str | None = None
-        design_type = study.design_type.lower()
 
         if design_type in _RSM_DESIGNS:
             reg = compute_regression(
@@ -483,6 +510,8 @@ class DOEEngine:
             if resolution is None:
                 resolution = 4
             return fractional_factorial(n_factors, resolution=resolution, seed=seed)
+        elif design_type == "plackett_burman":
+            return plackett_burman(n_factors, seed=seed)
         elif design_type in ("central_composite", "ccd"):
             return central_composite(n_factors, seed=seed)
         elif design_type == "box_behnken":

@@ -24,13 +24,13 @@ class DOEStudyCreate(BaseModel):
     plant_id: int
     design_type: str = Field(
         ...,
-        pattern=r"^(full_factorial|fractional_factorial|central_composite|box_behnken)$",
+        pattern=r"^(full_factorial|fractional_factorial|plackett_burman|central_composite|box_behnken)$",
     )
-    resolution: int | None = Field(None, ge=3, le=5)
+    resolution: int | None = Field(None, ge=3, le=7)
     response_name: str = Field("Response", max_length=255)
     response_unit: str | None = Field(None, max_length=50)
     notes: str | None = None
-    factors: list[DOEFactorCreate] = Field(..., min_length=2, max_length=7)
+    factors: list[DOEFactorCreate] = Field(..., min_length=2, max_length=23)
 
     @model_validator(mode="after")
     def validate_factor_count(self):
@@ -38,6 +38,15 @@ class DOEStudyCreate(BaseModel):
             raise ValueError("Box-Behnken design requires at least 3 factors")
         if self.design_type == "fractional_factorial" and self.resolution is None:
             raise ValueError("Fractional factorial design requires resolution")
+        if self.design_type == "plackett_burman":
+            if len(self.factors) < 2:
+                raise ValueError(
+                    "Plackett-Burman design requires at least 2 factors"
+                )
+            if len(self.factors) > 23:
+                raise ValueError(
+                    "Plackett-Burman design supports up to 23 factors"
+                )
         return self
 
 
