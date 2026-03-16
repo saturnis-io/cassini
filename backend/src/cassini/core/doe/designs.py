@@ -10,6 +10,7 @@ Uses numpy for matrix generation and random run-order shuffling.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import reduce
 from itertools import combinations
 from typing import Sequence
 
@@ -45,6 +46,9 @@ class DesignResult:
 
     design_type: str
     """Design type label (e.g. 'full_factorial', 'ccd')."""
+
+    block_assignments: list[int] | None = None
+    """Block assignment for each run (1-based), or None if unblocked."""
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +163,7 @@ def full_factorial(
     center_points: int = 0,
     replicates: int = 1,
     seed: int | None = None,
+    n_blocks: int | None = None,
 ) -> DesignResult:
     """Generate a 2^k full factorial design.
 
@@ -168,6 +173,8 @@ def full_factorial(
         replicates: Number of complete replicates of the factorial portion.
         seed: Random seed for run-order shuffling.  ``None`` keeps standard
               order.
+        n_blocks: Number of blocks (power of 2).  Blocking confounds
+                  highest-order interactions per Montgomery Ch. 7.
 
     Returns:
         :class:`DesignResult` with coded values in {-1, 0, +1}.
@@ -192,11 +199,22 @@ def full_factorial(
     else:
         factorial = base
 
+    # Block assignments (computed before center points)
+    block_assignments: list[int] | None = None
+    if n_blocks is not None and n_blocks >= 2:
+        block_assignments = _assign_blocks_factorial(
+            factorial, n_factors, n_blocks,
+        )
+        _validate_blocking(factorial, block_assignments, n_factors)
+
     # Center points
     if center_points > 0:
         centers = np.zeros((center_points, n_factors), dtype=float)
         coded = np.vstack([factorial, centers])
         is_cp = [False] * len(factorial) + [True] * center_points
+        # Center points get block 0 (unblocked) — they span all blocks
+        if block_assignments is not None:
+            block_assignments = block_assignments + [0] * center_points
     else:
         coded = factorial
         is_cp = [False] * len(factorial)
@@ -220,6 +238,7 @@ def full_factorial(
         n_runs=n_runs,
         n_factors=n_factors,
         design_type="full_factorial",
+        block_assignments=block_assignments,
     )
 
 
@@ -228,6 +247,7 @@ def fractional_factorial(
     resolution: int = 4,
     center_points: int = 0,
     seed: int | None = None,
+    n_blocks: int | None = None,
 ) -> DesignResult:
     """Generate a 2^(k-p) fractional factorial design.
 
@@ -241,6 +261,8 @@ def fractional_factorial(
         resolution: Desired resolution (III=3 through VII=7).
         center_points: Number of center-point runs to append.
         seed: Random seed for run-order shuffling.
+        n_blocks: Number of blocks (power of 2).  Blocking confounds
+                  highest-order interactions per Montgomery Ch. 7.
 
     Returns:
         :class:`DesignResult` with coded values in {-1, 0, +1}.
@@ -296,11 +318,21 @@ def fractional_factorial(
 
     factorial = np.column_stack([base] + [c.reshape(-1, 1) for c in gen_cols])
 
+    # Block assignments (computed before center points)
+    block_assignments: list[int] | None = None
+    if n_blocks is not None and n_blocks >= 2:
+        block_assignments = _assign_blocks_factorial(
+            factorial, n_factors, n_blocks,
+        )
+        _validate_blocking(factorial, block_assignments, n_factors)
+
     # Center points
     if center_points > 0:
         centers = np.zeros((center_points, n_factors), dtype=float)
         coded = np.vstack([factorial, centers])
         is_cp = [False] * len(factorial) + [True] * center_points
+        if block_assignments is not None:
+            block_assignments = block_assignments + [0] * center_points
     else:
         coded = factorial
         is_cp = [False] * len(factorial)
@@ -323,6 +355,7 @@ def fractional_factorial(
         n_runs=n_runs,
         n_factors=n_factors,
         design_type="fractional_factorial",
+        block_assignments=block_assignments,
     )
 
 
@@ -484,6 +517,235 @@ _PB_GENERATORS: dict[int, list[int]] = {
 
 # Sorted standard PB sizes for next-larger lookup
 _PB_SIZES = sorted(_PB_GENERATORS.keys())
+
+
+# ---------------------------------------------------------------------------
+# Blocking support (Montgomery Ch. 7)
+# ---------------------------------------------------------------------------
+
+def _is_power_of_two(n: int) -> bool:
+    """Check if n is a positive power of 2."""
+    return n > 0 and (n & (n - 1)) == 0
+
+
+def _is_constant(col: np.ndarray) -> bool:
+    """Check if a column has no variation (all same value)."""
+    return bool(np.all(col == col[0]))
+
+
+def _assign_blocks_factorial(
+    coded_matrix: np.ndarray,
+    n_factors: int,
+    n_blocks: int,
+) -> list[int]:
+    """Assign blocks to a 2^k factorial design.
+
+    Uses the standard confounding scheme from Montgomery Ch. 7:
+    - 2 blocks: confound the highest-order interaction (ABC...K)
+    - 4 blocks: confound the two highest-order interactions
+
+    The confounding column is the element-wise product of the selected
+    factor columns.  Runs with the same sign pattern on the confounding
+    column(s) go to the same block.
+
+    Args:
+        coded_matrix: Coded design matrix, shape (n_runs, n_factors).
+        n_factors: Number of factors.
+        n_blocks: Number of blocks (must be power of 2).
+
+    Returns:
+        List of 1-based block assignments for each row.
+
+    Raises:
+        ValueError: If n_blocks confounds main effects or is invalid.
+    """
+    if not _is_power_of_two(n_blocks):
+        raise ValueError(
+            f"n_blocks must be a power of 2, got {n_blocks}"
+        )
+    if n_blocks < 2:
+        raise ValueError("n_blocks must be >= 2 for blocking")
+
+    n_confounding = _n_confounding_columns(n_blocks)
+
+    if n_confounding >= n_factors:
+        raise ValueError(
+            f"Cannot create {n_blocks} blocks with {n_factors} factors: "
+            f"blocking would confound main effects"
+        )
+
+    # Select confounding generators — highest-order interactions first
+    # For 2 blocks: confound the k-factor interaction (all factors)
+    # For 4 blocks: confound the (k-1)-factor and k-factor interactions
+    # For 8 blocks: confound top 3 interactions, etc.
+    confound_cols = _select_confounding_generators(
+        coded_matrix, n_factors, n_confounding,
+    )
+
+    # Assign blocks by the sign pattern of confounding columns
+    n_runs = coded_matrix.shape[0]
+    blocks: list[int] = []
+    block_map: dict[tuple[int, ...], int] = {}
+    next_block = 1
+
+    for row_idx in range(n_runs):
+        signs = tuple(
+            1 if confound_cols[c][row_idx] > 0 else 0
+            for c in range(n_confounding)
+        )
+        if signs not in block_map:
+            block_map[signs] = next_block
+            next_block += 1
+        blocks.append(block_map[signs])
+
+    return blocks
+
+
+def _n_confounding_columns(n_blocks: int) -> int:
+    """Number of confounding columns needed for n_blocks."""
+    # log2(n_blocks) confounding generators needed
+    count = 0
+    b = n_blocks
+    while b > 1:
+        b >>= 1
+        count += 1
+    return count
+
+
+def _select_confounding_generators(
+    coded_matrix: np.ndarray,
+    n_factors: int,
+    n_confounding: int,
+) -> list[np.ndarray]:
+    """Select confounding columns for blocking.
+
+    Uses highest-order interactions as confounding generators to avoid
+    confounding main effects or low-order interactions.  Per Montgomery
+    Ch. 7, the key constraints are:
+
+    1. Each generator must be a high-order interaction (not a main effect).
+    2. The generalized interaction of any subset of generators (their
+       element-wise product) must NOT equal any main effect column.
+
+    For 2 blocks (1 generator): use the k-factor interaction (ABC...K).
+    For 4 blocks (2 generators): use two (k-1)-factor interactions whose
+    product is a (k-2)-factor interaction, NOT a main effect.
+
+    Returns list of confounding columns (sign vectors).
+    """
+    # Collect main effect columns for confounding checks
+    main_effects = [coded_matrix[:, c] for c in range(n_factors)]
+
+    def _is_main_effect(col: np.ndarray) -> bool:
+        for me in main_effects:
+            if np.array_equal(col, me) or np.array_equal(col, -me):
+                return True
+        return False
+
+    def _is_usable(col: np.ndarray) -> bool:
+        """A candidate must have variation and not alias a main effect."""
+        return not _is_constant(col) and not _is_main_effect(col)
+
+    # Build candidate interactions, highest order first.
+    # Skip constant columns and columns aliased with main effects.
+    candidates: list[np.ndarray] = []
+
+    # k-factor interaction (highest order)
+    all_col = reduce(
+        lambda a, b: a * b,
+        [coded_matrix[:, c] for c in range(n_factors)],
+    )
+    if _is_usable(all_col):
+        candidates.append(all_col)
+
+    # (k-1)-factor interactions
+    for omit in range(n_factors):
+        indices = [c for c in range(n_factors) if c != omit]
+        col = reduce(
+            lambda a, b: a * b,
+            [coded_matrix[:, c] for c in indices],
+        )
+        if _is_usable(col):
+            candidates.append(col)
+
+    # (k-2)-factor interactions
+    for combo in combinations(range(n_factors), n_factors - 2):
+        if len(combo) >= 2:  # Need at least 2 factors for an interaction
+            col = reduce(
+                lambda a, b: a * b,
+                [coded_matrix[:, c] for c in combo],
+            )
+            if _is_usable(col):
+                candidates.append(col)
+
+    # Greedy selection: pick generators that don't confound main effects
+    # For n_confounding=1, the k-factor interaction always works.
+    # For n_confounding>=2, we need generalized interactions to also be safe.
+    if n_confounding == 1:
+        return [candidates[0]]
+
+    # For 2+ generators: search for valid combinations
+    # Try all pairs (then triples, etc.) starting from highest-order
+    for i in range(len(candidates)):
+        if n_confounding == 2:
+            for j in range(i + 1, len(candidates)):
+                ci, cj = candidates[i], candidates[j]
+                # Check duplicates
+                if (np.array_equal(ci, cj) or
+                        np.array_equal(ci, -cj)):
+                    continue
+                # Check generalized interaction
+                gen_int = ci * cj
+                if not _is_main_effect(gen_int):
+                    return [ci, cj]
+        elif n_confounding == 3:
+            for j in range(i + 1, len(candidates)):
+                for k in range(j + 1, len(candidates)):
+                    ci, cj, ck = candidates[i], candidates[j], candidates[k]
+                    # Check all pairwise and triple generalized interactions
+                    gij = ci * cj
+                    gik = ci * ck
+                    gjk = cj * ck
+                    gijk = ci * cj * ck
+                    if (not _is_main_effect(gij) and
+                            not _is_main_effect(gik) and
+                            not _is_main_effect(gjk) and
+                            not _is_main_effect(gijk)):
+                        return [ci, cj, ck]
+
+    # Fallback: return what we can (validation will catch issues)
+    return candidates[:n_confounding]
+
+
+def _validate_blocking(
+    coded_matrix: np.ndarray,
+    blocks: list[int],
+    n_factors: int,
+    factor_names: list[str] | None = None,
+) -> None:
+    """Validate that blocking does not confound main effects.
+
+    Checks that each main-effect column varies within each block.
+
+    Raises:
+        ValueError: If any main effect is completely confounded with blocks.
+    """
+    block_arr = np.array(blocks)
+    unique_blocks = np.unique(block_arr)
+
+    for col in range(n_factors):
+        for blk in unique_blocks:
+            mask = block_arr == blk
+            vals_in_block = np.unique(coded_matrix[mask, col])
+            if len(vals_in_block) < 2:
+                fname = (
+                    factor_names[col] if factor_names else f"Factor {col}"
+                )
+                raise ValueError(
+                    f"Blocking confounds main effect '{fname}' — "
+                    f"block {blk} has only level {vals_in_block[0]:.0f}. "
+                    f"Reduce n_blocks or use a larger design."
+                )
 
 
 def plackett_burman(

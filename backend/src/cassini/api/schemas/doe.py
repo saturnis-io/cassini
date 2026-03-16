@@ -6,6 +6,38 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 
+class ResponseColumnConfig(BaseModel):
+    """Configuration for one response in a multi-response desirability study."""
+
+    name: str = Field(..., max_length=255)
+    direction: str = Field(
+        ..., pattern=r"^(maximize|minimize|target)$"
+    )
+    lower: float = Field(..., description="Lower bound (L)")
+    target: float = Field(..., description="Target value (T)")
+    upper: float = Field(..., description="Upper bound (U)")
+    weight: float = Field(1.0, gt=0, description="Importance weight")
+    shape: float = Field(1.0, gt=0, description="Shape parameter (r/s)")
+    shape_upper: float | None = Field(
+        None, gt=0,
+        description="Shape parameter for upper side of target (t). "
+        "Only for direction='target'. Defaults to shape.",
+    )
+
+    @model_validator(mode="after")
+    def validate_bounds(self):
+        if self.direction == "maximize":
+            if self.lower >= self.target:
+                raise ValueError("maximize: lower must be < target")
+        elif self.direction == "minimize":
+            if self.target >= self.upper:
+                raise ValueError("minimize: target must be < upper")
+        elif self.direction == "target":
+            if not (self.lower <= self.target <= self.upper):
+                raise ValueError("target: must have lower <= target <= upper")
+        return self
+
+
 class DOEFactorCreate(BaseModel):
     name: str = Field(..., max_length=255)
     low_level: float
@@ -35,8 +67,14 @@ class DOEStudyCreate(BaseModel):
         None,
         pattern=r"^(smaller_is_better|larger_is_better|nominal_is_best_1|nominal_is_best_2)$",
     )
+    n_blocks: int | None = Field(None, ge=2, le=64)
     response_name: str = Field("Response", max_length=255)
     response_unit: str | None = Field(None, max_length=50)
+    response_columns: list[ResponseColumnConfig] | None = Field(
+        None,
+        description="Multi-response desirability configuration. "
+        "Each entry defines a response with bounds, direction, weight, shape.",
+    )
     notes: str | None = None
     factors: list[DOEFactorCreate] = Field(..., min_length=2, max_length=23)
 
@@ -80,6 +118,28 @@ class DOEStudyCreate(BaseModel):
                     f"model_order='{model_order}' requires at least "
                     f"{p} runs, got {self.n_runs}"
                 )
+        # Blocking validation
+        if self.n_blocks is not None:
+            if self.design_type not in (
+                "full_factorial", "fractional_factorial",
+            ):
+                raise ValueError(
+                    f"Blocking is only supported for full_factorial and "
+                    f"fractional_factorial designs, not '{self.design_type}'"
+                )
+            # Must be power of 2
+            nb = self.n_blocks
+            if nb < 2 or (nb & (nb - 1)) != 0:
+                raise ValueError(
+                    f"n_blocks must be a power of 2, got {nb}"
+                )
+        # Multi-response names must be unique
+        if self.response_columns:
+            names = [rc.name for rc in self.response_columns]
+            if len(names) != len(set(names)):
+                raise ValueError(
+                    "response_columns names must be unique"
+                )
         return self
 
 
@@ -107,6 +167,8 @@ class DOERunResponse(BaseModel):
     factor_values: dict[str, float]  # coded values
     factor_actuals: dict[str, float]  # actual values
     response_value: float | None
+    response_values: dict[str, float] | None = None
+    block: int | None = None
     is_center_point: bool
     replicate: int
     notes: str | None
@@ -115,12 +177,21 @@ class DOERunResponse(BaseModel):
 
 class DOERunUpdate(BaseModel):
     run_id: int
-    response_value: float | None
+    response_value: float | None = None
+    response_values: dict[str, float] | None = None
     notes: str | None = None
 
 
 class DOERunBatchUpdate(BaseModel):
     runs: list[DOERunUpdate] = Field(..., min_length=1)
+
+
+class DesirabilityResponse(BaseModel):
+    """Multi-response desirability results."""
+
+    individual_desirabilities: dict[str, float]
+    overall_desirability: float
+    response_values: dict[str, float]
 
 
 class DOEStudyResponse(BaseModel):
@@ -130,9 +201,11 @@ class DOEStudyResponse(BaseModel):
     design_type: str
     resolution: int | None
     sn_type: str | None = None
+    n_blocks: int | None = None
     status: str
     response_name: str
     response_unit: str | None
+    response_columns: list[ResponseColumnConfig] | None = None
     notes: str | None
     created_by: int | None
     created_at: datetime
@@ -223,6 +296,7 @@ class DOEAnalysisResponse(BaseModel):
     lack_of_fit_p: float | None = None
     regression: RegressionResponse | None = None
     taguchi_anom: TaguchiANOMResponse | None = None
+    desirability: DesirabilityResponse | None = None
     residuals: list[float] | None = None
     fitted_values: list[float] | None = None
     normality_test: NormalityTestResponse | None = None

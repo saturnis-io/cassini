@@ -11,10 +11,13 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 from scipy import stats as sp_stats
+
+if TYPE_CHECKING:
+    from cassini.core.explain import ExplanationCollector
 
 
 # ---------------------------------------------------------------------------
@@ -676,3 +679,257 @@ def _find_stationary_point(
         return {factor_names[i]: float(x_star[i]) for i in range(k)}
     except np.linalg.LinAlgError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Blocking: block sum-of-squares for ANOVA
+# ---------------------------------------------------------------------------
+
+def compute_block_ss(
+    response: np.ndarray,
+    blocks: np.ndarray,
+) -> tuple[float, int]:
+    """Compute block sum-of-squares and degrees of freedom.
+
+    Args:
+        response: Response vector, length n.
+        blocks: Block assignment for each observation (1-based int).
+
+    Returns:
+        Tuple of (SS_block, df_block).
+    """
+    response = np.asarray(response, dtype=float)
+    blocks = np.asarray(blocks)
+    grand_mean = float(np.mean(response))
+
+    unique_blocks = np.unique(blocks)
+    # Exclude block 0 (center points — unblocked)
+    unique_blocks = unique_blocks[unique_blocks > 0]
+
+    ss_block = 0.0
+    for blk in unique_blocks:
+        mask = blocks == blk
+        n_b = int(np.sum(mask))
+        if n_b > 0:
+            block_mean = float(np.mean(response[mask]))
+            ss_block += n_b * (block_mean - grand_mean) ** 2
+
+    df_block = max(len(unique_blocks) - 1, 0)
+    return float(ss_block), df_block
+
+
+# ---------------------------------------------------------------------------
+# Desirability functions (Derringer & Suich, 1980)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DesirabilityConfig:
+    """Configuration for a single response desirability function.
+
+    Attributes:
+        name: Response name.
+        direction: 'maximize', 'minimize', or 'target'.
+        lower: Lower bound (L).
+        target: Target value (T).
+        upper: Upper bound (U).
+        weight: Importance weight (>0).
+        shape: Shape parameter (r, s, t). r=1 linear, r>1 concave, r<1 convex.
+        shape_upper: Shape parameter for upper side of target (t). Only
+            used for direction='target'. Defaults to shape if not set.
+    """
+
+    name: str
+    direction: str  # 'maximize', 'minimize', 'target'
+    lower: float
+    target: float
+    upper: float
+    weight: float = 1.0
+    shape: float = 1.0
+    shape_upper: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.direction not in ("maximize", "minimize", "target"):
+            raise ValueError(
+                f"direction must be 'maximize', 'minimize', or 'target', "
+                f"got '{self.direction}'"
+            )
+        if self.weight <= 0:
+            raise ValueError(f"weight must be > 0, got {self.weight}")
+        if self.shape <= 0:
+            raise ValueError(f"shape must be > 0, got {self.shape}")
+        if self.shape_upper is not None and self.shape_upper <= 0:
+            raise ValueError(
+                f"shape_upper must be > 0, got {self.shape_upper}"
+            )
+
+
+@dataclass
+class DesirabilityResult:
+    """Result of multi-response desirability optimization."""
+
+    individual_desirabilities: dict[str, float]
+    """Per-response desirability values {name: di}."""
+
+    overall_desirability: float
+    """Composite desirability D (geometric weighted mean)."""
+
+    response_values: dict[str, float]
+    """Input response values {name: yi}."""
+
+
+def compute_individual_desirability(
+    y: float,
+    config: DesirabilityConfig,
+) -> float:
+    """Compute individual desirability for a single response value.
+
+    Implements all three Derringer & Suich (1980) cases:
+
+    Maximize:
+        d = 0                       if y <= L
+        d = ((y - L) / (T - L))^r  if L < y < T
+        d = 1                       if y >= T
+
+    Minimize:
+        d = 1                       if y <= T
+        d = ((U - y) / (U - T))^r  if T < y < U
+        d = 0                       if y >= U
+
+    Target:
+        d = ((y - L) / (T - L))^s  if L <= y <= T
+        d = ((U - y) / (U - T))^t  if T < y <= U
+        d = 0                       otherwise
+
+    Args:
+        y: Observed response value.
+        config: Desirability configuration.
+
+    Returns:
+        Individual desirability di in [0, 1].
+    """
+    L, T, U = config.lower, config.target, config.upper
+    r = config.shape
+    t = config.shape_upper if config.shape_upper is not None else r
+
+    if config.direction == "maximize":
+        if y >= T:
+            return 1.0
+        if y <= L:
+            return 0.0
+        if T == L:
+            return 0.0
+        return float(((y - L) / (T - L)) ** r)
+
+    if config.direction == "minimize":
+        if y <= T:
+            return 1.0
+        if y >= U:
+            return 0.0
+        if U == T:
+            return 0.0  # pragma: no cover — unreachable after y<=T and y>=U
+        return float(((U - y) / (U - T)) ** r)
+
+    # direction == "target"
+    if y < L or y > U:
+        return 0.0
+    if L <= y <= T:
+        if T == L:
+            return 1.0
+        return float(((y - L) / (T - L)) ** r)
+    # T < y <= U
+    if U == T:
+        return 1.0
+    return float(((U - y) / (U - T)) ** t)
+
+
+def compute_overall_desirability(
+    response_values: dict[str, float],
+    configs: list[DesirabilityConfig],
+    collector: "ExplanationCollector | None" = None,
+) -> DesirabilityResult:
+    """Compute overall desirability D from multiple responses.
+
+    D = (prod(di^wi))^(1/sum(wi))
+
+    where di is the individual desirability for response i and wi is
+    its importance weight.
+
+    Reference: Derringer, G. & Suich, R. (1980). Simultaneous Optimization
+    of Several Response Variables. Journal of Quality Technology, 12(4),
+    214-219.
+
+    Args:
+        response_values: Dict of response_name -> observed value.
+        configs: List of DesirabilityConfig for each response.
+        collector: Optional SYW explanation collector.
+
+    Returns:
+        :class:`DesirabilityResult` with individual and overall desirability.
+    """
+    individual: dict[str, float] = {}
+    total_weight = 0.0
+    log_product = 0.0
+    any_zero = False
+
+    for cfg in configs:
+        y_val = response_values.get(cfg.name)
+        if y_val is None:
+            individual[cfg.name] = 0.0
+            any_zero = True
+            continue
+
+        di = compute_individual_desirability(y_val, cfg)
+        individual[cfg.name] = di
+
+        if di <= 0:
+            any_zero = True
+        else:
+            log_product += cfg.weight * np.log(di)
+        total_weight += cfg.weight
+
+        if collector:
+            collector.step(
+                label=f"Desirability: {cfg.name} ({cfg.direction})",
+                formula_latex=(
+                    r"d_i = \left(\frac{y_i - L_i}{T_i - L_i}\right)^r"
+                    if cfg.direction == "maximize"
+                    else r"d_i = \left(\frac{U_i - y_i}{U_i - T_i}\right)^r"
+                    if cfg.direction == "minimize"
+                    else r"d_i = \text{piecewise target}"
+                ),
+                substitution_latex=(
+                    f"d_{{{cfg.name}}} = "
+                    f"f({y_val:.4f}; L={cfg.lower}, T={cfg.target}, "
+                    f"U={cfg.upper}, r={cfg.shape})"
+                ),
+                result=di,
+                note="Derringer & Suich (1980). Simultaneous Optimization. "
+                "JQT, 12(4), 214-219.",
+            )
+
+    # Overall desirability
+    if any_zero or total_weight <= 0:
+        overall = 0.0
+    else:
+        overall = float(np.exp(log_product / total_weight))
+
+    if collector:
+        collector.step(
+            label="Overall Desirability (D)",
+            formula_latex=(
+                r"D = \left(\prod_{i=1}^{m} d_i^{w_i}\right)^{1/\sum w_i}"
+            ),
+            substitution_latex=(
+                f"D = geometric weighted mean of "
+                f"{len(configs)} responses"
+            ),
+            result=overall,
+            note="Derringer & Suich (1980). Simultaneous Optimization. "
+            "JQT, 12(4), 214-219.",
+        )
+
+    return DesirabilityResult(
+        individual_desirabilities=individual,
+        overall_desirability=overall,
+        response_values=dict(response_values),
+    )

@@ -2,12 +2,17 @@
 from cassini.core.doe.analysis import (
     ANOVAResult,
     ANOVARow,
+    DesirabilityConfig,
+    DesirabilityResult,
     EffectResult,
     InteractionResult,
     RegressionResult,
     compute_anova,
+    compute_block_ss,
+    compute_individual_desirability,
     compute_interactions,
     compute_main_effects,
+    compute_overall_desirability,
     compute_regression,
 )
 from cassini.core.doe.designs import (
@@ -17,6 +22,7 @@ from cassini.core.doe.designs import (
     coded_to_actual,
     fractional_factorial,
     full_factorial,
+    plackett_burman,
 )
 from cassini.core.doe.engine import DOEEngine
 from cassini.core.doe.optimal import d_efficiency, d_optimal
@@ -35,6 +41,7 @@ __all__ = [
     "DesignResult",
     "full_factorial",
     "fractional_factorial",
+    "plackett_burman",
     "central_composite",
     "box_behnken",
     "d_optimal",
@@ -47,10 +54,15 @@ __all__ = [
     "ANOVARow",
     "ANOVAResult",
     "RegressionResult",
+    "DesirabilityConfig",
+    "DesirabilityResult",
     "compute_main_effects",
     "compute_interactions",
     "compute_anova",
     "compute_regression",
+    "compute_block_ss",
+    "compute_individual_desirability",
+    "compute_overall_desirability",
     # Taguchi
     "SNResult",
     "ANOMResult",

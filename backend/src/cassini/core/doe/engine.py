@@ -19,9 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from cassini.core.doe.analysis import (
+    DesirabilityConfig,
     compute_anova,
+    compute_block_ss,
+    compute_individual_desirability,
     compute_interactions,
     compute_main_effects,
+    compute_overall_desirability,
     compute_regression,
 )
 from cassini.core.doe.designs import (
@@ -131,12 +135,16 @@ class DOEEngine:
         if design_type == "d_optimal":
             factor_ranges = [(-1.0, 1.0)] * n_factors
 
+        # Parse n_blocks from study config (stored in notes or separate field)
+        n_blocks: int | None = getattr(study, "n_blocks", None)
+
         # Call the appropriate generator
         design_result = self._call_generator(
             design_type, n_factors, study.resolution, seed,
             n_runs=study.n_runs,
             model_order=study.model_order,
             factor_ranges=factor_ranges,
+            n_blocks=n_blocks,
         )
 
         # Convert coded to actual values
@@ -171,6 +179,11 @@ class DOEEngine:
             # factor_actuals starts as copy of designed values
             fa = dict(fv)
 
+            # Block assignment (if blocking is active)
+            blk: int | None = None
+            if design_result.block_assignments is not None:
+                blk = design_result.block_assignments[row_idx]
+
             run = DOERun(
                 study_id=study_id,
                 run_order=design_result.run_order[row_idx],
@@ -179,6 +192,7 @@ class DOEEngine:
                 factor_actuals=json.dumps(fa),
                 is_center_point=design_result.is_center_point[row_idx],
                 replicate=1,
+                block=blk,
             )
             runs.append(run)
             run_dicts.append({
@@ -186,6 +200,7 @@ class DOEEngine:
                 "standard_order": run.standard_order,
                 "factor_values": fv,
                 "is_center_point": run.is_center_point,
+                "block": blk,
             })
 
         await run_repo.bulk_create(runs)
@@ -241,14 +256,57 @@ class DOEEngine:
                 f"DOE study {study_id} has no experimental runs"
             )
 
+        # Parse response columns config for multi-response desirability
+        response_configs: list[DesirabilityConfig] | None = None
+        if study.response_columns:
+            try:
+                rc_list = json.loads(study.response_columns)
+                response_configs = [
+                    DesirabilityConfig(
+                        name=rc["name"],
+                        direction=rc["direction"],
+                        lower=rc["lower"],
+                        target=rc["target"],
+                        upper=rc["upper"],
+                        weight=rc.get("weight", 1.0),
+                        shape=rc.get("shape", 1.0),
+                        shape_upper=rc.get("shape_upper"),
+                    )
+                    for rc in rc_list
+                ]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                logger.warning(
+                    "Failed to parse response_columns for study %d",
+                    study_id,
+                )
+
         # Validate all runs have response values
-        missing = [
-            r.run_order for r in study.runs if r.response_value is None
-        ]
-        if missing:
-            raise ValueError(
-                f"Runs missing response values (run_order): {missing}"
-            )
+        # For multi-response: check response_values JSON
+        if response_configs:
+            config_names = {rc.name for rc in response_configs}
+            missing_runs: list[int] = []
+            for r in study.runs:
+                if r.response_values:
+                    try:
+                        rv = json.loads(r.response_values)
+                        if not config_names.issubset(rv.keys()):
+                            missing_runs.append(r.run_order)
+                    except (json.JSONDecodeError, TypeError):
+                        missing_runs.append(r.run_order)
+                elif r.response_value is None:
+                    missing_runs.append(r.run_order)
+            if missing_runs:
+                raise ValueError(
+                    f"Runs missing response values (run_order): {missing_runs}"
+                )
+        else:
+            missing = [
+                r.run_order for r in study.runs if r.response_value is None
+            ]
+            if missing:
+                raise ValueError(
+                    f"Runs missing response values (run_order): {missing}"
+                )
 
         factors = sorted(study.factors, key=lambda f: f.display_order)
         factor_names = [f.name for f in factors]
@@ -355,6 +413,43 @@ class DOEEngine:
             )
         anova = compute_anova(design_matrix, response_arr, factor_names)
 
+        # Blocking: compute block SS and insert into ANOVA table
+        block_arr = np.array([
+            r.block if r.block is not None else 0
+            for r in sorted_runs
+        ])
+        has_blocks = np.any(block_arr > 0)
+
+        anova_rows_dicts = [
+            {
+                "source": row.source,
+                "df": row.df,
+                "sum_of_squares": row.sum_of_squares,
+                "mean_square": row.mean_square,
+                "f_value": row.f_value,
+                "p_value": row.p_value,
+            }
+            for row in anova.rows
+        ]
+
+        if has_blocks:
+            ss_block, df_block = compute_block_ss(response_arr, block_arr)
+            ms_block = ss_block / max(df_block, 1)
+            # Insert block row before the Residual row
+            block_row = {
+                "source": "Blocks",
+                "df": df_block,
+                "sum_of_squares": float(ss_block),
+                "mean_square": float(ms_block),
+                "f_value": None,  # F-test optional for blocks
+                "p_value": None,
+            }
+            # Insert before 'Residual' (second-to-last row)
+            insert_idx = len(anova_rows_dicts) - 2
+            if insert_idx < 0:
+                insert_idx = 0
+            anova_rows_dicts.insert(insert_idx, block_row)
+
         # Build result dict
         result: dict[str, Any] = {
             "grand_mean": grand_mean,
@@ -382,17 +477,7 @@ class DOEEngine:
                 }
                 for ix in interactions
             ],
-            "anova": [
-                {
-                    "source": row.source,
-                    "df": row.df,
-                    "sum_of_squares": row.sum_of_squares,
-                    "mean_square": row.mean_square,
-                    "f_value": row.f_value,
-                    "p_value": row.p_value,
-                }
-                for row in anova.rows
-            ],
+            "anova": anova_rows_dicts,
             "r_squared": anova.r_squared,
             "adj_r_squared": anova.adj_r_squared,
             "pred_r_squared": anova.pred_r_squared,
@@ -488,6 +573,55 @@ class DOEEngine:
             "max": float(np.max(residual_arr)),
         }
 
+        # Multi-response desirability
+        desirability_json: str | None = None
+        if response_configs:
+            # Compute desirability for each run using the optimal settings
+            # For each run, compute individual + overall desirability
+            run_desirabilities: list[dict[str, Any]] = []
+            for run in sorted_runs:
+                rv: dict[str, float] = {}
+                if run.response_values:
+                    try:
+                        rv = json.loads(run.response_values)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                # Fallback: single response
+                if not rv and run.response_value is not None:
+                    rv = {study.response_name: run.response_value}
+
+                dr = compute_overall_desirability(rv, response_configs)
+                run_desirabilities.append({
+                    "run_order": run.run_order,
+                    "individual": dr.individual_desirabilities,
+                    "overall": dr.overall_desirability,
+                })
+
+            # Find the run with the highest overall desirability
+            best_run = max(
+                run_desirabilities,
+                key=lambda rd: rd["overall"],
+            )
+
+            result["desirability"] = {
+                "configs": [
+                    {
+                        "name": rc.name,
+                        "direction": rc.direction,
+                        "lower": rc.lower,
+                        "target": rc.target,
+                        "upper": rc.upper,
+                        "weight": rc.weight,
+                        "shape": rc.shape,
+                    }
+                    for rc in response_configs
+                ],
+                "per_run": run_desirabilities,
+                "best_run_order": best_run["run_order"],
+                "best_overall_desirability": best_run["overall"],
+            }
+            desirability_json = json.dumps(result["desirability"])
+
         # Persist analysis
         analysis_repo = DOEAnalysisRepository(session)
         analysis = DOEAnalysis(
@@ -508,6 +642,7 @@ class DOEEngine:
             normality_test_json=json.dumps(result.get("normality_test")),
             outlier_indices_json=json.dumps(result.get("outlier_indices")),
             residual_stats_json=json.dumps(result.get("residual_stats")),
+            desirability_json=desirability_json,
         )
         session.add(analysis)
 
@@ -649,14 +784,18 @@ class DOEEngine:
         n_runs: int | None = None,
         model_order: str | None = None,
         factor_ranges: list[tuple[float, float]] | None = None,
+        n_blocks: int | None = None,
     ) -> DesignResult:
         """Dispatch to the correct design generator function."""
         if design_type == "full_factorial":
-            return full_factorial(n_factors, seed=seed)
+            return full_factorial(n_factors, seed=seed, n_blocks=n_blocks)
         elif design_type == "fractional_factorial":
             if resolution is None:
                 resolution = 4
-            return fractional_factorial(n_factors, resolution=resolution, seed=seed)
+            return fractional_factorial(
+                n_factors, resolution=resolution, seed=seed,
+                n_blocks=n_blocks,
+            )
         elif design_type == "plackett_burman":
             return plackett_burman(n_factors, seed=seed)
         elif design_type in ("central_composite", "ccd"):

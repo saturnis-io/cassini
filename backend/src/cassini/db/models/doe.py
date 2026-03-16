@@ -49,6 +49,10 @@ class DOEStudy(Base):
         doc="Signal-to-noise ratio type for Taguchi designs: "
         "smaller_is_better, larger_is_better, nominal_is_best_1, nominal_is_best_2",
     )
+    n_blocks: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        doc="Number of blocks for blocked factorial designs (power of 2).",
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="design", server_default="design"
     )
@@ -56,6 +60,11 @@ class DOEStudy(Base):
         String(255), nullable=False, default="Response", server_default="Response"
     )
     response_unit: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    response_columns: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        doc="JSON list of multi-response desirability configs. Each entry: "
+        "{name, direction, lower, target, upper, weight, shape, shape_upper}",
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True
@@ -152,6 +161,15 @@ class DOERun(Base):
     factor_values: Mapped[str] = mapped_column(Text, nullable=False)
     factor_actuals: Mapped[str] = mapped_column(Text, nullable=False)
     response_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    response_values: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        doc="JSON dict of response_name -> value for multi-response studies. "
+        "Backward-compatible: single-response studies use response_value.",
+    )
+    block: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        doc="Block assignment (1-based). None if design is unblocked.",
+    )
     is_center_point: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=sa.text("0")
     )
@@ -209,6 +227,11 @@ class DOEAnalysis(Base):
         Text, nullable=True,
         doc="Taguchi ANOM (Analysis of Means) results as JSON: "
         "sn_type, response_table, optimal_settings, sn_ratios",
+    )
+    desirability_json: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        doc="Multi-response desirability results as JSON: "
+        "individual_desirabilities, overall_desirability, response_values",
     )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
