@@ -15,11 +15,6 @@ interface FAIForm2Props {
   readonly: boolean
 }
 
-const RESULT_OPTIONS = [
-  { value: 'pass', label: 'Pass' },
-  { value: 'fail', label: 'Fail' },
-]
-
 export function FAIForm2({ report, readonly }: FAIForm2Props) {
   const addMaterial = useAddFAIMaterial()
   const deleteMaterial = useDeleteFAIMaterial()
@@ -34,8 +29,6 @@ export function FAIForm2({ report, readonly }: FAIForm2Props) {
 
   const headerClass = 'text-muted-foreground px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wider'
   const cellClass = 'px-3 py-2 text-sm'
-  const inputClass =
-    'bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none disabled:opacity-60'
 
   return (
     <div className="flex flex-col gap-6">

@@ -177,6 +177,7 @@ class AttributeMSAResultResponse(BaseModel):
     false_alarm_rates: dict[str, float] | None = None
     effectiveness: float | None = None
     confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None
+    defective_category: str | None = None
 
 
 class LinearityResultResponse(BaseModel):

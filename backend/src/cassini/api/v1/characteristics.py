@@ -1972,27 +1972,19 @@ async def unfreeze_limits(
     characteristic.limits_frozen_at = None
     characteristic.limits_frozen_by = None
 
+    # Invalidate electronic signatures BEFORE commit — Phase II capability
+    # signatures are no longer valid when limits are unfrozen.  Both the
+    # unfreeze and invalidation happen in the same transaction so that if
+    # invalidation fails, the unfreeze is rolled back.
+    from cassini.core.signature_engine import SignatureWorkflowEngine
+
+    sig_engine = SignatureWorkflowEngine(session)
+    await sig_engine.invalidate_signatures_for_resource(
+        "characteristic", char_id,
+        reason="Control limits unfrozen",
+    )
+
     await session.commit()
-
-    # Invalidate electronic signatures — Phase II capability signatures
-    # are no longer valid when limits are unfrozen.
-    try:
-        from cassini.core.signature_engine import SignatureWorkflowEngine
-
-        sig_engine = SignatureWorkflowEngine(session)
-        await sig_engine.invalidate_signatures_for_resource(
-            "characteristic", char_id,
-            reason="Control limits unfrozen",
-        )
-    except Exception:
-        # Signature engine may not be available (e.g., community edition).
-        # Log and continue — unfreeze should not fail because of this.
-        import structlog
-        structlog.get_logger(__name__).warning(
-            "signature_invalidation_failed_on_unfreeze",
-            characteristic_id=char_id,
-            exc_info=True,
-        )
 
     # Tier 1 audit context
     request.state.audit_context = {

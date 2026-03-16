@@ -285,7 +285,7 @@ async def test_broker_connection(
             port=data.port,
             username=data.username,
             password=data.password,
-            identifier="openspc-test-client",
+            identifier="cassini-test-client",
             timeout=5.0,
             tls_context=tls_context,
             tls_insecure=data.tls_insecure if data.use_tls else None,

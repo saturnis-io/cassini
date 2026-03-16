@@ -1020,9 +1020,12 @@ async def calculate_stability(
                 )
             time_ordered_values.append(val)
 
-    # Run stability engine
+    # Run stability engine with explanation collector for Show Your Work
+    from cassini.core.explain import ExplanationCollector, MSA_CITATION
+
+    collector = ExplanationCollector(citation=MSA_CITATION)
     try:
-        result = compute_stability(measurements=time_ordered_values)
+        result = compute_stability(measurements=time_ordered_values, collector=collector)
     except ValueError as exc:
         logger.warning("msa_stability_failed", study_id=study_id, error=str(exc))
         raise HTTPException(
@@ -1030,9 +1033,10 @@ async def calculate_stability(
             detail="Stability calculation failed — check measurement data completeness",
         )
 
-    # Store result
+    # Store result (include explanation steps)
     from dataclasses import asdict as _asdict
     result_dict = _asdict(result)
+    result_dict["explanation_steps"] = [_asdict(s) for s in collector.steps]
     study.results_json = json.dumps(result_dict)
     study.status = "complete"
     study.completed_at = datetime.now(timezone.utc)
@@ -1120,12 +1124,16 @@ async def calculate_bias(
     # Collect all measurement values
     values = [m.value for m in measurements]
 
-    # Run bias engine
+    # Run bias engine with explanation collector for Show Your Work
+    from cassini.core.explain import ExplanationCollector, MSA_CITATION
+
+    collector = ExplanationCollector(citation=MSA_CITATION)
     try:
         result = compute_bias(
             measurements=values,
             reference_value=reference_value,
             tolerance=study.tolerance,
+            collector=collector,
         )
     except ValueError as exc:
         logger.warning("msa_bias_failed", study_id=study_id, error=str(exc))
@@ -1134,9 +1142,10 @@ async def calculate_bias(
             detail="Bias calculation failed — check measurement data completeness",
         )
 
-    # Store result
+    # Store result (include explanation steps)
     from dataclasses import asdict as _asdict
     result_dict = _asdict(result)
+    result_dict["explanation_steps"] = [_asdict(s) for s in collector.steps]
     study.results_json = json.dumps(result_dict)
     study.status = "complete"
     study.completed_at = datetime.now(timezone.utc)

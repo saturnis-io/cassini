@@ -63,11 +63,11 @@ CAPABILITY_METRICS = {"cp", "cpk", "pp", "ppk", "cpm"}
 # Step label prefixes relevant to each metric. Filters the collector's
 # full step list down to only the computation chain for the requested metric.
 METRIC_STEP_PREFIXES: dict[str, list[str]] = {
-    "cp": ["Normality", "Cp ("],
-    "cpk": ["Normality", "Cpu", "Cpl", "Cpk"],
-    "pp": ["Normality", "Pp ("],
-    "ppk": ["Normality", "Ppu", "Ppl", "Ppk"],
-    "cpm": ["Normality", "Cp (", "\u03c4", "Cpm"],
+    "cp": ["Normality", "Cp (", "Z.Bench"],
+    "cpk": ["Normality", "Cpu", "Cpl", "Cpk", "Z.Bench"],
+    "pp": ["Normality", "Pp (", "Z.Bench"],
+    "ppk": ["Normality", "Ppu", "Ppl", "Ppk", "Z.Bench"],
+    "cpm": ["Normality", "Cp (", "\u03c4", "Cpm", "Z.Bench"],
 }
 
 

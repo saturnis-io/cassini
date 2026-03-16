@@ -24,6 +24,7 @@ import time
 from typing import Optional
 
 import structlog
+from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -309,39 +310,51 @@ class AuditService:
 
                 from datetime import datetime, timezone
 
-                # Read authoritative last hash + sequence from DB (multi-instance safe)
-                last_hash, last_seq = await self._get_last_hash_and_seq(session)
-                next_seq = last_seq + 1
+                # Retry loop: on IntegrityError (duplicate sequence_number from
+                # concurrent requests), re-read last_seq and retry.  This handles
+                # the read-then-write race without SELECT FOR UPDATE (which
+                # doesn't work on SQLite).
+                for attempt in range(3):
+                    try:
+                        last_hash, last_seq = await self._get_last_hash_and_seq(session)
+                        next_seq = last_seq + 1
 
-                entry = AuditLog(
-                    user_id=user_id,
-                    username=username,
-                    action=action,
-                    resource_type=resource_type,
-                    resource_id=resource_id,
-                    resource_display=resource_display,
-                    detail=detail,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    timestamp=datetime.now(timezone.utc),
-                    sequence_number=next_seq,
-                )
+                        entry = AuditLog(
+                            user_id=user_id,
+                            username=username,
+                            action=action,
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                            resource_display=resource_display,
+                            detail=detail,
+                            ip_address=ip_address,
+                            user_agent=user_agent,
+                            timestamp=datetime.now(timezone.utc),
+                            sequence_number=next_seq,
+                        )
 
-                # Tamper evidence: SHA-256 chain (includes sequence_number)
-                entry.sequence_hash = compute_audit_hash(
-                    last_hash,
-                    entry.action,
-                    entry.resource_type,
-                    entry.resource_id,
-                    entry.user_id,
-                    entry.username,
-                    entry.timestamp,
-                    sequence_number=entry.sequence_number,
-                )
-                self._last_hash = entry.sequence_hash
+                        # Tamper evidence: SHA-256 chain (includes sequence_number)
+                        entry.sequence_hash = compute_audit_hash(
+                            last_hash,
+                            entry.action,
+                            entry.resource_type,
+                            entry.resource_id,
+                            entry.user_id,
+                            entry.username,
+                            entry.timestamp,
+                            sequence_number=entry.sequence_number,
+                        )
+                        self._last_hash = entry.sequence_hash
 
-                session.add(entry)
-                await session.commit()
+                        session.add(entry)
+                        await session.flush()
+                        await session.commit()
+                        break
+                    except IntegrityError:
+                        await session.rollback()
+                        if attempt == 2:
+                            raise
+                        continue
         except Exception:
             self._failure_count += 1
             from datetime import datetime, timezone
@@ -891,12 +904,15 @@ def _extract_user_from_request(request: Request) -> tuple[Optional[int], Optiona
         payload_b64 = parts[1] + "=" * (4 - len(parts[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
 
-        user_id = int(payload.get("sub", 0)) or None
         username = payload.get("username") or None
-        # Mark as unverified — JWT signature was NOT checked
+        # Mark as unverified — JWT signature was NOT checked.
+        # Set user_id to None: an unverified JWT could be forged,
+        # so we must not attribute actions to a specific user_id
+        # (that would enable framing).  The [unverified] username
+        # prefix is sufficient for human identification.
         if username:
             username = f"[unverified] {username}"
-        return user_id, username
+        return None, username
     except Exception:
         return None, None
 

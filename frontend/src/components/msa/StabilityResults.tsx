@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
+import { Explainable } from '@/components/Explainable'
 import type { ECOption } from '@/lib/echarts'
 import type { StabilityResult } from '@/api/client'
 
@@ -27,7 +28,7 @@ const VERDICT_STYLES: Record<string, { bg: string; text: string; label: string }
   },
 }
 
-export function StabilityResults({ result, studyId: _studyId }: StabilityResultsProps) {
+export function StabilityResults({ result, studyId }: StabilityResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.unstable
 
   // Collect violation indices for highlighting
@@ -218,19 +219,29 @@ export function StabilityResults({ result, studyId: _studyId }: StabilityResults
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">Center Line</div>
           <div className="mt-1 text-lg font-bold tabular-nums">
-            {result.center_line.toFixed(4)}
+            <Explainable metric="center_line" resourceId={studyId} resourceType="msa">
+              {result.center_line.toFixed(4)}
+            </Explainable>
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">Sigma</div>
           <div className="mt-1 text-lg font-bold tabular-nums">
-            {result.sigma.toFixed(4)}
+            <Explainable metric="sigma" resourceId={studyId} resourceType="msa">
+              {result.sigma.toFixed(4)}
+            </Explainable>
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">UCL / LCL</div>
           <div className="mt-1 text-sm font-bold tabular-nums">
-            {result.ucl.toFixed(4)} / {result.lcl.toFixed(4)}
+            <Explainable metric="ucl" resourceId={studyId} resourceType="msa">
+              {result.ucl.toFixed(4)}
+            </Explainable>
+            {' / '}
+            <Explainable metric="lcl" resourceId={studyId} resourceType="msa">
+              {result.lcl.toFixed(4)}
+            </Explainable>
           </div>
         </div>
         <div className="bg-muted/50 rounded-lg px-4 py-3">

@@ -101,6 +101,9 @@ async def create_user(
             email=data.email,
             hashed_password=hashed,
         )
+        # Seed password history so the initial password is tracked
+        update_password_history(hashed, user, policy)
+
         request.state.audit_context = {
             "resource_type": "user",
             "resource_id": user.id,

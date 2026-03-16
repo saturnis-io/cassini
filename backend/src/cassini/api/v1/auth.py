@@ -14,7 +14,7 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.core.rate_limit import limiter
@@ -123,16 +123,26 @@ async def login(
         cfg = get_settings()
         allow_login = False
         if cfg.admin_local_auth:
-            # Check if the user exists and has admin role on any plant
+            # Check if the user exists and has admin role on ALL active plants
             backdoor_user = await repo.get_by_username(data.username)
             if backdoor_user is not None:
-                admin_role_result = await session.execute(
-                    select(UserPlantRole).where(
+                from cassini.db.models.plant import Plant
+
+                # Count active plants where this user does NOT have admin role
+                active_plants_result = await session.execute(
+                    select(func.count(Plant.id)).where(Plant.is_active == True)  # noqa: E712
+                )
+                total_active_plants = active_plants_result.scalar_one()
+
+                admin_plants_result = await session.execute(
+                    select(func.count(UserPlantRole.plant_id)).where(
                         UserPlantRole.user_id == backdoor_user.id,
                         UserPlantRole.role == UserRole.admin,
-                    ).limit(1)
+                    )
                 )
-                if admin_role_result.scalar_one_or_none() is not None:
+                admin_plant_count = admin_plants_result.scalar_one()
+
+                if total_active_plants > 0 and admin_plant_count >= total_active_plants:
                     allow_login = True
 
         if not allow_login:
@@ -451,6 +461,8 @@ async def get_session_config(
     """
     policy = await load_password_policy(session)
     timeout = policy.session_timeout_minutes if policy else 30
+    # Clamp to sane bounds: minimum 1 minute, maximum 480 minutes (8 hours)
+    timeout = max(1, min(480, timeout))
     return {"session_timeout_minutes": timeout}
 
 

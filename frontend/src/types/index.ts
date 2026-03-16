@@ -927,6 +927,9 @@ export interface CapabilityResult {
   target: number | null
   sigma_within: number | null
   short_run_mode: string | null
+  // Z-bench values (process sigma metric)
+  z_bench_within: number | null
+  z_bench_overall: number | null
   // Expected PPM (ISO 3534 / Montgomery 8th Ed.)
   ppm_within_expected: number | null
   ppm_overall_expected: number | null

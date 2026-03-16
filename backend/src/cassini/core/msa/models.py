@@ -101,3 +101,9 @@ class AttributeMSAResult:
 
     # Confusion matrix: {operator_name: {actual: {predicted: count}}}
     confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None
+
+    # Binary studies only: which category was identified as "defective".
+    # Heuristic: the minority reference class is assumed to be defective.
+    # Users should verify this matches their domain expectation and
+    # interpret miss_rates / false_alarm_rates accordingly.
+    defective_category: str | None = None

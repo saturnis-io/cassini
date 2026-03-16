@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
+import { Explainable } from '@/components/Explainable'
 import type { ECOption } from '@/lib/echarts'
 import type { BiasResult } from '@/api/client'
 
@@ -37,7 +38,7 @@ function safeFixed(val: number | null | undefined, digits: number): string {
   return val.toFixed(digits)
 }
 
-export function BiasResults({ result, studyId: _studyId }: BiasResultsProps) {
+export function BiasResults({ result, studyId }: BiasResultsProps) {
   const verdictStyle = VERDICT_STYLES[result.verdict] ?? VERDICT_STYLES.indeterminate
 
   // Histogram of measurements with reference line
@@ -187,7 +188,9 @@ export function BiasResults({ result, studyId: _studyId }: BiasResultsProps) {
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">Bias</div>
           <div className="mt-1 text-lg font-bold tabular-nums">
-            {result.bias.toFixed(6)}
+            <Explainable metric="bias" resourceId={studyId} resourceType="msa">
+              {result.bias.toFixed(6)}
+            </Explainable>
           </div>
           <div className="text-muted-foreground mt-0.5 text-[10px]">
             mean - reference
@@ -207,7 +210,9 @@ export function BiasResults({ result, studyId: _studyId }: BiasResultsProps) {
                     : '',
             )}
           >
-            {safeFixed(result.bias_percent, 2)}%
+            <Explainable metric="bias_percent" resourceId={studyId} resourceType="msa">
+              {safeFixed(result.bias_percent, 2)}%
+            </Explainable>
           </div>
           <div className="text-muted-foreground mt-0.5 text-[10px]">
             denom: {result.denominator_used}
@@ -216,7 +221,9 @@ export function BiasResults({ result, studyId: _studyId }: BiasResultsProps) {
         <div className="bg-muted/50 rounded-lg px-4 py-3">
           <div className="text-muted-foreground text-xs font-medium">t-statistic</div>
           <div className="mt-1 text-lg font-bold tabular-nums">
-            {result.t_statistic.toFixed(4)}
+            <Explainable metric="t_statistic" resourceId={studyId} resourceType="msa">
+              {result.t_statistic.toFixed(4)}
+            </Explainable>
           </div>
           <div className="text-muted-foreground mt-0.5 text-[10px]">
             df = {result.df}
@@ -230,7 +237,9 @@ export function BiasResults({ result, studyId: _studyId }: BiasResultsProps) {
               result.is_significant ? 'text-red-600 dark:text-red-400' : '',
             )}
           >
-            {result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(4)}
+            <Explainable metric="p_value" resourceId={studyId} resourceType="msa">
+              {result.p_value < 0.001 ? '<0.001' : result.p_value.toFixed(4)}
+            </Explainable>
           </div>
           <div className="text-muted-foreground mt-0.5 text-[10px]">
             {result.is_significant ? 'significant' : 'not significant'}

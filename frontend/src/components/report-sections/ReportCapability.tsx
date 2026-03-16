@@ -138,10 +138,22 @@ export function ReportCapabilitySection({
           <h3 className="mb-1 text-sm font-medium">Expected PPM (ISO 3534)</h3>
           <div className="text-muted-foreground flex flex-wrap gap-4 text-sm">
             {capability.ppm_within_expected != null && (
-              <span>Within: {capability.ppm_within_expected.toFixed(1)} PPM</span>
+              <Explainable
+                metric="cpk"
+                resourceId={characteristicId!}
+                chartOptions={explainOpts}
+              >
+                <span>Within: {capability.ppm_within_expected.toFixed(1)} PPM</span>
+              </Explainable>
             )}
             {capability.ppm_overall_expected != null && (
-              <span>Overall: {capability.ppm_overall_expected.toFixed(1)} PPM</span>
+              <Explainable
+                metric="ppk"
+                resourceId={characteristicId!}
+                chartOptions={explainOpts}
+              >
+                <span>Overall: {capability.ppm_overall_expected.toFixed(1)} PPM</span>
+              </Explainable>
             )}
           </div>
         </div>

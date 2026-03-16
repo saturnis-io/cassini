@@ -281,6 +281,7 @@ class AttributeMSAEngine:
         false_alarm_rates: dict[str, float] | None = None
         effectiveness: float | None = None
         confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None
+        defective_cat_identified: str | None = None
         if reference_decisions is not None:
             if len(reference_decisions) != n_parts:
                 raise ValueError(
@@ -298,6 +299,13 @@ class AttributeMSAEngine:
                 set(reference_decisions)
                 | {mode_ratings[i][j] for i in range(n_ops) for j in range(n_parts)}
             )
+
+            # For binary studies, identify the "defective" category using the
+            # minority-class heuristic: the reference category with fewer
+            # occurrences is assumed to be "defective".  This is a heuristic —
+            # users should verify it matches their domain (e.g., "fail" is
+            # defective, "pass" is good).  The defective_category field is
+            # included in the result so users can verify/override.
 
             for i in range(n_ops):
                 match_count = sum(
@@ -328,10 +336,11 @@ class AttributeMSAEngine:
                     ref_counts[reference_decisions[j]] = ref_counts.get(reference_decisions[j], 0) + 1
 
                 if len(all_categories) == 2:
-                    # Binary case: minority class = "defective"
+                    # Binary case: minority reference class = "defective" (heuristic)
                     sorted_cats = sorted(all_categories, key=lambda c: ref_counts.get(c, 0))
                     defective_cat = sorted_cats[0]
                     good_cat = sorted_cats[1]
+                    defective_cat_identified = defective_cat
 
                     # Miss rate: P(operator says good | reference is defective)
                     n_defective = ref_counts.get(defective_cat, 0)
@@ -388,4 +397,5 @@ class AttributeMSAEngine:
             false_alarm_rates=false_alarm_rates,
             effectiveness=effectiveness,
             confusion_matrix=confusion_matrix,
+            defective_category=defective_cat_identified,
         )
