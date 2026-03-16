@@ -81,6 +81,7 @@ class MSAPart(Base):
     study_id: Mapped[int] = mapped_column(ForeignKey("msa_study.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     reference_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    reference_decision: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     study: Mapped["MSAStudy"] = relationship("MSAStudy", back_populates="parts")

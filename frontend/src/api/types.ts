@@ -328,6 +328,7 @@ export interface AuditLogParams {
 export interface FAIReport {
   id: number
   plant_id: number
+  fai_type: 'full' | 'partial'
   part_number: string
   part_name: string | null
   revision: string | null
@@ -357,10 +358,14 @@ export interface FAIItem {
   report_id: number
   balloon_number: number
   characteristic_name: string
+  drawing_zone: string | null
   nominal: number | null
   usl: number | null
   lsl: number | null
   actual_value: number | null
+  value_type: 'numeric' | 'text' | 'pass_fail'
+  actual_value_text: string | null
+  measurements: number[] | null
   unit: string
   tools_used: string | null
   designed_char: boolean
@@ -370,13 +375,46 @@ export interface FAIItem {
   sequence_order: number
 }
 
+export interface FAIMaterial {
+  id: number
+  report_id: number
+  material_part_number: string | null
+  material_spec: string | null
+  cert_number: string | null
+  supplier: string | null
+  result: string
+}
+
+export interface FAISpecialProcess {
+  id: number
+  report_id: number
+  process_name: string | null
+  process_spec: string | null
+  cert_number: string | null
+  approved_supplier: string | null
+  result: string
+}
+
+export interface FAIFunctionalTest {
+  id: number
+  report_id: number
+  test_description: string | null
+  procedure_number: string | null
+  actual_results: string | null
+  result: string
+}
+
 export interface FAIReportDetail extends FAIReport {
   items: FAIItem[]
+  materials: FAIMaterial[]
+  special_processes_items: FAISpecialProcess[]
+  functional_tests_items: FAIFunctionalTest[]
 }
 
 export interface FAIReportCreate {
   plant_id: number
   part_number: string
+  fai_type?: 'full' | 'partial'
   part_name?: string | null
   revision?: string | null
   serial_number?: string | null
@@ -395,16 +433,43 @@ export interface FAIReportCreate {
 export interface FAIItemCreate {
   balloon_number?: number
   characteristic_name?: string
+  drawing_zone?: string | null
   nominal?: number | null
   usl?: number | null
   lsl?: number | null
   actual_value?: number | null
+  value_type?: 'numeric' | 'text' | 'pass_fail'
+  actual_value_text?: string | null
+  measurements?: number[] | null
   unit?: string | null
   tools_used?: string | null
   designed_char?: boolean
   result?: string | null
   deviation_reason?: string | null
   characteristic_id?: number | null
+}
+
+export interface FAIMaterialCreate {
+  material_part_number?: string | null
+  material_spec?: string | null
+  cert_number?: string | null
+  supplier?: string | null
+  result?: string
+}
+
+export interface FAISpecialProcessCreate {
+  process_name?: string | null
+  process_spec?: string | null
+  cert_number?: string | null
+  approved_supplier?: string | null
+  result?: string
+}
+
+export interface FAIFunctionalTestCreate {
+  test_description?: string | null
+  procedure_number?: string | null
+  actual_results?: string | null
+  result?: string
 }
 
 // ---- MSA Types ----
@@ -435,6 +500,7 @@ export interface MSAPart {
   id: number
   name: string
   reference_value: number | null
+  reference_decision: string | null
   sequence_order: number
 }
 
@@ -479,6 +545,14 @@ export interface MSAAttributeInput {
   attribute_value: string
 }
 
+export interface OperatorData {
+  name: string
+  measurements: number[]
+  part_means: number[]
+  mean: number
+  range: number
+}
+
 export interface GageRRResult {
   method: string
   repeatability_ev: number
@@ -503,6 +577,10 @@ export interface GageRRResult {
     { SS: number; df: number; MS: number; F: number | null; p: number | null }
   > | null
   verdict: string
+  operator_data: OperatorData[] | null
+  grr_ci_lower: number | null
+  grr_ci_upper: number | null
+  grr_ci_df: number | null
 }
 
 export interface AttributeMSAResult {
@@ -512,6 +590,10 @@ export interface AttributeMSAResult {
   cohens_kappa_pairs: Record<string, number>
   fleiss_kappa: number
   verdict: string
+  miss_rates: Record<string, number> | null
+  false_alarm_rates: Record<string, number> | null
+  effectiveness: number | null
+  confusion_matrix: Record<string, Record<string, Record<string, number>>> | null
 }
 
 export interface LinearityResult {

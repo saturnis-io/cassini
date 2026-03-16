@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+from scipy.stats import chi2 as chi2_dist
 from scipy.stats import f as f_dist
 
 from cassini.core.explain import ExplanationCollector
@@ -73,6 +74,159 @@ def _get_d2_star_2d(m: int, g: int) -> float:
     return _get_d2_star(m)
 
 
+def _compute_operator_data(
+    measurements_3d: Sequence[Sequence[Sequence[float]]],
+    operator_names: Sequence[str] | None = None,
+) -> list[dict]:
+    """Extract per-operator statistics for by-operator charts.
+
+    Returns a list of dicts, one per operator, with:
+    - name: operator name
+    - measurements: flat list of all measurements by this operator
+    - part_means: mean per part (for interaction chart)
+    - mean: overall mean for this operator
+    - range: average range across parts
+    """
+    n_ops = len(measurements_3d)
+    n_parts = len(measurements_3d[0])
+    result = []
+    for i in range(n_ops):
+        name = operator_names[i] if operator_names and i < len(operator_names) else f"Operator {i + 1}"
+        all_vals = [v for part in measurements_3d[i] for v in part]
+        part_means = [_mean(measurements_3d[i][j]) for j in range(n_parts)]
+        ranges = [max(measurements_3d[i][j]) - min(measurements_3d[i][j]) for j in range(n_parts)]
+        avg_range = _mean(ranges) if ranges else 0.0
+        result.append({
+            "name": name,
+            "measurements": all_vals,
+            "part_means": part_means,
+            "mean": _mean(all_vals) if all_vals else 0.0,
+            "range": avg_range,
+        })
+    return result
+
+
+def _compute_grr_ci(
+    *,
+    sigma2_grr: float,
+    anova_table: dict | None,
+    sigma2_equipment: float,
+    sigma2_operator: float,
+    sigma2_interaction: float | None,
+    total_variation: float,
+    n_ops: int,
+    n_parts: int,
+    n_reps: int,
+    interaction_significant: bool,
+    alpha: float = 0.05,
+    collector: ExplanationCollector | None = None,
+) -> tuple[float | None, float | None, float | None]:
+    """Compute confidence interval for %Study GRR using Satterthwaite approximation.
+
+    Uses the Satterthwaite method to approximate the effective degrees of freedom
+    for the GRR variance, then applies a chi-squared CI on sigma2_GRR and converts
+    to %Study.
+
+    Returns:
+        (ci_lower_pct, ci_upper_pct, df_grr) or (None, None, None) if not computable.
+    """
+    if anova_table is None or sigma2_grr <= 0 or total_variation <= 0:
+        return None, None, None
+
+    # sigma2_GRR = sigma2_equipment + sigma2_operator + sigma2_interaction
+    # For crossed ANOVA with interaction significant:
+    #   sigma2_equipment = MS_equipment  (df = n_ops * n_parts * (n_reps - 1))
+    #   sigma2_interaction = (MS_interaction - MS_equipment) / n_reps  (df = (n_ops-1)*(n_parts-1))
+    #   sigma2_operator = (MS_operator - MS_interaction) / (n_parts * n_reps)  (df = n_ops - 1)
+    # For crossed ANOVA pooled:
+    #   sigma2_equipment = MS_pooled  (df = (n_ops-1)*(n_parts-1) + n_ops*n_parts*(n_reps-1))
+    #   sigma2_operator = (MS_operator - MS_pooled) / (n_parts * n_reps)  (df = n_ops - 1)
+
+    try:
+        equip_row = anova_table.get("equipment", {})
+        op_row = anova_table.get("operator", {})
+        int_row = anova_table.get("interaction", {})
+
+        ms_equip = equip_row.get("MS", 0.0)
+        df_equip = equip_row.get("df", 0)
+        ms_op = op_row.get("MS", 0.0)
+        df_op = op_row.get("df", 0)
+        ms_int = int_row.get("MS", 0.0)
+        df_int = int_row.get("df", 0)
+
+        if df_equip <= 0 or df_op <= 0:
+            return None, None, None
+
+        # Satterthwaite: df_GRR = (sigma2_GRR)^2 / sum[(d(sigma2_GRR)/d(MS_i))^2 * MS_i^2 / df_i]
+        terms = []
+
+        if interaction_significant and sigma2_interaction is not None:
+            # sigma2_GRR = MS_equip + (MS_int - MS_equip)/n_reps + (MS_op - MS_int)/(n_parts*n_reps)
+            # Partial derivatives w.r.t. each MS:
+            # d/dMS_equip = 1 - 1/n_reps = (n_reps - 1)/n_reps
+            # d/dMS_int = 1/n_reps - 1/(n_parts*n_reps) = (n_parts - 1)/(n_parts*n_reps)
+            # d/dMS_op = 1/(n_parts*n_reps)
+            c_equip = (n_reps - 1) / n_reps
+            c_int = (n_parts - 1) / (n_parts * n_reps)
+            c_op = 1.0 / (n_parts * n_reps)
+
+            if df_equip > 0:
+                terms.append((c_equip ** 2) * (ms_equip ** 2) / df_equip)
+            if df_int > 0:
+                terms.append((c_int ** 2) * (ms_int ** 2) / df_int)
+            if df_op > 0:
+                terms.append((c_op ** 2) * (ms_op ** 2) / df_op)
+        else:
+            # Pooled: sigma2_GRR = MS_pooled + (MS_op - MS_pooled)/(n_parts*n_reps)
+            # MS_pooled has df = df_int + df_equip
+            df_pooled = df_int + df_equip
+            ss_pooled = (ms_int * df_int + ms_equip * df_equip) if df_int > 0 else ms_equip * df_equip
+            ms_pooled = ss_pooled / df_pooled if df_pooled > 0 else ms_equip
+
+            c_pooled = 1.0 - 1.0 / (n_parts * n_reps)
+            c_op = 1.0 / (n_parts * n_reps)
+
+            if df_pooled > 0:
+                terms.append((c_pooled ** 2) * (ms_pooled ** 2) / df_pooled)
+            if df_op > 0:
+                terms.append((c_op ** 2) * (ms_op ** 2) / df_op)
+
+        denom = sum(terms)
+        if denom <= 0:
+            return None, None, None
+
+        df_grr = (sigma2_grr ** 2) / denom
+
+        # Chi-squared CI on sigma2_GRR
+        chi2_lower = float(chi2_dist.ppf(1 - alpha / 2, df_grr))
+        chi2_upper = float(chi2_dist.ppf(alpha / 2, df_grr))
+
+        if chi2_lower <= 0 or chi2_upper <= 0:
+            return None, None, None
+
+        ci_var_lower = df_grr * sigma2_grr / chi2_lower
+        ci_var_upper = df_grr * sigma2_grr / chi2_upper
+
+        # Convert to %Study: sqrt(var) / TV * 100
+        tv = total_variation
+        ci_pct_lower = math.sqrt(ci_var_lower) / tv * 100.0
+        ci_pct_upper = math.sqrt(ci_var_upper) / tv * 100.0
+
+        if collector:
+            collector.step(
+                label="GRR% CI (Satterthwaite)",
+                formula_latex=r"df_{\text{GRR}} = \frac{(\sigma^2_{\text{GRR}})^2}{\sum \left(\frac{\partial \sigma^2_{\text{GRR}}}{\partial MS_i}\right)^2 \frac{MS_i^2}{df_i}}",
+                substitution_latex=r"df_{\text{GRR}} = \frac{" + str(round(sigma2_grr ** 2, 6)) + r"}{" + str(round(denom, 6)) + r"}",
+                result=df_grr,
+                note=f"95% CI for %Study GRR: [{ci_pct_lower:.2f}%, {ci_pct_upper:.2f}%]",
+            )
+
+        return ci_pct_lower, ci_pct_upper, df_grr
+
+    except Exception:
+        return None, None, None
+
+
 def _build_verdict(pct_study_grr: float) -> str:
     """Determine verdict from %Study GRR per AIAG guidelines."""
     if pct_study_grr < 10.0:
@@ -93,6 +247,11 @@ def _build_result(
     anova_table: dict | None,
     collector: ExplanationCollector | None = None,
     sigma_multiplier: float = 5.15,
+    operator_data: list[dict] | None = None,
+    n_ops: int = 0,
+    n_parts: int = 0,
+    n_reps: int = 0,
+    interaction_significant: bool = False,
 ) -> GageRRResult:
     """Assemble a GageRRResult from variance components."""
     ev = math.sqrt(sigma2_equipment)
@@ -204,6 +363,22 @@ def _build_result(
 
     verdict = _build_verdict(pct_study_grr)
 
+    # Compute GRR% confidence interval (only for ANOVA methods with sufficient data)
+    sigma2_grr = grr ** 2
+    grr_ci_lower, grr_ci_upper, grr_ci_df = _compute_grr_ci(
+        sigma2_grr=sigma2_grr,
+        anova_table=anova_table,
+        sigma2_equipment=sigma2_equipment,
+        sigma2_operator=sigma2_operator,
+        sigma2_interaction=sigma2_interaction,
+        total_variation=tv,
+        n_ops=n_ops,
+        n_parts=n_parts,
+        n_reps=n_reps,
+        interaction_significant=interaction_significant,
+        collector=collector,
+    )
+
     return GageRRResult(
         method=method,
         repeatability_ev=ev,
@@ -225,6 +400,10 @@ def _build_result(
         ndc=ndc,
         anova_table=anova_table,
         verdict=verdict,
+        operator_data=operator_data,
+        grr_ci_lower=grr_ci_lower,
+        grr_ci_upper=grr_ci_upper,
+        grr_ci_df=grr_ci_df,
     )
 
 
@@ -240,6 +419,7 @@ class GageRREngine:
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
         collector: ExplanationCollector | None = None,
+        operator_names: Sequence[str] | None = None,
     ) -> GageRRResult:
         """Two-way crossed ANOVA with interaction.
 
@@ -248,6 +428,7 @@ class GageRREngine:
                 All operators measure the same parts.
             tolerance: USL - LSL for %Tolerance calculation.
             collector: Optional explanation collector for Show Your Work.
+            operator_names: Human-readable operator names for operator data.
 
         Returns:
             GageRRResult with full ANOVA table.
@@ -544,6 +725,8 @@ class GageRREngine:
             },
         }
 
+        op_data = _compute_operator_data(measurements_3d, operator_names)
+
         return _build_result(
             method="crossed_anova",
             sigma2_equipment=sigma2_equipment,
@@ -553,6 +736,11 @@ class GageRREngine:
             tolerance=tolerance,
             anova_table=anova_table,
             collector=collector,
+            operator_data=op_data,
+            n_ops=n_ops,
+            n_parts=n_parts,
+            n_reps=n_reps,
+            interaction_significant=interaction_significant,
         )
 
     # ------------------------------------------------------------------
@@ -564,6 +752,7 @@ class GageRREngine:
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
         collector: ExplanationCollector | None = None,
+        operator_names: Sequence[str] | None = None,
     ) -> GageRRResult:
         """Simplified range-based Gage R&R estimator.
 
@@ -571,6 +760,7 @@ class GageRREngine:
             measurements_3d: ``[operator][part][replicate]`` measurement array.
             tolerance: USL - LSL for %Tolerance calculation.
             collector: Optional explanation collector for Show Your Work.
+            operator_names: Human-readable operator names for operator data.
 
         Returns:
             GageRRResult (no ANOVA table).
@@ -693,6 +883,8 @@ class GageRREngine:
                 result=rp * k3,
             )
 
+        op_data = _compute_operator_data(measurements_3d, operator_names)
+
         return _build_result(
             method="range",
             sigma2_equipment=sigma2_equipment,
@@ -702,6 +894,10 @@ class GageRREngine:
             tolerance=tolerance,
             anova_table=None,
             collector=collector,
+            operator_data=op_data,
+            n_ops=n_ops,
+            n_parts=n_parts,
+            n_reps=n_reps,
         )
 
     # ------------------------------------------------------------------
@@ -713,6 +909,7 @@ class GageRREngine:
         measurements_3d: list[list[list[float]]],
         tolerance: float | None = None,
         collector: ExplanationCollector | None = None,
+        operator_names: Sequence[str] | None = None,
     ) -> GageRRResult:
         """Nested ANOVA for destructive or non-reproducible tests.
 
@@ -725,6 +922,7 @@ class GageRREngine:
                 Parts for different operators are distinct physical parts.
             tolerance: USL - LSL for %Tolerance calculation.
             collector: Optional explanation collector for Show Your Work.
+            operator_names: Human-readable operator names for operator data.
 
         Returns:
             GageRRResult (no interaction term).
@@ -861,6 +1059,8 @@ class GageRREngine:
                 result=sigma2_operator,
             )
 
+        op_data = _compute_operator_data(measurements_3d, operator_names)
+
         return _build_result(
             method="nested_anova",
             sigma2_equipment=sigma2_equipment,
@@ -870,4 +1070,8 @@ class GageRREngine:
             tolerance=tolerance,
             anova_table=None,
             collector=collector,
+            operator_data=op_data,
+            n_ops=n_ops,
+            n_parts=n_parts,
+            n_reps=n_reps,
         )

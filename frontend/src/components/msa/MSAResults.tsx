@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { useECharts } from '@/hooks/useECharts'
 import { Explainable } from '@/components/Explainable'
 import { IshikawaDiagram } from '@/components/IshikawaDiagram'
+import { OperatorCharts } from '@/components/msa/OperatorCharts'
 import type { ECOption } from '@/lib/echarts'
 import type { GageRRResult } from '@/api/client'
 import type { IshikawaResult } from '@/api/hooks/useIshikawa'
@@ -470,6 +471,37 @@ export function MSAResults({ result, studyId }: MSAResultsProps) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* GRR% Confidence Interval */}
+      {result.grr_ci_lower != null && result.grr_ci_upper != null && (
+        <div className="border-border rounded-xl border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium">%Study GRR Confidence Interval</h3>
+              <p className="text-muted-foreground text-xs">
+                95% CI via Satterthwaite approximation
+                {result.grr_ci_df != null && ` (df = ${result.grr_ci_df.toFixed(1)})`}
+              </p>
+            </div>
+            <Explainable metric="grr_ci" resourceId={studyId} resourceType="msa">
+              <span className="text-foreground text-sm font-medium tabular-nums">
+                [{result.grr_ci_lower.toFixed(2)}%, {result.grr_ci_upper.toFixed(2)}%]
+              </span>
+            </Explainable>
+          </div>
+        </div>
+      )}
+
+      {/* By-operator charts */}
+      {result.operator_data && result.operator_data.length > 0 && (
+        <OperatorCharts
+          operatorData={result.operator_data}
+          pctContributionEv={result.pct_contribution_ev}
+          pctContributionAv={result.pct_contribution_av}
+          pctContributionGrr={result.pct_contribution_grr}
+          pctContributionPv={result.pct_contribution_pv}
+        />
       )}
 
       {/* Interpretation guide */}

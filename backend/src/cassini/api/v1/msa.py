@@ -32,6 +32,7 @@ from cassini.api.schemas.msa import (
     MSAOperatorsSet,
     MSAPartResponse,
     MSAPartsSet,
+    MSAReferenceDecisionsBatch,
     MSAStudyCreate,
     MSAStudyDetailResponse,
     MSAStudyResponse,
@@ -311,6 +312,7 @@ async def set_parts(
             study_id=study_id,
             name=part_input.name,
             reference_value=part_input.reference_value,
+            reference_decision=part_input.reference_decision,
             sequence_order=i,
         )
         session.add(part)
@@ -574,15 +576,19 @@ async def calculate_gage_rr(
                         detail="Measurement matrix is incomplete — ensure all operator/part/replicate cells are filled",
                     )
 
+    # Operator names for result labeling
+    sorted_operators = sorted(study.operators, key=lambda o: o.sequence_order)
+    operator_names = [op.name for op in sorted_operators]
+
     # Run engine
     engine = GageRREngine()
     try:
         if study.study_type == "crossed_anova":
-            result = engine.calculate_crossed_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
+            result = engine.calculate_crossed_anova(data_3d, study.tolerance, operator_names=operator_names)  # type: ignore[arg-type]
         elif study.study_type == "range_method":
-            result = engine.calculate_range_method(data_3d, study.tolerance)  # type: ignore[arg-type]
+            result = engine.calculate_range_method(data_3d, study.tolerance, operator_names=operator_names)  # type: ignore[arg-type]
         elif study.study_type == "nested_anova":
-            result = engine.calculate_nested_anova(data_3d, study.tolerance)  # type: ignore[arg-type]
+            result = engine.calculate_nested_anova(data_3d, study.tolerance, operator_names=operator_names)  # type: ignore[arg-type]
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -698,10 +704,13 @@ async def calculate_attribute_msa(
                         detail="Attribute measurement matrix is incomplete — ensure all operator/part/replicate cells are filled",
                     )
 
-    # Build reference decisions from part reference_values if available
+    # Build reference decisions from part reference_decision strings if available.
+    # If ALL parts have a reference_decision set, use them for vs-reference analysis,
+    # miss/false alarm rates, and confusion matrix.
     reference_decisions: list[str] | None = None
-    # (Reference decisions for attribute studies would come from part metadata;
-    #  not implemented yet — engine handles None gracefully)
+    all_have_ref = all(p.reference_decision is not None for p in sorted_parts)
+    if all_have_ref:
+        reference_decisions = [p.reference_decision for p in sorted_parts]  # type: ignore[misc]
 
     # Operator names for result labeling
     operator_names = [op.name for op in sorted_operators]
@@ -743,6 +752,68 @@ async def calculate_attribute_msa(
         verdict=result.verdict, user=user.username,
     )
     return AttributeMSAResultResponse.model_validate(asdict(result))
+
+
+@router.post("/studies/{study_id}/reference-decisions", response_model=list[MSAPartResponse])
+async def set_reference_decisions(
+    study_id: int,
+    body: MSAReferenceDecisionsBatch,
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> list[MSAPartResponse]:
+    """Set reference decisions for parts in an attribute MSA study.
+
+    Updates the ``reference_decision`` field on MSAPart records, which are used
+    during attribute MSA calculation for vs-reference agreement, miss/false
+    alarm rates, and confusion matrix analysis.
+
+    Requires engineer+ role for the study's plant.
+    """
+    study = await _get_study_or_404(session, study_id, load_children=True)
+    check_plant_role(user, study.plant_id, "engineer")
+
+    if study.study_type != "attribute_agreement":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reference decisions are only applicable to attribute agreement studies",
+        )
+
+    # Build part lookup
+    part_map = {p.id: p for p in study.parts}
+
+    updated_parts = []
+    for decision in body.decisions:
+        part = part_map.get(decision.part_id)
+        if part is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Part {decision.part_id} not found in study {study_id}",
+            )
+        part.reference_decision = decision.reference_value
+        updated_parts.append(part)
+
+    await session.commit()
+    for p in updated_parts:
+        await session.refresh(p)
+
+    request.state.audit_context = {
+        "resource_type": "msa_study",
+        "resource_id": study_id,
+        "action": "update",
+        "summary": f"Reference decisions set for {len(updated_parts)} parts in MSA study '{study.name}'",
+        "fields": {
+            "study_name": study.name,
+            "parts_updated": len(updated_parts),
+            "plant_id": study.plant_id,
+        },
+    }
+
+    logger.info(
+        "msa_reference_decisions_set", study_id=study_id,
+        count=len(updated_parts), user=user.username,
+    )
+    return [MSAPartResponse.model_validate(p) for p in updated_parts]
 
 
 @router.post("/studies/{study_id}/linearity-calculate", response_model=LinearityResultResponse)

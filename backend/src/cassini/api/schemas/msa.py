@@ -26,6 +26,7 @@ class MSAStudyCreate(BaseModel):
 class MSAPartInput(BaseModel):
     name: str = Field(..., max_length=100)
     reference_value: float | None = None
+    reference_decision: str | None = Field(None, max_length=50)
 
 
 class MSAOperatorsSet(BaseModel):
@@ -75,6 +76,7 @@ class MSAPartResponse(BaseModel):
     id: int
     name: str
     reference_value: float | None
+    reference_decision: str | None = None
     sequence_order: int
 
 
@@ -114,6 +116,16 @@ class MSAStudyDetailResponse(MSAStudyResponse):
     measurement_count: int = 0
 
 
+class OperatorDataResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    name: str
+    measurements: list[float]
+    part_means: list[float]
+    mean: float
+    range: float
+
+
 class GageRRResultResponse(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -137,6 +149,19 @@ class GageRRResultResponse(BaseModel):
     ndc: int
     anova_table: dict | None
     verdict: str
+    operator_data: list[OperatorDataResponse] | None = None
+    grr_ci_lower: float | None = None
+    grr_ci_upper: float | None = None
+    grr_ci_df: float | None = None
+
+
+class MSAReferenceDecisionInput(BaseModel):
+    part_id: int
+    reference_value: str = Field(..., max_length=50)
+
+
+class MSAReferenceDecisionsBatch(BaseModel):
+    decisions: list[MSAReferenceDecisionInput] = Field(..., min_length=1)
 
 
 class AttributeMSAResultResponse(BaseModel):
@@ -148,6 +173,10 @@ class AttributeMSAResultResponse(BaseModel):
     cohens_kappa_pairs: dict[str, float]
     fleiss_kappa: float
     verdict: str
+    miss_rates: dict[str, float] | None = None
+    false_alarm_rates: dict[str, float] | None = None
+    effectiveness: float | None = None
+    confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None
 
 
 class LinearityResultResponse(BaseModel):

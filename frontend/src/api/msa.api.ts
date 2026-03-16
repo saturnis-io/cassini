@@ -13,6 +13,11 @@ import type {
   MSAStudyDetail,
   StabilityResult,
 } from './client'
+
+export interface ReferenceDecisionInput {
+  part_id: number
+  reference_value: string
+}
 import { fetchApi } from './client'
 
 // ---- MSA API ----
@@ -83,6 +88,12 @@ export const msaApi = {
   calculateBias: (studyId: number) =>
     fetchApi<BiasResult>(`/msa/studies/${studyId}/bias-calculate`, {
       method: 'POST',
+    }),
+
+  setReferenceDecisions: (studyId: number, decisions: ReferenceDecisionInput[]) =>
+    fetchApi<MSAPart[]>(`/msa/studies/${studyId}/reference-decisions`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions }),
     }),
 
   getResults: (studyId: number) =>

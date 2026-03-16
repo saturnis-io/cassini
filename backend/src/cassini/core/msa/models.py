@@ -1,7 +1,7 @@
 """MSA result dataclasses for Gage R&R and Attribute studies."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 # AIAG d2* constants table (MSA 4th Edition, Appendix C)
@@ -67,6 +67,14 @@ class GageRRResult:
     # Verdict
     verdict: str  # "acceptable" | "marginal" | "unacceptable"
 
+    # Per-operator data for by-operator charts (optional, populated by engine)
+    operator_data: list[dict] | None = None
+
+    # GRR% confidence interval (Satterthwaite approximation)
+    grr_ci_lower: float | None = None
+    grr_ci_upper: float | None = None
+    grr_ci_df: float | None = None
+
 
 @dataclass
 class AttributeMSAResult:
@@ -85,3 +93,11 @@ class AttributeMSAResult:
 
     # Verdict
     verdict: str  # "acceptable" | "marginal" | "unacceptable"
+
+    # Per-operator miss/false alarm rates (only when reference_decisions provided)
+    miss_rates: dict[str, float] | None = None  # operator -> P(good|defective)
+    false_alarm_rates: dict[str, float] | None = None  # operator -> P(defective|good)
+    effectiveness: float | None = None  # overall % matching reference
+
+    # Confusion matrix: {operator_name: {actual: {predicted: count}}}
+    confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None

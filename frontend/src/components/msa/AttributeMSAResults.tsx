@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Explainable } from '@/components/Explainable'
+import { ConfusionMatrix } from '@/components/msa/ConfusionMatrix'
 import type { AttributeMSAResult } from '@/api/client'
 
 interface AttributeMSAResultsProps {
@@ -240,6 +241,77 @@ export function AttributeMSAResults({ result, studyId }: AttributeMSAResultsProp
           </Explainable>
         </div>
       </div>
+
+      {/* Effectiveness */}
+      {result.effectiveness != null && (
+        <div className="border-border rounded-xl border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium">Overall Effectiveness</h3>
+              <p className="text-muted-foreground text-xs">
+                Percentage of all operator decisions matching reference across all operators
+              </p>
+            </div>
+            <span
+              className={cn(
+                'rounded-lg px-4 py-2 text-lg font-bold',
+                agreePctClass(result.effectiveness),
+                result.effectiveness >= 90 ? 'bg-green-500/10' : result.effectiveness >= 70 ? 'bg-amber-500/10' : 'bg-red-500/10',
+              )}
+            >
+              {result.effectiveness.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Miss/False Alarm Rates table */}
+      {result.miss_rates && Object.keys(result.miss_rates).length > 0 && (
+        <div className="border-border overflow-hidden rounded-xl border">
+          <div className="bg-muted/50 border-border border-b px-4 py-2">
+            <h3 className="text-sm font-medium">Miss &amp; False Alarm Rates</h3>
+            <p className="text-muted-foreground text-xs">
+              Miss rate = P(called good | actually defective). False alarm = P(called defective | actually good).
+            </p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/30">
+                <th className="text-muted-foreground px-4 py-2 text-left font-medium">Appraiser</th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">Miss Rate</th>
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">False Alarm Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(result.miss_rates).map(([name, missRate]) => (
+                <tr key={name} className="border-border/50 border-t">
+                  <td className="px-4 py-2 font-medium">{name}</td>
+                  <td className={cn('px-4 py-2 text-right tabular-nums font-medium', missRate <= 5 ? 'text-green-600 dark:text-green-400' : missRate <= 15 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400')}>
+                    {missRate.toFixed(1)}%
+                  </td>
+                  <td className={cn('px-4 py-2 text-right tabular-nums font-medium', (() => {
+                    const fa = result.false_alarm_rates?.[name] ?? 0
+                    if (fa <= 5) return 'text-green-600 dark:text-green-400'
+                    if (fa <= 15) return 'text-amber-600 dark:text-amber-400'
+                    return 'text-red-600 dark:text-red-400'
+                  })())}>
+                    {(result.false_alarm_rates?.[name] ?? 0).toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Confusion Matrix */}
+      {result.confusion_matrix && Object.keys(result.confusion_matrix).length > 0 && (
+        <ConfusionMatrix
+          confusionMatrix={result.confusion_matrix}
+          missRates={result.miss_rates}
+          falseAlarmRates={result.false_alarm_rates}
+        />
+      )}
 
       {/* Interpretation guide */}
       <div className="bg-muted/30 rounded-lg p-4 text-xs">

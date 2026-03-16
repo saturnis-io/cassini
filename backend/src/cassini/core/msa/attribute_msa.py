@@ -277,6 +277,10 @@ class AttributeMSAEngine:
 
         # --- Vs reference agreement ---
         vs_reference: dict[str, float] | None = None
+        miss_rates: dict[str, float] | None = None
+        false_alarm_rates: dict[str, float] | None = None
+        effectiveness: float | None = None
+        confusion_matrix: dict[str, dict[str, dict[str, int]]] | None = None
         if reference_decisions is not None:
             if len(reference_decisions) != n_parts:
                 raise ValueError(
@@ -284,11 +288,74 @@ class AttributeMSAEngine:
                     f"must match number of parts ({n_parts})"
                 )
             vs_reference = {}
+            miss_rates = {}
+            false_alarm_rates = {}
+            confusion_matrix = {}
+            total_matches = 0
+
+            # Discover all categories for confusion matrix
+            all_categories = sorted(
+                set(reference_decisions)
+                | {mode_ratings[i][j] for i in range(n_ops) for j in range(n_parts)}
+            )
+
             for i in range(n_ops):
                 match_count = sum(
                     1 for j in range(n_parts) if mode_ratings[i][j] == reference_decisions[j]
                 )
                 vs_reference[operator_names[i]] = (match_count / n_parts) * 100.0
+                total_matches += match_count
+
+                # Confusion matrix: actual (reference) vs predicted (operator decision)
+                cm: dict[str, dict[str, int]] = {
+                    actual: {predicted: 0 for predicted in all_categories}
+                    for actual in all_categories
+                }
+                for j in range(n_parts):
+                    actual = reference_decisions[j]
+                    predicted = mode_ratings[i][j]
+                    cm[actual][predicted] += 1
+                confusion_matrix[operator_names[i]] = cm
+
+                # Miss rate: P(good | defective) - probability of calling it good when it's defective
+                # False alarm rate: P(defective | good) - probability of calling it defective when good
+                # We determine "defective" vs "good" based on the most common reference categories.
+                # For binary attribute studies (pass/fail, accept/reject, good/defective),
+                # we identify "defective" as the minority reference class.
+                # For multi-category, compute per-category miss and false alarm.
+                ref_counts: dict[str, int] = {}
+                for j in range(n_parts):
+                    ref_counts[reference_decisions[j]] = ref_counts.get(reference_decisions[j], 0) + 1
+
+                if len(all_categories) == 2:
+                    # Binary case: minority class = "defective"
+                    sorted_cats = sorted(all_categories, key=lambda c: ref_counts.get(c, 0))
+                    defective_cat = sorted_cats[0]
+                    good_cat = sorted_cats[1]
+
+                    # Miss rate: P(operator says good | reference is defective)
+                    n_defective = ref_counts.get(defective_cat, 0)
+                    n_good = ref_counts.get(good_cat, 0)
+                    if n_defective > 0:
+                        missed = cm[defective_cat].get(good_cat, 0)
+                        miss_rates[operator_names[i]] = (missed / n_defective) * 100.0
+                    else:
+                        miss_rates[operator_names[i]] = 0.0
+
+                    # False alarm rate: P(operator says defective | reference is good)
+                    if n_good > 0:
+                        false_alarms = cm[good_cat].get(defective_cat, 0)
+                        false_alarm_rates[operator_names[i]] = (false_alarms / n_good) * 100.0
+                    else:
+                        false_alarm_rates[operator_names[i]] = 0.0
+                else:
+                    # Multi-category: overall misclassification rate as "miss rate"
+                    misses = sum(1 for j in range(n_parts) if mode_ratings[i][j] != reference_decisions[j])
+                    miss_rates[operator_names[i]] = (misses / n_parts) * 100.0
+                    false_alarm_rates[operator_names[i]] = 0.0  # Not meaningful for multi-category
+
+            # Effectiveness: overall % matching reference across all operators
+            effectiveness = (total_matches / (n_ops * n_parts)) * 100.0
 
         # --- Cohen's Kappa (pairwise) ---
         cohens_kappa_pairs: dict[str, float] = {}
@@ -317,4 +384,8 @@ class AttributeMSAEngine:
             cohens_kappa_pairs=cohens_kappa_pairs,
             fleiss_kappa=fleiss_k,
             verdict=verdict,
+            miss_rates=miss_rates,
+            false_alarm_rates=false_alarm_rates,
+            effectiveness=effectiveness,
+            confusion_matrix=confusion_matrix,
         )
