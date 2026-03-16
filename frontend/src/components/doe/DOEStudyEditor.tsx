@@ -891,3 +891,133 @@ function DefineOverview({ study }: { study: NonNullable<ReturnType<typeof useDOE
     </div>
   )
 }
+
+// ── Taguchi ANOM Results Panel ──
+
+function TaguchiANOMPanel({ anom }: { anom: TaguchiANOM }) {
+  const levelOrder = ['-1', '0', '+1']
+
+  // Collect all levels that appear in the response table
+  const allLevels = useMemo(() => {
+    const levels = new Set<string>()
+    for (const factor of anom.response_table) {
+      for (const key of Object.keys(factor.level_means)) {
+        levels.add(key)
+      }
+    }
+    return levelOrder.filter((l) => levels.has(l))
+  }, [anom.response_table])
+
+  return (
+    <div className="space-y-6">
+      {/* S/N Type badge */}
+      <div className="bg-primary/5 border-primary/20 rounded-lg border px-4 py-3 text-sm">
+        <span className="text-primary font-medium">Taguchi Analysis:</span>{' '}
+        <span className="text-muted-foreground">
+          S/N Ratio Type: {SN_TYPE_LABELS[anom.sn_type as SNType] ?? anom.sn_type}
+          {' -- '}Higher S/N = better robustness.
+        </span>
+      </div>
+
+      {/* Response Table (factor x level means) */}
+      <div className="border-border rounded-xl border">
+        <div className="bg-muted/50 border-border border-b px-4 py-3">
+          <h3 className="text-sm font-medium">Response Table (Mean S/N Ratios)</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/30">
+                <th className="text-muted-foreground px-4 py-2 text-left font-medium">Rank</th>
+                <th className="text-muted-foreground px-4 py-2 text-left font-medium">Factor</th>
+                {allLevels.map((level) => (
+                  <th key={level} className="text-muted-foreground px-4 py-2 text-right font-medium">
+                    Level {level}
+                  </th>
+                ))}
+                <th className="text-muted-foreground px-4 py-2 text-right font-medium">Range</th>
+                <th className="text-muted-foreground px-4 py-2 text-center font-medium">Best</th>
+              </tr>
+            </thead>
+            <tbody>
+              {anom.response_table.map((factor) => (
+                <tr key={factor.factor_name} className="border-border/50 border-t">
+                  <td className="px-4 py-2 font-mono text-xs">#{factor.rank}</td>
+                  <td className="px-4 py-2 font-medium">{factor.factor_name}</td>
+                  {allLevels.map((level) => {
+                    const value = factor.level_means[level]
+                    const isBest = level === factor.best_level
+                    return (
+                      <td
+                        key={level}
+                        className={cn(
+                          'px-4 py-2 text-right font-mono text-xs',
+                          isBest && 'text-primary font-bold',
+                        )}
+                      >
+                        {value != null ? value.toFixed(4) : '--'}
+                      </td>
+                    )
+                  })}
+                  <td className="px-4 py-2 text-right font-mono text-xs font-semibold">
+                    {factor.range.toFixed(4)}
+                  </td>
+                  <td className="text-primary px-4 py-2 text-center font-mono text-xs font-bold">
+                    {factor.best_level}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Optimal Settings */}
+      {Object.keys(anom.optimal_settings).length > 0 && (
+        <div className="border-border rounded-xl border">
+          <div className="bg-muted/50 border-border border-b px-4 py-3">
+            <h3 className="text-sm font-medium">Optimal Factor Settings</h3>
+          </div>
+          <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(anom.optimal_settings).map(([name, level]) => (
+              <div key={name} className="bg-card rounded border px-3 py-2 text-sm">
+                <span className="font-medium">{name}</span>
+                <span className="text-primary ml-2 font-mono font-bold">Level {level}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-border border-t px-4 py-2">
+            <p className="text-muted-foreground text-xs">
+              Optimal = coded level with highest mean S/N ratio for each factor. Confirm with
+              validation runs.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Factor Ranking Summary */}
+      <div className="border-border rounded-xl border">
+        <div className="bg-muted/50 border-border border-b px-4 py-3">
+          <h3 className="text-sm font-medium">Factor Influence Ranking</h3>
+        </div>
+        <div className="divide-border divide-y">
+          {anom.response_table.map((factor) => (
+            <div key={factor.factor_name} className="flex items-center justify-between px-4 py-2.5">
+              <div className="flex items-center gap-3">
+                <span className="bg-muted flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs font-bold">
+                  {factor.rank}
+                </span>
+                <span className="text-sm font-medium">{factor.factor_name}</span>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-muted-foreground">
+                  Range: <span className="font-mono">{factor.range.toFixed(4)}</span> dB
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
