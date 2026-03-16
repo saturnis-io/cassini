@@ -113,6 +113,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/multivariate/correlation/"), "correlation"),
     (re.compile(r"/api/v1/predictions(?:/(\d+))?"), "prediction"),
     (re.compile(r"/api/v1/ai/"), "ai_config"),
+    (re.compile(r"/api/v1/collection-plans(?:/(\d+)(?:/.*)?)?"), "collection_plan"),
     (re.compile(r"/api/v1/doe/studies(?:/(\d+)(?:/.*)?)?"), "doe_study"),
     (re.compile(r"/api/v1/plants/(\d+)/deactivate"), "plant"),
     (re.compile(r"/api/v1/plants/(\d+)/reactivate"), "plant"),
@@ -163,6 +164,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "activate"
     if "discover" in path:
         return "discover"
+    if "/execute" in path:
+        return "execute"
     if "/submit" in path:
         return "submit"
     if "/approve" in path:

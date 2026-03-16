@@ -30,7 +30,7 @@ import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
 import { useKonamiSequence } from '@/hooks/useKonamiSequence'
-import { AlertTriangle, Activity, Hash, Gauge } from 'lucide-react'
+import { AlertTriangle, Activity, Hash, Gauge, ClipboardList } from 'lucide-react'
 import { BottomDrawer } from '@/components/BottomDrawer'
 import type { DrawerTab } from '@/components/BottomDrawer'
 import { Explainable } from '@/components/Explainable'
@@ -668,8 +668,15 @@ export function OperatorDashboard() {
               />
             </>
           ) : (
-            <div data-ui="dashboard-empty-state" className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+            <div data-ui="dashboard-empty-state" className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-4 text-sm">
               {t('selectCharacteristic')}
+              <button
+                onClick={() => navigate('/data-entry')}
+                className="border-border text-foreground hover:bg-muted flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+              >
+                <ClipboardList className="h-4 w-4" />
+                Collection Plans
+              </button>
             </div>
           )}
       </div>

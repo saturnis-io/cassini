@@ -8,6 +8,11 @@ from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.broker import MQTTBroker
 from cassini.db.models.capability import CapabilityHistory
 from cassini.db.models.characteristic import Characteristic, CharacteristicRule
+from cassini.db.models.collection_plan import (
+    CollectionPlan,
+    CollectionPlanExecution,
+    CollectionPlanItem,
+)
 from cassini.db.models.characteristic_config import CharacteristicConfig
 from cassini.db.models.data_source import (
     DataSource,
@@ -143,6 +148,10 @@ __all__ = [
     "MultivariateSample",
     "PredictionConfig",
     "PredictionModel",
+    # Collection plans
+    "CollectionPlan",
+    "CollectionPlanExecution",
+    "CollectionPlanItem",
     # Auth tokens
     "EmailVerificationToken",
     "PasswordResetToken",

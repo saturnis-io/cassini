@@ -59,6 +59,7 @@ from cassini.api.v1.multivariate import router as multivariate_router
 from cassini.api.v1.predictions import router as predictions_router
 from cassini.api.v1.ai_analysis import router as ai_analysis_router
 from cassini.api.v1.correlation import router as correlation_router
+from cassini.api.v1.collection_plans import router as collection_plans_router
 from cassini.api.v1.doe import router as doe_router
 from cassini.api.v1.violations import router as violations_router
 from cassini.api.v1.websocket import manager as ws_manager
@@ -436,6 +437,7 @@ app.include_router(import_router)
 app.include_router(annotations_router)
 app.include_router(tags_router)
 app.include_router(capability_router)
+app.include_router(collection_plans_router)
 app.include_router(websocket_router)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(brokers_router)
