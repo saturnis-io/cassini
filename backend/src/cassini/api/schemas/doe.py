@@ -24,9 +24,17 @@ class DOEStudyCreate(BaseModel):
     plant_id: int
     design_type: str = Field(
         ...,
-        pattern=r"^(full_factorial|fractional_factorial|plackett_burman|central_composite|box_behnken)$",
+        pattern=r"^(full_factorial|fractional_factorial|plackett_burman|central_composite|box_behnken|d_optimal|taguchi)$",
     )
     resolution: int | None = Field(None, ge=3, le=7)
+    n_runs: int | None = Field(None, ge=2, le=10000)
+    model_order: str | None = Field(
+        None, pattern=r"^(linear|interaction|quadratic)$"
+    )
+    sn_type: str | None = Field(
+        None,
+        pattern=r"^(smaller_is_better|larger_is_better|nominal_is_best_1|nominal_is_best_2)$",
+    )
     response_name: str = Field("Response", max_length=255)
     response_unit: str | None = Field(None, max_length=50)
     notes: str | None = None
@@ -46,6 +54,31 @@ class DOEStudyCreate(BaseModel):
             if len(self.factors) > 23:
                 raise ValueError(
                     "Plackett-Burman design supports up to 23 factors"
+                )
+        if self.design_type == "taguchi":
+            if self.sn_type is None:
+                raise ValueError(
+                    "Taguchi design requires sn_type to be specified "
+                    "(smaller_is_better, larger_is_better, nominal_is_best_1, nominal_is_best_2)"
+                )
+        if self.design_type == "d_optimal":
+            if self.n_runs is None:
+                raise ValueError(
+                    "D-optimal design requires n_runs to be specified"
+                )
+            # Validate n_runs >= model parameters
+            n_factors = len(self.factors)
+            model_order = self.model_order or "linear"
+            p = 1 + n_factors  # intercept + main effects
+            if model_order in ("interaction", "quadratic"):
+                p += n_factors * (n_factors - 1) // 2
+            if model_order == "quadratic":
+                p += n_factors
+            if self.n_runs < p:
+                raise ValueError(
+                    f"D-optimal design with {n_factors} factors and "
+                    f"model_order='{model_order}' requires at least "
+                    f"{p} runs, got {self.n_runs}"
                 )
         return self
 
@@ -96,6 +129,7 @@ class DOEStudyResponse(BaseModel):
     name: str
     design_type: str
     resolution: int | None
+    sn_type: str | None = None
     status: str
     response_name: str
     response_unit: str | None
@@ -159,6 +193,22 @@ class NormalityTestResponse(BaseModel):
     method: str
 
 
+class TaguchiANOMFactorResponse(BaseModel):
+    factor_name: str
+    level_means: dict[str, float]
+    best_level: str
+    best_level_value: float
+    range: float
+    rank: int
+
+
+class TaguchiANOMResponse(BaseModel):
+    sn_type: str
+    response_table: list[TaguchiANOMFactorResponse]
+    optimal_settings: dict[str, str]
+    sn_ratios: list[float | None]
+
+
 class DOEAnalysisResponse(BaseModel):
     id: int
     study_id: int
@@ -172,6 +222,7 @@ class DOEAnalysisResponse(BaseModel):
     lack_of_fit_f: float | None = None
     lack_of_fit_p: float | None = None
     regression: RegressionResponse | None = None
+    taguchi_anom: TaguchiANOMResponse | None = None
     residuals: list[float] | None = None
     fitted_values: list[float] | None = None
     normality_test: NormalityTestResponse | None = None

@@ -32,6 +32,8 @@ from cassini.api.schemas.doe import (
     NormalityTestResponse,
     RegressionResponse,
     ResidualStatsResponse,
+    TaguchiANOMFactorResponse,
+    TaguchiANOMResponse,
 )
 from cassini.db.models.doe import DOEAnalysis, DOEFactor, DOERun, DOEStudy
 from cassini.db.models.user import User
@@ -114,6 +116,7 @@ def _build_study_response(
         name=study.name,
         design_type=study.design_type,
         resolution=study.resolution,
+        sn_type=getattr(study, "sn_type", None),
         status=study.status,
         response_name=study.response_name,
         response_unit=study.response_unit,
@@ -257,6 +260,26 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
 
+    # Parse Taguchi ANOM results (optional — only present for Taguchi designs)
+    taguchi_anom: TaguchiANOMResponse | None = None
+    try:
+        taguchi_anom_json = getattr(analysis, "taguchi_anom_json", None)
+        if taguchi_anom_json:
+            ta = json.loads(taguchi_anom_json)
+            if ta:
+                response_table = [
+                    TaguchiANOMFactorResponse(**row)
+                    for row in ta.get("response_table", [])
+                ]
+                taguchi_anom = TaguchiANOMResponse(
+                    sn_type=ta.get("sn_type", ""),
+                    response_table=response_table,
+                    optimal_settings=ta.get("optimal_settings", {}),
+                    sn_ratios=ta.get("sn_ratios", []),
+                )
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+
     return DOEAnalysisResponse(
         id=analysis.id,
         study_id=analysis.study_id,
@@ -270,6 +293,7 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
         lack_of_fit_f=analysis.lack_of_fit_f,
         lack_of_fit_p=analysis.lack_of_fit_p,
         regression=regression,
+        taguchi_anom=taguchi_anom,
         residuals=residuals,
         fitted_values=fitted_values,
         normality_test=normality_test,
@@ -365,6 +389,9 @@ async def create_study(
         name=body.name,
         design_type=body.design_type,
         resolution=body.resolution,
+        n_runs=body.n_runs,
+        model_order=body.model_order,
+        sn_type=body.sn_type,
         response_name=body.response_name,
         response_unit=body.response_unit,
         notes=body.notes,

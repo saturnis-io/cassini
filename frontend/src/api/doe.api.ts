@@ -9,11 +9,20 @@ export interface DOEFactor {
   unit?: string
 }
 
+export type SNType =
+  | 'smaller_is_better'
+  | 'larger_is_better'
+  | 'nominal_is_best_1'
+  | 'nominal_is_best_2'
+
 export interface DOEStudyCreate {
   name: string
   plant_id: number
   design_type: string
   resolution?: number
+  n_runs?: number
+  model_order?: 'linear' | 'interaction' | 'quadratic'
+  sn_type?: SNType
   response_name?: string
   response_unit?: string
   notes?: string
@@ -26,6 +35,7 @@ export interface DOEStudy {
   plant_id: number
   design_type: string
   resolution: number | null
+  sn_type: SNType | null
   response_name: string | null
   response_unit: string | null
   notes: string | null
@@ -107,6 +117,22 @@ export interface DOEResidualStats {
   max: number
 }
 
+export interface TaguchiANOMFactor {
+  factor_name: string
+  level_means: Record<string, number>
+  best_level: string
+  best_level_value: number
+  range: number
+  rank: number
+}
+
+export interface TaguchiANOM {
+  sn_type: SNType
+  response_table: TaguchiANOMFactor[]
+  optimal_settings: Record<string, string>
+  sn_ratios: (number | null)[]
+}
+
 export interface DOEAnalysis {
   anova_table: DOEANOVARow[]
   effects: DOEEffect[]
@@ -117,6 +143,7 @@ export interface DOEAnalysis {
   lack_of_fit_f: number | null
   lack_of_fit_p: number | null
   grand_mean: number
+  taguchi_anom: TaguchiANOM | null
   residuals: number[] | null
   fitted_values: number[] | null
   normality_test: DOENormalityTest | null

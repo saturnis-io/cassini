@@ -42,6 +42,13 @@ class DOEStudy(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     design_type: Mapped[str] = mapped_column(String(30), nullable=False)
     resolution: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    n_runs: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    model_order: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    sn_type: Mapped[Optional[str]] = mapped_column(
+        String(30), nullable=True,
+        doc="Signal-to-noise ratio type for Taguchi designs: "
+        "smaller_is_better, larger_is_better, nominal_is_best_1, nominal_is_best_2",
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="design", server_default="design"
     )
@@ -198,6 +205,11 @@ class DOEAnalysis(Base):
     normality_test_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     outlier_indices_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     residual_stats_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    taguchi_anom_json: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True,
+        doc="Taguchi ANOM (Analysis of Means) results as JSON: "
+        "sn_type, response_table, optimal_settings, sn_ratios",
+    )
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utc_now,

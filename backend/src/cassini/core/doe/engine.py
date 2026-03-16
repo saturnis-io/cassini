@@ -33,6 +33,12 @@ from cassini.core.doe.designs import (
     full_factorial,
     plackett_burman,
 )
+from cassini.core.doe.optimal import d_optimal
+from cassini.core.doe.taguchi import (
+    ANOMResult,
+    compute_anom,
+    taguchi,
+)
 from cassini.db.models.doe import DOEAnalysis, DOEFactor, DOERun, DOEStudy
 from cassini.db.repositories.doe_repo import (
     DOEAnalysisRepository,
@@ -50,6 +56,8 @@ _DESIGN_DISPATCH: dict[str, str] = {
     "central_composite": "central_composite",
     "ccd": "central_composite",
     "box_behnken": "box_behnken",
+    "d_optimal": "d_optimal",
+    "taguchi": "taguchi",
 }
 
 # Design types that support RSM (quadratic regression)
@@ -58,6 +66,9 @@ _RSM_DESIGNS = {"central_composite", "ccd", "box_behnken"}
 # Design types where interaction estimation is unreliable (Resolution III
 # screening designs — main effects are partially confounded with 2FIs)
 _NO_INTERACTION_DESIGNS = {"plackett_burman"}
+
+# Design types that use Taguchi ANOM analysis instead of standard ANOVA
+_TAGUCHI_DESIGNS = {"taguchi"}
 
 
 class DOEEngine:
@@ -115,9 +126,17 @@ class DOEEngine:
                 f"Supported: {', '.join(sorted(_DESIGN_DISPATCH.keys()))}"
             )
 
+        # Build factor ranges for D-optimal (coded: -1 to +1)
+        factor_ranges: list[tuple[float, float]] | None = None
+        if design_type == "d_optimal":
+            factor_ranges = [(-1.0, 1.0)] * n_factors
+
         # Call the appropriate generator
         design_result = self._call_generator(
-            design_type, n_factors, study.resolution, seed
+            design_type, n_factors, study.resolution, seed,
+            n_runs=study.n_runs,
+            model_order=study.model_order,
+            factor_ranges=factor_ranges,
         )
 
         # Convert coded to actual values
@@ -274,6 +293,15 @@ class DOEEngine:
 
         # Grand mean of all response values
         grand_mean = float(np.mean(response_arr))
+
+        # -------------------------------------------------------------------
+        # Taguchi designs use ANOM (Analysis of Means) instead of ANOVA
+        # -------------------------------------------------------------------
+        if design_type in _TAGUCHI_DESIGNS:
+            return await self._analyze_taguchi(
+                session, study, design_matrix, response_arr,
+                factor_names, grand_mean,
+            )
 
         # Check if this design type supports interaction estimation
         skip_interactions = design_type in _NO_INTERACTION_DESIGNS
@@ -496,12 +524,131 @@ class DOEEngine:
 
         return result
 
+    async def _analyze_taguchi(
+        self,
+        session: AsyncSession,
+        study: DOEStudy,
+        design_matrix: np.ndarray,
+        response_arr: np.ndarray,
+        factor_names: list[str],
+        grand_mean: float,
+    ) -> dict[str, Any]:
+        """Run Taguchi ANOM analysis with S/N ratios.
+
+        This is a SEPARATE analysis path from the standard ANOVA pipeline.
+        Computes S/N ratios for each run, then performs Analysis of Means
+        (ANOM) to rank factors and determine optimal settings.
+        """
+        sn_type = getattr(study, "sn_type", None) or "smaller_is_better"
+
+        anom_result = compute_anom(
+            design_matrix, response_arr, factor_names, sn_type,
+        )
+
+        # Build response table for persistence and API
+        response_table: list[dict[str, Any]] = []
+        for fr in anom_result.factors:
+            response_table.append({
+                "factor_name": fr.factor_name,
+                "level_means": fr.level_means,
+                "best_level": fr.best_level,
+                "best_level_value": fr.best_level_value,
+                "range": fr.range,
+                "rank": fr.rank,
+            })
+
+        # Build effects-like entries from ANOM for display compatibility
+        effects_list: list[dict[str, Any]] = []
+        for fr in anom_result.factors:
+            effects_list.append({
+                "factor_name": fr.factor_name,
+                "effect": fr.range,
+                "coefficient": fr.range / 2.0,
+                "sum_of_squares": 0.0,
+                "t_statistic": 0.0,
+                "p_value": None,
+                "significant": None,
+            })
+
+        result: dict[str, Any] = {
+            "grand_mean": grand_mean,
+            "effects": effects_list,
+            "interactions": [],
+            "anova": [],
+            "r_squared": 0.0,
+            "adj_r_squared": 0.0,
+            "pred_r_squared": None,
+            "lack_of_fit_f": None,
+            "lack_of_fit_p": None,
+            "taguchi_anom": {
+                "sn_type": sn_type,
+                "response_table": response_table,
+                "optimal_settings": anom_result.optimal_settings,
+                "sn_ratios": anom_result.sn_ratios,
+            },
+            "warnings": anom_result.warnings,
+        }
+
+        # Compute simple residuals from grand mean for diagnostics
+        residual_arr = response_arr - grand_mean
+        fitted_arr = np.full_like(response_arr, grand_mean)
+
+        result["residuals"] = [float(r) for r in residual_arr]
+        result["fitted_values"] = [float(f) for f in fitted_arr]
+        result["outlier_indices"] = []
+        result["residual_stats"] = {
+            "mean": float(np.mean(residual_arr)),
+            "std": float(np.std(residual_arr, ddof=1)) if len(residual_arr) > 1 else 0.0,
+            "min": float(np.min(residual_arr)),
+            "max": float(np.max(residual_arr)),
+        }
+
+        # Persist analysis
+        analysis_repo = DOEAnalysisRepository(session)
+        analysis = DOEAnalysis(
+            study_id=study.id,
+            anova_table=json.dumps(result["anova"]),
+            effects=json.dumps(result["effects"]),
+            interactions=json.dumps(result["interactions"]),
+            r_squared=result["r_squared"],
+            adj_r_squared=result["adj_r_squared"],
+            pred_r_squared=result.get("pred_r_squared"),
+            lack_of_fit_f=result.get("lack_of_fit_f"),
+            lack_of_fit_p=result.get("lack_of_fit_p"),
+            grand_mean=result["grand_mean"],
+            regression_model=None,
+            optimal_settings=json.dumps(anom_result.optimal_settings),
+            residuals_json=json.dumps(result.get("residuals")),
+            fitted_values_json=json.dumps(result.get("fitted_values")),
+            normality_test_json=None,
+            outlier_indices_json=json.dumps(result.get("outlier_indices")),
+            residual_stats_json=json.dumps(result.get("residual_stats")),
+            taguchi_anom_json=json.dumps(result.get("taguchi_anom")),
+        )
+        session.add(analysis)
+
+        # Advance study status
+        study.status = "analyzed"
+        study.updated_at = datetime.now(timezone.utc)
+        await session.flush()
+
+        logger.info(
+            "Analyzed Taguchi DOE study %d: S/N type=%s, %d factors ranked",
+            study.id, sn_type, len(anom_result.factors),
+        )
+
+        return result
+
     @staticmethod
     def _call_generator(
         design_type: str,
         n_factors: int,
         resolution: int | None,
         seed: int | None,
+        *,
+        n_runs: int | None = None,
+        model_order: str | None = None,
+        factor_ranges: list[tuple[float, float]] | None = None,
     ) -> DesignResult:
         """Dispatch to the correct design generator function."""
         if design_type == "full_factorial":
@@ -516,5 +663,20 @@ class DOEEngine:
             return central_composite(n_factors, seed=seed)
         elif design_type == "box_behnken":
             return box_behnken(n_factors, seed=seed)
+        elif design_type == "d_optimal":
+            if n_runs is None:
+                raise ValueError(
+                    "D-optimal design requires n_runs to be specified"
+                )
+            return d_optimal(
+                n_factors=n_factors,
+                n_runs=n_runs,
+                factor_ranges=factor_ranges,
+                model_order=model_order or "linear",
+                seed=seed,
+            )
+        elif design_type == "taguchi":
+            n_levels = 2  # Default; could be extended via study config
+            return taguchi(n_factors, n_levels=n_levels, seed=seed)
         else:
             raise ValueError(f"Unknown design type: {design_type}")

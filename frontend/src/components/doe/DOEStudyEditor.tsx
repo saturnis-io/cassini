@@ -23,6 +23,7 @@ import {
   useAnalyzeStudy,
   useDOEAnalysis,
 } from '@/api/hooks'
+import type { SNType, TaguchiANOM } from '@/api/doe.api'
 import { FactorEditor, type FactorRow } from './FactorEditor'
 import { DesignMatrix } from './DesignMatrix'
 import { RunTable } from './RunTable'
@@ -64,7 +65,49 @@ const DESIGN_TYPES = [
     label: 'Box-Behnken',
     description: 'Three-level RSM design. No corner points. Requires 3+ factors.',
   },
+  {
+    value: 'd_optimal',
+    label: 'D-Optimal',
+    description:
+      'Algorithmic design for custom run counts. Maximizes information via coordinate-exchange.',
+  },
+  {
+    value: 'taguchi',
+    label: 'Taguchi (Orthogonal Array)',
+    description:
+      'Robust design using standard OAs (L4-L27). Uses S/N ratios and ANOM for factor ranking.',
+  },
 ] as const
+
+const SN_TYPES: { value: SNType; label: string; description: string }[] = [
+  {
+    value: 'smaller_is_better',
+    label: 'Smaller is Better',
+    description: 'Minimize response (e.g., defect rate, shrinkage)',
+  },
+  {
+    value: 'larger_is_better',
+    label: 'Larger is Better',
+    description: 'Maximize response (e.g., strength, yield)',
+  },
+  {
+    value: 'nominal_is_best_1',
+    label: 'Nominal is Best (Type 1)',
+    description: 'Target value, mean adjustable (e.g., dimension with scaling)',
+  },
+  {
+    value: 'nominal_is_best_2',
+    label: 'Nominal is Best (Type 2)',
+    description: 'Target value, mean on target (e.g., minimize variance only)',
+  },
+]
+
+const SN_TYPE_LABELS: Record<SNType, string> = {
+  smaller_is_better: 'Smaller is Better',
+  larger_is_better: 'Larger is Better',
+  nominal_is_best_1: 'Nominal is Best (Type 1)',
+  nominal_is_best_2: 'Nominal is Best (Type 2)',
+}
 
 const PHASE_STEPS: StudyStep[] = [
   { key: 'define', label: 'Define', icon: ClipboardList },
@@ -100,6 +143,9 @@ function NewStudyForm() {
   const [name, setName] = useState('')
   const [designType, setDesignType] = useState('full_factorial')
   const [resolution, setResolution] = useState('')
+  const [nRuns, setNRuns] = useState('')
+  const [modelOrder, setModelOrder] = useState('linear')
+  const [snType, setSnType] = useState<SNType>('smaller_is_better')
   const [responseName, setResponseName] = useState('')
   const [responseUnit, setResponseUnit] = useState('')
   const [notes, setNotes] = useState('')
@@ -122,7 +168,12 @@ function NewStudyForm() {
     return null
   }, [factors])
 
-  const canCreate = name.trim() && !factorErrors && !createStudy.isPending
+  const canCreate =
+    name.trim() &&
+    !factorErrors &&
+    !createStudy.isPending &&
+    (designType !== 'd_optimal' || (nRuns && parseInt(nRuns) >= 2)) &&
+    (designType !== 'taguchi' || snType)
 
   const handleCreate = async () => {
     if (!canCreate) return
@@ -132,6 +183,9 @@ function NewStudyForm() {
         plant_id: plantId,
         design_type: designType,
         resolution: resolution ? parseInt(resolution) : undefined,
+        n_runs: designType === 'd_optimal' && nRuns ? parseInt(nRuns) : undefined,
+        model_order: designType === 'd_optimal' ? (modelOrder as 'linear' | 'interaction' | 'quadratic') : undefined,
+        sn_type: designType === 'taguchi' ? snType : undefined,
         response_name: responseName.trim() || undefined,
         response_unit: responseUnit.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -265,6 +319,72 @@ function NewStudyForm() {
             </select>
             <p className="text-muted-foreground mt-1 text-xs">
               Higher resolution provides less aliasing but requires more runs.
+            </p>
+          </div>
+        )}
+
+        {/* D-Optimal parameters */}
+        {designType === 'd_optimal' && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Number of Runs</label>
+              <input
+                type="number"
+                value={nRuns}
+                onChange={(e) => setNRuns(e.target.value)}
+                min={2}
+                max={10000}
+                placeholder="e.g., 12"
+                className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              />
+              <p className="text-muted-foreground mt-1 text-xs">
+                Must be at least equal to the number of model parameters.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Model Order</label>
+              <select
+                value={modelOrder}
+                onChange={(e) => setModelOrder(e.target.value)}
+                className="bg-background border-border focus:ring-primary/50 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              >
+                <option value="linear">Linear (main effects only)</option>
+                <option value="interaction">Interaction (main + 2FI)</option>
+                <option value="quadratic">Quadratic (main + 2FI + quadratic)</option>
+              </select>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Higher-order models require more runs for estimation.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* S/N Type (only for Taguchi) */}
+        {designType === 'taguchi' && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">
+              Signal-to-Noise Ratio Type
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {SN_TYPES.map((sn) => (
+                <button
+                  key={sn.value}
+                  type="button"
+                  onClick={() => setSnType(sn.value)}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    snType === sn.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50',
+                  )}
+                >
+                  <div className="text-sm font-medium">{sn.label}</div>
+                  <div className="text-muted-foreground mt-0.5 text-xs">{sn.description}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Determines how response variability is measured. Higher S/N = better quality.
             </p>
           </div>
         )}
@@ -590,67 +710,76 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
 
             {analysis ? (
               <div className="space-y-8">
-                <ANOVATable
-                  anova={analysis.anova_table}
-                  r_squared={analysis.r_squared}
-                  adj_r_squared={analysis.adj_r_squared}
-                  pred_r_squared={analysis.pred_r_squared}
-                  lack_of_fit_f={analysis.lack_of_fit_f}
-                  lack_of_fit_p={analysis.lack_of_fit_p}
-                />
+                {/* Taguchi ANOM results */}
+                {analysis.taguchi_anom ? (
+                  <TaguchiANOMPanel anom={analysis.taguchi_anom} />
+                ) : (
+                  <>
+                    <ANOVATable
+                      anova={analysis.anova_table}
+                      r_squared={analysis.r_squared}
+                      adj_r_squared={analysis.adj_r_squared}
+                      pred_r_squared={analysis.pred_r_squared}
+                      lack_of_fit_f={analysis.lack_of_fit_f}
+                      lack_of_fit_p={analysis.lack_of_fit_p}
+                    />
 
-                <EffectsParetoChart
-                  effects={analysis.effects}
-                  interactions={analysis.interactions}
-                />
+                    <EffectsParetoChart
+                      effects={analysis.effects}
+                      interactions={analysis.interactions}
+                    />
 
-                <MainEffectsPlot
-                  effects={analysis.effects}
-                  grandMean={analysis.grand_mean}
-                />
+                    <MainEffectsPlot
+                      effects={analysis.effects}
+                      grandMean={analysis.grand_mean}
+                    />
 
-                {analysis.interactions.length > 0 && (
-                  <InteractionPlot
-                    interactions={analysis.interactions}
-                    effects={analysis.effects}
-                    grandMean={analysis.grand_mean}
-                  />
+                    {analysis.interactions.length > 0 && (
+                      <InteractionPlot
+                        interactions={analysis.interactions}
+                        effects={analysis.effects}
+                        grandMean={analysis.grand_mean}
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Residual diagnostics */}
                 <DOEResidualsPanel analysis={analysis} />
 
-                {/* Effect coefficients summary */}
-                <div className="border-border rounded-xl border">
-                  <div className="bg-muted/50 border-border border-b px-4 py-3">
-                    <h3 className="text-sm font-medium">Effect Estimates</h3>
-                  </div>
-                  <div className="divide-border divide-y">
-                    {analysis.effects.map((eff) => (
-                      <div key={eff.factor_name} className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-sm font-medium">{eff.factor_name}</span>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-muted-foreground">
-                            Effect: <span className="font-mono">{eff.effect.toFixed(4)}</span>
-                          </span>
-                          <span className="text-muted-foreground">
-                            Coefficient: <span className="font-mono">{eff.coefficient.toFixed(4)}</span>
-                          </span>
+                {/* Effect coefficients summary (skip for Taguchi — shown in ANOM panel) */}
+                {!analysis.taguchi_anom && (
+                  <div className="border-border rounded-xl border">
+                    <div className="bg-muted/50 border-border border-b px-4 py-3">
+                      <h3 className="text-sm font-medium">Effect Estimates</h3>
+                    </div>
+                    <div className="divide-border divide-y">
+                      {analysis.effects.map((eff) => (
+                        <div key={eff.factor_name} className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-sm font-medium">{eff.factor_name}</span>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-muted-foreground">
+                              Effect: <span className="font-mono">{eff.effect.toFixed(4)}</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              Coefficient: <span className="font-mono">{eff.coefficient.toFixed(4)}</span>
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {analysis.interactions.map((ix, i) => (
-                      <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-sm font-medium">
-                          {ix.factor_names.join(' x ')}
-                        </span>
-                        <div className="text-muted-foreground text-sm">
-                          Effect: <span className="font-mono">{ix.effect.toFixed(4)}</span>
+                      ))}
+                      {analysis.interactions.map((ix, i) => (
+                        <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-sm font-medium">
+                            {ix.factor_names.join(' x ')}
+                          </span>
+                          <div className="text-muted-foreground text-sm">
+                            Effect: <span className="font-mono">{ix.effect.toFixed(4)}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ) : study.status === 'analyzed' ? (
               <div className="flex h-40 items-center justify-center">
@@ -720,6 +849,13 @@ function DefineOverview({ study }: { study: NonNullable<ReturnType<typeof useDOE
         <div>
           <h3 className="mb-1 text-sm font-medium">Resolution</h3>
           <p className="text-sm">{study.resolution}</p>
+        </div>
+      )}
+
+      {study.sn_type && (
+        <div>
+          <h3 className="mb-1 text-sm font-medium">S/N Ratio Type</h3>
+          <p className="text-sm">{SN_TYPE_LABELS[study.sn_type] ?? study.sn_type}</p>
         </div>
       )}
 

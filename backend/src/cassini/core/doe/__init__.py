@@ -19,6 +19,15 @@ from cassini.core.doe.designs import (
     full_factorial,
 )
 from cassini.core.doe.engine import DOEEngine
+from cassini.core.doe.optimal import d_efficiency, d_optimal
+from cassini.core.doe.taguchi import (
+    ANOMFactorResult,
+    ANOMResult,
+    SNResult,
+    compute_anom,
+    compute_sn_ratio,
+    taguchi,
+)
 
 __all__ = [
     "DOEEngine",
@@ -28,6 +37,9 @@ __all__ = [
     "fractional_factorial",
     "central_composite",
     "box_behnken",
+    "d_optimal",
+    "d_efficiency",
+    "taguchi",
     "coded_to_actual",
     # Analysis
     "EffectResult",
@@ -39,4 +51,10 @@ __all__ = [
     "compute_interactions",
     "compute_anova",
     "compute_regression",
+    # Taguchi
+    "SNResult",
+    "ANOMResult",
+    "ANOMFactorResult",
+    "compute_sn_ratio",
+    "compute_anom",
 ]
