@@ -643,6 +643,51 @@ class SPCEngine:
             if resolved["lsl"] is not None:
                 char_lsl = resolved["lsl"]
 
+        # Multi-part short-run validation: when short_run_mode is set AND a
+        # material_id is provided, the material MUST have configured baseline
+        # parameters (stored_center_line as target, stored_sigma as sigma).
+        # Without these, the short-run transformation is meaningless — reject
+        # early with a clear error rather than silently using zero targets.
+        _is_multipart_short_run = bool(
+            char_short_run_mode and context.material_id
+        )
+        if _is_multipart_short_run:
+            if char_stored_center_line is None:
+                raise ValueError(
+                    f"Material has no configured target (stored_center_line) for "
+                    f"short-run mode. Configure material limit overrides first."
+                )
+            if char_short_run_mode == "standardized":
+                if not char_stored_sigma or char_stored_sigma <= 0:
+                    raise ValueError(
+                        f"Material has no configured sigma (stored_sigma) for "
+                        f"standardized short-run mode. Configure material limit "
+                        f"overrides first."
+                    )
+            # Log material changeover detection for diagnostics.
+            # Nelson Rule run-tests (Rules 2/3/4) may trigger false positives
+            # at changeover points; this log helps users diagnose those.
+            _material_id_for_changeover = context.material_id
+            _last_material = self._window_manager.get_last_material_id(
+                characteristic_id
+            )
+            if (
+                _last_material is not None
+                and _last_material != _material_id_for_changeover
+            ):
+                logger.warning(
+                    "material_changeover_detected",
+                    characteristic_id=characteristic_id,
+                    previous_material_id=_last_material,
+                    new_material_id=_material_id_for_changeover,
+                    short_run_mode=char_short_run_mode,
+                    hint=(
+                        "Nelson Rule run-test violations near changeover points "
+                        "may be artifacts of the material switch, not true "
+                        "process shifts."
+                    ),
+                )
+
         # Step 2: Validate measurements against subgroup mode configuration
         actual_n = len(measurements)
         _, is_undersized = self._validate_measurements_with_values(
@@ -670,7 +715,7 @@ class SPCEngine:
         # Guard: standardized short-run mode requires a valid stored_sigma.
         # Without it the Z-score transform is impossible and the chart would
         # silently display raw (untransformed) values, misleading the user.
-        if char_short_run_mode == "standardized":
+        if char_short_run_mode == "standardized" and not _is_multipart_short_run:
             if not char_stored_sigma or char_stored_sigma <= 0:
                 raise ValueError(
                     "Standardized short-run mode requires stored_sigma to be set. "
@@ -683,9 +728,18 @@ class SPCEngine:
         # so that WindowSample.value (mean of values) matches the transformed
         # zone boundaries.  Raw measurements are persisted to the DB unchanged;
         # only the window copy is transformed.
+        #
+        # Multi-part short-run: when material_id is present, use the
+        # material-resolved stored_center_line as the target (process center
+        # for that material) instead of the characteristic's target_value
+        # (spec nominal).  MaterialResolver has already overridden
+        # char_stored_center_line and char_stored_sigma above.
         window_measurements = measurements  # default: same as raw
         if char_short_run_mode == "deviation":
-            target = char_target_value if char_target_value is not None else 0.0
+            if _is_multipart_short_run:
+                target = char_stored_center_line  # already validated non-None above
+            else:
+                target = char_target_value if char_target_value is not None else 0.0
             mean = mean - target
             # Shift each measurement so mean(window_measurements) == mean
             window_measurements = [v - target for v in measurements]
@@ -697,7 +751,10 @@ class SPCEngine:
                 char_stored_center_line = char_stored_center_line - target
 
         elif char_short_run_mode == "standardized":
-            target = char_target_value if char_target_value is not None else 0.0
+            if _is_multipart_short_run:
+                target = char_stored_center_line  # already validated non-None above
+            else:
+                target = char_target_value if char_target_value is not None else 0.0
             sigma = char_stored_sigma
             if sigma and sigma > 0:
                 # Use sigma_xbar = sigma / sqrt(n) for subgroups > 1
@@ -883,6 +940,13 @@ class SPCEngine:
         self._window_manager.increment_limit_counter(
             characteristic_id, _material_id,
         )
+
+        # Track last material_id for changeover detection in multi-part
+        # short-run charts.
+        if _material_id is not None:
+            self._window_manager.set_last_material_id(
+                characteristic_id, _material_id,
+            )
 
         return result
 

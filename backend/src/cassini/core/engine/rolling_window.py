@@ -474,6 +474,10 @@ class RollingWindowManager:
         self._limit_refresh_interval = limit_cache_refresh_interval
         self._limit_ttl = limit_cache_ttl_seconds
 
+        # Last material_id per characteristic — used for changeover detection
+        # in multi-part short-run charts.
+        self._last_material_per_char: dict[int, int | None] = {}
+
     @staticmethod
     def _cache_key(char_id: int, material_id: int | None = None) -> tuple[int, int | None]:
         """Build cache key from characteristic and optional material."""
@@ -579,6 +583,32 @@ class RollingWindowManager:
         entry = self._limit_cache.get(key)
         if entry is not None:
             entry.samples_since_compute += 1
+
+    def get_last_material_id(self, char_id: int) -> int | None:
+        """Return the material_id of the most recent sample for a characteristic.
+
+        Used by SPCEngine for changeover detection in multi-part short-run
+        charts.  Returns None if no samples have been processed yet for
+        this characteristic in the current worker lifecycle.
+
+        Args:
+            char_id: Characteristic ID
+
+        Returns:
+            Last material_id or None if unknown
+        """
+        return self._last_material_per_char.get(char_id)
+
+    def set_last_material_id(self, char_id: int, material_id: int | None) -> None:
+        """Record the material_id of the most recent sample.
+
+        Called by SPCEngine after successful sample processing.
+
+        Args:
+            char_id: Characteristic ID
+            material_id: Material ID of the just-processed sample
+        """
+        self._last_material_per_char[char_id] = material_id
 
     async def _load_window_from_db(
         self,

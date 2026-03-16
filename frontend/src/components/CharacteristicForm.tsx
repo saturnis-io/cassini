@@ -399,6 +399,7 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
               is_manual: !characteristic.data_source,
               stored_sigma: characteristic.stored_sigma,
               stored_center_line: characteristic.stored_center_line,
+              short_run_mode: formData.short_run_mode,
             }}
             scheduleConfig={scheduleConfig}
             onChange={handleChange}

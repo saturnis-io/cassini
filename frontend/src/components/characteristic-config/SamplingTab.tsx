@@ -16,6 +16,7 @@ interface Characteristic {
   is_manual: boolean
   stored_sigma: number | null
   stored_center_line: number | null
+  short_run_mode: '' | 'deviation' | 'standardized'
 }
 
 interface SamplingTabProps {
@@ -71,6 +72,7 @@ export function SamplingTab({
   const defaultOpen = ['subgroup']
   if (isManual) defaultOpen.push('schedule')
   if (showStoredParams) defaultOpen.push('stored-params')
+  if (characteristic.short_run_mode) defaultOpen.push('short-run-multipart')
 
   return (
     <Accordion defaultOpen={defaultOpen} className="space-y-3">
@@ -224,6 +226,86 @@ export function SamplingTab({
                 Note: Recalculate limits after adding samples for this mode to work correctly.
               </p>
             )}
+          </div>
+        </AccordionSection>
+      )}
+
+      {/* Multi-Part Short-Run Info — shown when short_run_mode is set */}
+      {characteristic.short_run_mode && (
+        <AccordionSection id="short-run-multipart" title="Multi-Part Short-Run Charts">
+          <div className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              Short-run mode is active (
+              <span className="font-mono font-medium">{characteristic.short_run_mode}</span>).
+              When samples include a material, the SPC engine transforms each measurement using
+              that material&apos;s baseline parameters from{' '}
+              <span className="font-medium">Material Limit Overrides</span>.
+            </p>
+
+            <div className="bg-muted/50 space-y-2 rounded-lg p-3 text-xs">
+              <p className="font-medium">How it works:</p>
+              <ul className="text-muted-foreground list-disc space-y-1 pl-4">
+                {characteristic.short_run_mode === 'deviation' ? (
+                  <>
+                    <li>
+                      Each value is shifted:{' '}
+                      <span className="font-mono">transformed = value - material_target</span>
+                    </li>
+                    <li>
+                      The material&apos;s <span className="font-mono">stored_center_line</span>{' '}
+                      (from Material Overrides) is used as the target
+                    </li>
+                    <li>Control limits are shifted by the same amount</li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      Each value is standardized:{' '}
+                      <span className="font-mono">
+                        transformed = (value - material_target) / material_sigma
+                      </span>
+                    </li>
+                    <li>
+                      The material&apos;s <span className="font-mono">stored_center_line</span>{' '}
+                      and <span className="font-mono">stored_sigma</span> (from Material Overrides)
+                      are used
+                    </li>
+                    <li>
+                      Control limits are fixed at{' '}
+                      <span className="font-mono">{'\u00B1'}3</span>
+                    </li>
+                  </>
+                )}
+                <li>
+                  Multiple materials can be plotted on the same chart in a common coordinate system
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-warning/10 text-warning rounded-lg p-3 text-xs">
+              <p className="font-medium">Requirements:</p>
+              <ul className="list-disc space-y-1 pl-4">
+                <li>
+                  Each material must have a configured{' '}
+                  <span className="font-mono">stored_center_line</span>
+                  {characteristic.short_run_mode === 'standardized' && (
+                    <>
+                      {' '}
+                      and <span className="font-mono">stored_sigma</span>
+                    </>
+                  )}{' '}
+                  in the Material Overrides tab
+                </li>
+                <li>
+                  Samples submitted with a material that has no baseline will be rejected with an
+                  error
+                </li>
+                <li>
+                  Nelson Rule violations near material changeover points may be artifacts of the
+                  switch, not true process shifts
+                </li>
+              </ul>
+            </div>
           </div>
         </AccordionSection>
       )}
