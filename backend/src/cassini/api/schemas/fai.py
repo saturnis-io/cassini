@@ -1,7 +1,7 @@
 """FAI (First Article Inspection) API schemas — AS9102 Rev C."""
 from __future__ import annotations
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Request Schemas ──────────────────────────────────────────
@@ -209,3 +209,38 @@ class FAIReportDetailResponse(FAIReportResponse):
     materials: list[FAIMaterialResponse] = []
     special_processes_items: list[FAISpecialProcessResponse] = []
     functional_tests_items: list[FAIFunctionalTestResponse] = []
+
+
+# ── Characteristic Search / Auto-Populate Schemas ────────────
+
+class FAICharacteristicSearchResult(BaseModel):
+    """A characteristic matching a search query, used for FAI auto-populate."""
+
+    id: int
+    name: str
+    hierarchy_path: str
+    nominal: float | None = None
+    usl: float | None = None
+    lsl: float | None = None
+    unit: str = "mm"
+
+    @field_validator("unit", mode="before")
+    @classmethod
+    def _default_unit(cls, v: str | None) -> str:
+        return v or "mm"
+
+
+class FAILatestMeasurementResponse(BaseModel):
+    """Most recent sample mean value for a characteristic."""
+
+    char_id: int
+    value: float
+    timestamp: datetime
+
+
+class FAICapabilitySummaryResponse(BaseModel):
+    """Abbreviated capability summary for badge display."""
+
+    char_id: int
+    cpk: float | None = None
+    sample_count: int = 0

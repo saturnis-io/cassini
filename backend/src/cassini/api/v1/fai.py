@@ -22,11 +22,14 @@ from cassini.api.deps import (
     get_db_session,
 )
 from cassini.api.schemas.fai import (
+    FAICapabilitySummaryResponse,
+    FAICharacteristicSearchResult,
     FAIFunctionalTestCreate,
     FAIFunctionalTestResponse,
     FAIItemCreate,
     FAIItemResponse,
     FAIItemUpdate,
+    FAILatestMeasurementResponse,
     FAIMaterialCreate,
     FAIMaterialResponse,
     FAIRejectRequest,
@@ -38,8 +41,11 @@ from cassini.api.schemas.fai import (
     FAISpecialProcessResponse,
 )
 from cassini.core.signature_engine import SignatureWorkflowEngine
+from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.fai import FAIItem, FAIReport
 from cassini.db.models.fai_detail import FAIFunctionalTest, FAIMaterial, FAISpecialProcess
+from cassini.db.models.hierarchy import Hierarchy
+from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.user import User
 
 logger = structlog.get_logger(__name__)
@@ -1391,3 +1397,258 @@ async def create_delta_report(
         user=user.username,
     )
     return _report_detail_response(delta)
+
+
+# ---------------------------------------------------------------------------
+# Characteristic search / auto-populate endpoints
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_hierarchy_path(session: AsyncSession, hierarchy_id: int) -> str:
+    """Build hierarchy breadcrumb like 'Plant > Line > Station'."""
+    parts: list[str] = []
+    current_id: int | None = hierarchy_id
+    depth = 0
+    while current_id is not None and depth < 50:
+        row = (
+            await session.execute(
+                select(Hierarchy.name, Hierarchy.parent_id).where(
+                    Hierarchy.id == current_id
+                )
+            )
+        ).first()
+        if row is None:
+            break
+        parts.insert(0, row.name)
+        current_id = row.parent_id
+        depth += 1
+    return " > ".join(parts) if parts else ""
+
+
+@router.get(
+    "/characteristics/search",
+    response_model=list[FAICharacteristicSearchResult],
+    summary="Search characteristics for FAI auto-populate",
+)
+async def search_characteristics(
+    q: str = Query(..., min_length=1, max_length=255),
+    plant_id: int = Query(..., gt=0),
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> list[FAICharacteristicSearchResult]:
+    """Search characteristics by name (case-insensitive) scoped to a plant.
+
+    Returns up to 20 matches with hierarchy path and spec limits for
+    auto-populating FAI Form 3 rows.
+    """
+    await check_plant_role(user, plant_id, "operator", session)
+
+    # Case-insensitive LIKE search scoped to plant via hierarchy
+    search_term = f"%{q}%"
+    stmt = (
+        select(
+            Characteristic.id,
+            Characteristic.name,
+            Characteristic.hierarchy_id,
+            Characteristic.target_value,
+            Characteristic.usl,
+            Characteristic.lsl,
+        )
+        .join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id)
+        .where(Hierarchy.plant_id == plant_id)
+        .where(Characteristic.name.ilike(search_term))
+        .order_by(Characteristic.name)
+        .limit(20)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    results: list[FAICharacteristicSearchResult] = []
+    # Cache hierarchy paths to avoid redundant walks
+    path_cache: dict[int, str] = {}
+    for row in rows:
+        hid = row.hierarchy_id
+        if hid not in path_cache:
+            path_cache[hid] = await _resolve_hierarchy_path(session, hid)
+        hierarchy_path = path_cache[hid]
+
+        results.append(
+            FAICharacteristicSearchResult(
+                id=row.id,
+                name=row.name,
+                hierarchy_path=f"{hierarchy_path} > {row.name}" if hierarchy_path else row.name,
+                nominal=row.target_value,
+                usl=row.usl,
+                lsl=row.lsl,
+            )
+        )
+    return results
+
+
+@router.get(
+    "/characteristics/{char_id}/latest-measurement",
+    response_model=FAILatestMeasurementResponse,
+    summary="Get latest measurement for a characteristic",
+)
+async def get_latest_measurement(
+    char_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAILatestMeasurementResponse:
+    """Return the most recent sample's mean measurement value.
+
+    Used to auto-fill the actual_value in FAI Form 3 rows.
+    """
+    # Verify characteristic exists and user has plant access
+    char_row = (
+        await session.execute(
+            select(Characteristic.id, Characteristic.hierarchy_id).where(
+                Characteristic.id == char_id
+            )
+        )
+    ).first()
+    if char_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Characteristic not found",
+        )
+
+    # Resolve plant_id for access check
+    from cassini.api.deps import resolve_plant_id_for_characteristic
+
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    await check_plant_role(user, plant_id, "operator", session)
+
+    # Get the most recent non-excluded sample with its measurements
+    latest_sample = (
+        await session.execute(
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(Sample.char_id == char_id)
+            .where(Sample.is_excluded == False)  # noqa: E712
+            .order_by(Sample.timestamp.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if latest_sample is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No measurements found for this characteristic",
+        )
+
+    # Compute mean of measurements
+    values = [m.value for m in latest_sample.measurements]
+    if not values:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No measurement values in the latest sample",
+        )
+    mean_value = sum(values) / len(values)
+
+    ts = latest_sample.timestamp
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+
+    return FAILatestMeasurementResponse(
+        char_id=char_id,
+        value=round(mean_value, 6),
+        timestamp=ts,
+    )
+
+
+@router.get(
+    "/characteristics/{char_id}/capability-summary",
+    response_model=FAICapabilitySummaryResponse,
+    summary="Get Cpk summary for a characteristic",
+)
+async def get_capability_summary(
+    char_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> FAICapabilitySummaryResponse:
+    """Return current Cpk value for badge display next to FAI items.
+
+    Computes Cpk from the most recent 1000 samples.  Returns null cpk
+    when spec limits are missing or insufficient data exists.
+    """
+    # Verify characteristic exists
+    char = (
+        await session.execute(
+            select(Characteristic).where(Characteristic.id == char_id)
+        )
+    ).scalar_one_or_none()
+    if char is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Characteristic not found",
+        )
+
+    # Resolve plant_id for access check
+    from cassini.api.deps import resolve_plant_id_for_characteristic
+
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    await check_plant_role(user, plant_id, "operator", session)
+
+    # Attribute charts don't have capability indices
+    if char.data_type == "attribute":
+        return FAICapabilitySummaryResponse(char_id=char_id, cpk=None, sample_count=0)
+
+    # Need both spec limits for Cpk
+    if char.usl is None or char.lsl is None:
+        # Count samples anyway for context
+        count_result = await session.execute(
+            select(sa_func.count()).select_from(Sample).where(
+                Sample.char_id == char_id,
+                Sample.is_excluded == False,  # noqa: E712
+            )
+        )
+        return FAICapabilitySummaryResponse(
+            char_id=char_id,
+            cpk=None,
+            sample_count=count_result.scalar_one(),
+        )
+
+    # Gather measurement values from the most recent samples
+    sample_stmt = (
+        select(Sample.id)
+        .where(Sample.char_id == char_id)
+        .where(Sample.is_excluded == False)  # noqa: E712
+        .order_by(Sample.timestamp.desc())
+        .limit(1000)
+    )
+    sample_ids = (await session.execute(sample_stmt)).scalars().all()
+    if len(sample_ids) < 2:
+        return FAICapabilitySummaryResponse(
+            char_id=char_id, cpk=None, sample_count=len(sample_ids)
+        )
+
+    meas_stmt = (
+        select(Measurement.value)
+        .where(Measurement.sample_id.in_(sample_ids))
+    )
+    values = list((await session.execute(meas_stmt)).scalars().all())
+
+    if len(values) < 2:
+        return FAICapabilitySummaryResponse(
+            char_id=char_id, cpk=None, sample_count=len(sample_ids)
+        )
+
+    # Compute Cpk
+    import statistics
+
+    mean = statistics.mean(values)
+    stdev = statistics.stdev(values)
+    if stdev == 0:
+        return FAICapabilitySummaryResponse(
+            char_id=char_id, cpk=None, sample_count=len(sample_ids)
+        )
+
+    cpu = (char.usl - mean) / (3 * stdev)
+    cpl = (mean - char.lsl) / (3 * stdev)
+    cpk = min(cpu, cpl)
+
+    return FAICapabilitySummaryResponse(
+        char_id=char_id,
+        cpk=round(cpk, 3),
+        sample_count=len(sample_ids),
+    )

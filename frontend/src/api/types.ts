@@ -474,6 +474,30 @@ export interface FAIFunctionalTestCreate {
   result?: string
 }
 
+// ---- FAI Auto-Populate Types ----
+
+export interface FAICharacteristicSearchResult {
+  id: number
+  name: string
+  hierarchy_path: string
+  nominal: number | null
+  usl: number | null
+  lsl: number | null
+  unit: string
+}
+
+export interface FAILatestMeasurement {
+  char_id: number
+  value: number
+  timestamp: string
+}
+
+export interface FAICapabilitySummary {
+  char_id: number
+  cpk: number | null
+  sample_count: number
+}
+
 // ---- MSA Types ----
 
 export interface MSAStudy {

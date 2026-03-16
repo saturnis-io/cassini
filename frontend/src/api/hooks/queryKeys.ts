@@ -118,6 +118,12 @@ export const queryKeys = {
     all: ['fai'] as const,
     list: (params?: object) => ['fai', 'list', params] as const,
     detail: (id: number) => ['fai', 'detail', id] as const,
+    charSearch: (q: string, plantId: number) =>
+      ['fai', 'charSearch', q, plantId] as const,
+    latestMeasurement: (charId: number) =>
+      ['fai', 'latestMeasurement', charId] as const,
+    capabilitySummary: (charId: number) =>
+      ['fai', 'capabilitySummary', charId] as const,
   },
   signatures: {
     all: ['signatures'] as const,

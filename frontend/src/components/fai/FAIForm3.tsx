@@ -1,12 +1,29 @@
-import { useState, useCallback } from 'react'
-import { Plus, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import {
+  Plus,
+  Trash2,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Link2,
+  Download,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   useAddFAIItem,
   useUpdateFAIItem,
   useDeleteFAIItem,
+  useFAICharacteristicSearch,
+  useFAICapabilitySummary,
+  usePullLatestMeasurement,
 } from '@/api/hooks'
-import type { FAIReportDetail, FAIItem } from '@/api/client'
+import type {
+  FAIReportDetail,
+  FAIItem,
+  FAICharacteristicSearchResult,
+} from '@/api/client'
 
 interface FAIForm3Props {
   report: FAIReportDetail
@@ -32,6 +49,212 @@ const PASS_FAIL_OPTIONS = [
   { value: 'Fail', label: 'Fail' },
 ]
 
+// ---------------------------------------------------------------------------
+// CpkBadge — shows Cpk value with color coding
+// ---------------------------------------------------------------------------
+
+function CpkBadge({ charId }: { charId: number }) {
+  const { data } = useFAICapabilitySummary(charId)
+  if (!data || data.cpk == null) return null
+
+  const cpk = data.cpk
+  const color =
+    cpk >= 1.33
+      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      : cpk >= 1.0
+        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+        : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+
+  return (
+    <span
+      className={cn('inline-flex rounded px-1.5 py-0.5 text-xs font-medium', color)}
+      title={`Cpk = ${cpk.toFixed(3)} (${data.sample_count} samples)`}
+    >
+      Cpk {cpk.toFixed(2)}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// CharacteristicSearch — debounced autocomplete dropdown
+// ---------------------------------------------------------------------------
+
+function CharacteristicSearch({
+  plantId,
+  onSelect,
+}: {
+  plantId: number
+  onSelect: (result: FAICharacteristicSearchResult) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  const { data: results, isFetching } = useFAICharacteristicSearch(
+    debouncedQuery,
+    plantId,
+  )
+
+  // Debounce the search query
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [query])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSelect = (result: FAICharacteristicSearchResult) => {
+    onSelect(result)
+    setQuery('')
+    setDebouncedQuery('')
+    setIsOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex items-center gap-1">
+        <Search className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setIsOpen(e.target.value.length > 0)
+          }}
+          onFocus={() => {
+            if (query.length > 0) setIsOpen(true)
+          }}
+          className="bg-background border-border focus:ring-primary/50 w-full rounded border px-2 py-1 text-sm focus:ring-2 focus:outline-none"
+          placeholder="Search SPC characteristic..."
+        />
+        {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+      </div>
+
+      {isOpen && results && results.length > 0 && (
+        <div className="bg-popover border-border absolute top-full z-50 mt-1 max-h-60 w-80 overflow-y-auto rounded-lg border shadow-lg">
+          {results.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => handleSelect(r)}
+              className="hover:bg-muted/50 flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors"
+            >
+              <span className="text-sm font-medium">{r.name}</span>
+              <span className="text-muted-foreground text-xs">{r.hierarchy_path}</span>
+              <span className="text-muted-foreground text-xs">
+                {r.nominal != null && `Nom: ${r.nominal}`}
+                {r.usl != null && ` | USL: ${r.usl}`}
+                {r.lsl != null && ` | LSL: ${r.lsl}`}
+                {r.unit && ` | ${r.unit}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isOpen && debouncedQuery.length > 0 && results && results.length === 0 && !isFetching && (
+        <div className="bg-popover border-border absolute top-full z-50 mt-1 w-80 rounded-lg border px-3 py-2 shadow-lg">
+          <span className="text-muted-foreground text-sm">No characteristics found</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LinkedCharInfo — shows linked characteristic info + Cpk badge + Pull Latest
+// ---------------------------------------------------------------------------
+
+function LinkedCharInfo({
+  item,
+  reportId,
+  readonly,
+}: {
+  item: FAIItem
+  reportId: number
+  readonly: boolean
+}) {
+  const updateItem = useUpdateFAIItem()
+  const pullLatest = usePullLatestMeasurement()
+
+  // Track linked characteristic metadata per item via local state keyed by characteristic_id
+  // The hierarchy_path is not stored on FAIItem itself, so we show the characteristic name
+  const charId = item.characteristic_id
+
+  if (charId == null) return null
+
+  const handlePullLatest = () => {
+    pullLatest.mutate(charId, {
+      onSuccess: (data) => {
+        updateItem.mutate({
+          reportId,
+          itemId: item.id,
+          data: { actual_value: data.value },
+        })
+      },
+    })
+  }
+
+  const handleUnlink = () => {
+    updateItem.mutate({
+      reportId,
+      itemId: item.id,
+      data: { characteristic_id: null },
+    })
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Link2 className="text-primary h-3 w-3 shrink-0" />
+      <span className="text-primary text-xs font-medium">Linked</span>
+      <CpkBadge charId={charId} />
+      {!readonly && (
+        <>
+          <button
+            onClick={handlePullLatest}
+            disabled={pullLatest.isPending}
+            className="text-primary hover:text-primary/80 flex items-center gap-0.5 text-xs transition-colors disabled:opacity-50"
+            title="Pull latest measurement as actual value"
+          >
+            {pullLatest.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Download className="h-3 w-3" />
+            )}
+            Pull Latest
+          </button>
+          <button
+            onClick={handleUnlink}
+            className="text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors"
+            title="Unlink characteristic"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FAIForm3 — main component
+// ---------------------------------------------------------------------------
+
 export function FAIForm3({ report, readonly }: FAIForm3Props) {
   const addItem = useAddFAIItem()
   const updateItem = useUpdateFAIItem()
@@ -48,6 +271,12 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
   const [expandedMeasurements, setExpandedMeasurements] = useState<Set<number>>(
     new Set(),
   )
+
+  // Track which items have the characteristic search open
+  const [searchOpenFor, setSearchOpenFor] = useState<number | null>(null)
+
+  // Track linked characteristic hierarchy paths (local display cache)
+  const [linkedPaths, setLinkedPaths] = useState<Record<number, string>>({})
 
   const getLocalValue = <K extends keyof FAIItem>(
     item: FAIItem,
@@ -172,6 +401,46 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
     }
   }
 
+  const handleCharacteristicSelect = (
+    item: FAIItem,
+    result: FAICharacteristicSearchResult,
+  ) => {
+    // Auto-fill fields from the selected characteristic
+    const updates: Partial<FAIItem> = {
+      characteristic_id: result.id,
+      characteristic_name: result.name,
+      nominal: result.nominal,
+      usl: result.usl,
+      lsl: result.lsl,
+      unit: result.unit,
+    }
+
+    // Update local state for immediate display
+    setEditingValues((prev) => ({
+      ...prev,
+      [item.id]: { ...prev[item.id], ...updates },
+    }))
+
+    // Store hierarchy path for display
+    setLinkedPaths((prev) => ({ ...prev, [item.id]: result.hierarchy_path }))
+
+    // Persist to server
+    updateItem.mutate({
+      reportId: report.id,
+      itemId: item.id,
+      data: {
+        characteristic_id: result.id,
+        characteristic_name: result.name,
+        nominal: result.nominal,
+        usl: result.usl,
+        lsl: result.lsl,
+        unit: result.unit,
+      },
+    })
+
+    setSearchOpenFor(null)
+  }
+
   // Summary
   const passCount = items.filter((i) => i.result === 'pass').length
   const failCount = items.filter((i) => i.result === 'fail').length
@@ -251,6 +520,8 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                 const result = getLocalValue(item, 'result')
                 const valueType = getLocalValue(item, 'value_type') ?? 'numeric'
                 const isExpanded = expandedMeasurements.has(item.id)
+                const charId = getLocalValue(item, 'characteristic_id')
+                const isSearchOpen = searchOpenFor === item.id
                 const rowBg =
                   result === 'fail'
                     ? 'bg-red-50 dark:bg-red-950/20'
@@ -278,19 +549,63 @@ export function FAIForm3({ report, readonly }: FAIForm3Props) {
                         />
                       </td>
 
-                      {/* Characteristic */}
+                      {/* Characteristic — with search + link info */}
                       <td className={cellClass}>
-                        <input
-                          type="text"
-                          value={getLocalValue(item, 'characteristic_name') ?? ''}
-                          onChange={(e) =>
-                            setLocalValue(item.id, 'characteristic_name', e.target.value)
-                          }
-                          onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
-                          disabled={readonly}
-                          className={inputClass}
-                          placeholder="Dimension, tolerance..."
-                        />
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={getLocalValue(item, 'characteristic_name') ?? ''}
+                              onChange={(e) =>
+                                setLocalValue(item.id, 'characteristic_name', e.target.value)
+                              }
+                              onBlur={(e) => handleBlur(item, 'characteristic_name', e.target.value)}
+                              disabled={readonly}
+                              className={inputClass}
+                              placeholder="Dimension, tolerance..."
+                            />
+                            {!readonly && (
+                              <button
+                                onClick={() =>
+                                  setSearchOpenFor(isSearchOpen ? null : item.id)
+                                }
+                                className={cn(
+                                  'shrink-0 rounded p-0.5 transition-colors',
+                                  isSearchOpen
+                                    ? 'text-primary'
+                                    : 'text-muted-foreground hover:text-foreground',
+                                )}
+                                title="Link to SPC characteristic"
+                              >
+                                <Search className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Search dropdown */}
+                          {isSearchOpen && !readonly && (
+                            <CharacteristicSearch
+                              plantId={report.plant_id}
+                              onSelect={(r) => handleCharacteristicSelect(item, r)}
+                            />
+                          )}
+
+                          {/* Linked characteristic info */}
+                          {charId != null && (
+                            <div className="flex flex-col gap-0.5">
+                              {linkedPaths[item.id] && (
+                                <span className="text-muted-foreground text-xs">
+                                  {linkedPaths[item.id]}
+                                </span>
+                              )}
+                              <LinkedCharInfo
+                                item={item}
+                                reportId={report.id}
+                                readonly={readonly}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Drawing Zone */}

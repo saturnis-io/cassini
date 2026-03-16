@@ -1,8 +1,11 @@
 import type {
+  FAICapabilitySummary,
+  FAICharacteristicSearchResult,
   FAIFunctionalTest,
   FAIFunctionalTestCreate,
   FAIItem,
   FAIItemCreate,
+  FAILatestMeasurement,
   FAIMaterial,
   FAIMaterialCreate,
   FAIReport,
@@ -185,4 +188,20 @@ export const faiApi = {
     fetchApi<FAIReportDetail>(`/fai/reports/${reportId}/delta`, {
       method: 'POST',
     }),
+
+  // Characteristic search / auto-populate
+  searchCharacteristics: (q: string, plantId: number) =>
+    fetchApi<FAICharacteristicSearchResult[]>(
+      `/fai/characteristics/search?q=${encodeURIComponent(q)}&plant_id=${plantId}`,
+    ),
+
+  getLatestMeasurement: (charId: number) =>
+    fetchApi<FAILatestMeasurement>(
+      `/fai/characteristics/${charId}/latest-measurement`,
+    ),
+
+  getCapabilitySummary: (charId: number) =>
+    fetchApi<FAICapabilitySummary>(
+      `/fai/characteristics/${charId}/capability-summary`,
+    ),
 }

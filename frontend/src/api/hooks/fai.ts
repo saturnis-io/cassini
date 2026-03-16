@@ -12,6 +12,35 @@ import type {
 } from '../client'
 
 // -----------------------------------------------------------------------
+// Characteristic search / auto-populate hooks
+// -----------------------------------------------------------------------
+
+export function useFAICharacteristicSearch(q: string, plantId: number) {
+  return useQuery({
+    queryKey: queryKeys.fai.charSearch(q, plantId),
+    queryFn: () => faiApi.searchCharacteristics(q, plantId),
+    enabled: q.length >= 1 && plantId > 0,
+    staleTime: 30_000,
+  })
+}
+
+export function useFAICapabilitySummary(charId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.fai.capabilitySummary(charId ?? 0),
+    queryFn: () => faiApi.getCapabilitySummary(charId!),
+    enabled: charId != null && charId > 0,
+    staleTime: 60_000,
+  })
+}
+
+export function usePullLatestMeasurement() {
+  return useMutation({
+    mutationFn: (charId: number) => faiApi.getLatestMeasurement(charId),
+    onError: handleMutationError('Failed to pull latest measurement'),
+  })
+}
+
+// -----------------------------------------------------------------------
 // FAI (First Article Inspection) hooks
 // -----------------------------------------------------------------------
 
