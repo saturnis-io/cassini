@@ -176,6 +176,16 @@ async def _auto_map_datasource(
     )
     session.add(ds)
 
+    # Auto-set manual entry policy if currently "open"
+    from cassini.db.models.characteristic import Characteristic
+
+    char_result = await session.execute(
+        select(Characteristic).where(Characteristic.id == port.characteristic_id)
+    )
+    char = char_result.scalar_one_or_none()
+    if char is not None and char.manual_entry_policy == "open":
+        char.manual_entry_policy = "supplemental"
+
 
 async def _remove_auto_datasource(
     session: AsyncSession,

@@ -158,6 +158,10 @@ async def create_mapping(
         json_path=data.json_path,
     )
 
+    # Auto-set manual entry policy if currently "open"
+    if char.manual_entry_policy == "open":
+        char.manual_entry_policy = "supplemental"
+
     await session.commit()
 
     # Refresh TagProvider subscriptions
@@ -220,6 +224,14 @@ async def delete_mapping(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No data source mapping for characteristic {characteristic_id}"
         )
+
+    # Reset manual entry policy to "open" since no data source remains
+    char_result = await session.execute(
+        select(Characteristic).where(Characteristic.id == characteristic_id)
+    )
+    char = char_result.scalar_one_or_none()
+    if char is not None:
+        char.manual_entry_policy = "open"
 
     await session.commit()
 
