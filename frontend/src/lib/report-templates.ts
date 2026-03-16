@@ -54,6 +54,8 @@ export type ReportSection =
   | 'probabilityPlot'
   | 'pareto'
   | 'doeResiduals'
+  | 'gageRRGraphics'
+  | 'userActivity'
 
 export type RequiredData = 'chartData' | 'violations' | 'samples' | 'stats'
 
@@ -159,7 +161,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'MSA Study Report',
     description: 'Gage R&R or Attribute Agreement results with AIAG acceptance criteria',
     icon: Ruler,
-    sections: ['header', 'studyInfo', 'gageRR', 'attributeAgreement', 'msaRecommendation'],
+    sections: ['header', 'studyInfo', 'gageRR', 'gageRRGraphics', 'attributeAgreement', 'msaRecommendation'],
     requiredData: [],
     scope: 'study',
     studyType: 'msa',
@@ -180,7 +182,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
     name: 'Audit Package',
     description: 'Compliance evidence bundle: audit trail, signatures, measurements, capability',
     icon: ShieldCheck,
-    sections: ['header', 'auditSummary', 'signatureEvidence', 'capabilityEvidence', 'measurementData'],
+    sections: ['header', 'auditSummary', 'userActivity', 'signatureEvidence', 'capabilityEvidence', 'measurementData'],
     requiredData: [],
     commercial: true,
   },

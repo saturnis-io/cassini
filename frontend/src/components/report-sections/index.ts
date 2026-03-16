@@ -44,3 +44,7 @@ export { ReportMeasurementData } from '@/components/report-sections/ReportMeasur
 export { ReportProbabilityPlot } from '@/components/report-sections/ReportProbabilityPlot'
 export { ReportPareto } from '@/components/report-sections/ReportPareto'
 export { ReportDOEResiduals } from '@/components/report-sections/ReportDOEResiduals'
+
+// Wave 3 report sections
+export { ReportGageRRGraphics } from '@/components/report-sections/ReportGageRRGraphics'
+export { ReportUserActivity } from '@/components/report-sections/ReportUserActivity'

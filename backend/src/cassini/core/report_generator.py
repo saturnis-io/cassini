@@ -13,12 +13,13 @@ from datetime import datetime, timedelta, timezone
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from cassini.db.models.capability import CapabilityHistory
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.hierarchy import Hierarchy
 from cassini.db.models.report_schedule import ReportSchedule
-from cassini.db.models.sample import Sample
+from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.violation import Violation
 
 logger = structlog.get_logger(__name__)
@@ -89,6 +90,9 @@ async def generate_report(
     capability = await _fetch_capability(char_ids, session)
     char_names = await _get_characteristic_names(char_ids, session)
 
+    # Fetch chart data for inline SVG control charts
+    chart_data = await _fetch_chart_data(char_ids, window_start, session)
+
     # Build scope label
     scope_label = await _get_scope_label(
         schedule.scope_type, schedule.scope_id, schedule.plant_id, session
@@ -107,6 +111,7 @@ async def generate_report(
         capability=capability,
         char_names=char_names,
         char_count=len(char_ids),
+        chart_data=chart_data,
     )
 
     # Convert to PDF
@@ -307,6 +312,90 @@ async def _get_characteristic_names(
     return dict(result.all())
 
 
+async def _fetch_chart_data(
+    char_ids: list[int],
+    window_start: datetime,
+    session: AsyncSession,
+) -> dict[int, dict]:
+    """Fetch recent sample data and control limits for SVG chart rendering.
+
+    Returns a dict keyed by char_id with keys:
+    - values: list of floats (subgroup means)
+    - ucl, lcl, center_line: control limits
+    - violation_indices: set of indices where violations occurred
+    """
+    if not char_ids:
+        return {}
+
+    results: dict[int, dict] = {}
+    max_points = 50  # Last 50 subgroups per chart
+
+    for char_id in char_ids:
+        # Get characteristic control limits
+        char_stmt = select(
+            Characteristic.ucl, Characteristic.lcl, Characteristic.stored_center_line
+        ).where(Characteristic.id == char_id)
+        char_result = await session.execute(char_stmt)
+        char_row = char_result.first()
+        if not char_row:
+            continue
+
+        ucl, lcl, center_line = char_row
+
+        # Get last N samples with measurements
+        sample_stmt = (
+            select(Sample)
+            .options(selectinload(Sample.measurements))
+            .where(
+                Sample.char_id == char_id,
+                Sample.timestamp >= window_start,
+                Sample.is_excluded.is_(False),
+            )
+            .order_by(Sample.timestamp.desc())
+            .limit(max_points)
+        )
+        sample_result = await session.execute(sample_stmt)
+        samples = list(reversed(sample_result.scalars().all()))
+
+        if not samples:
+            continue
+
+        # Compute subgroup means
+        values: list[float] = []
+        for s in samples:
+            if s.measurements:
+                mean = sum(m.value for m in s.measurements) / len(s.measurements)
+                values.append(mean)
+
+        if not values:
+            continue
+
+        # Find which points have violations
+        sample_ids = [s.id for s in samples]
+        violation_stmt = (
+            select(Violation.sample_id)
+            .where(Violation.sample_id.in_(sample_ids))
+            .distinct()
+        )
+        violation_result = await session.execute(violation_stmt)
+        violation_sample_ids = {row[0] for row in violation_result.all()}
+
+        violation_indices: set[int] = set()
+        for idx, s in enumerate(samples):
+            if idx < len(values) and s.id in violation_sample_ids:
+                violation_indices.add(idx)
+
+        results[char_id] = {
+            "values": values,
+            "ucl": ucl,
+            "lcl": lcl,
+            "center_line": center_line,
+            "violation_indices": violation_indices,
+        }
+
+    return results
+
+
 async def _get_scope_label(
     scope_type: str,
     scope_id: int | None,
@@ -335,6 +424,158 @@ async def _get_scope_label(
 
 
 # ---------------------------------------------------------------------------
+# SVG chart generation (no matplotlib — pure string templates)
+# ---------------------------------------------------------------------------
+
+
+def _generate_svg_chart(
+    values: list[float],
+    ucl: float | None,
+    lcl: float | None,
+    center_line: float | None,
+    violation_indices: set[int],
+    char_name: str,
+    width: int = 500,
+    height: int = 160,
+) -> str:
+    """Generate an inline SVG control chart for a characteristic.
+
+    Renders a polyline of data points with horizontal limit lines
+    and red circles for violation points. Designed to embed in HTML
+    emails and PDF reports (xhtml2pdf renders inline SVG).
+    """
+    if not values:
+        return ""
+
+    n = len(values)
+    padding_left = 50
+    padding_right = 10
+    padding_top = 20
+    padding_bottom = 25
+    plot_w = width - padding_left - padding_right
+    plot_h = height - padding_top - padding_bottom
+
+    # Determine y-axis range from data + limits
+    all_vals = list(values)
+    if ucl is not None:
+        all_vals.append(ucl)
+    if lcl is not None:
+        all_vals.append(lcl)
+    if center_line is not None:
+        all_vals.append(center_line)
+
+    y_min = min(all_vals)
+    y_max = max(all_vals)
+    y_range = y_max - y_min
+    if y_range == 0:
+        y_range = 1.0  # Prevent division by zero for flat data
+    # Add 10% padding
+    y_min -= y_range * 0.1
+    y_max += y_range * 0.1
+    y_range = y_max - y_min
+
+    def x_pos(idx: int) -> float:
+        if n <= 1:
+            return padding_left + plot_w / 2
+        return padding_left + (idx / (n - 1)) * plot_w
+
+    def y_pos(val: float) -> float:
+        return padding_top + (1 - (val - y_min) / y_range) * plot_h
+
+    # Build SVG
+    parts: list[str] = []
+    parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{width}" height="{height}" '
+        f'style="background: #fafbfc; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 8px;">'
+    )
+
+    # Title
+    parts.append(
+        f'<text x="{padding_left}" y="14" '
+        f'font-size="10" font-family="Segoe UI, sans-serif" fill="#1a1a2e">'
+        f"{_escape(char_name)}</text>"
+    )
+
+    # Plot area background
+    parts.append(
+        f'<rect x="{padding_left}" y="{padding_top}" '
+        f'width="{plot_w}" height="{plot_h}" fill="white" stroke="#e2e8f0"/>'
+    )
+
+    # Limit lines
+    if ucl is not None:
+        uy = y_pos(ucl)
+        parts.append(
+            f'<line x1="{padding_left}" y1="{uy:.1f}" '
+            f'x2="{padding_left + plot_w}" y2="{uy:.1f}" '
+            f'stroke="#dc2626" stroke-width="1" stroke-dasharray="4,3"/>'
+        )
+        parts.append(
+            f'<text x="{padding_left - 3}" y="{uy + 3:.1f}" '
+            f'font-size="8" text-anchor="end" fill="#dc2626">UCL</text>'
+        )
+
+    if lcl is not None:
+        ly = y_pos(lcl)
+        parts.append(
+            f'<line x1="{padding_left}" y1="{ly:.1f}" '
+            f'x2="{padding_left + plot_w}" y2="{ly:.1f}" '
+            f'stroke="#dc2626" stroke-width="1" stroke-dasharray="4,3"/>'
+        )
+        parts.append(
+            f'<text x="{padding_left - 3}" y="{ly + 3:.1f}" '
+            f'font-size="8" text-anchor="end" fill="#dc2626">LCL</text>'
+        )
+
+    if center_line is not None:
+        cy = y_pos(center_line)
+        parts.append(
+            f'<line x1="{padding_left}" y1="{cy:.1f}" '
+            f'x2="{padding_left + plot_w}" y2="{cy:.1f}" '
+            f'stroke="#16a34a" stroke-width="1.5"/>'
+        )
+        parts.append(
+            f'<text x="{padding_left - 3}" y="{cy + 3:.1f}" '
+            f'font-size="8" text-anchor="end" fill="#16a34a">CL</text>'
+        )
+
+    # Data polyline
+    points_str = " ".join(f"{x_pos(i):.1f},{y_pos(v):.1f}" for i, v in enumerate(values))
+    parts.append(
+        f'<polyline points="{points_str}" '
+        f'fill="none" stroke="#3b82f6" stroke-width="1.5"/>'
+    )
+
+    # Data points (small circles)
+    for i, v in enumerate(values):
+        cx = x_pos(i)
+        cy = y_pos(v)
+        if i in violation_indices:
+            # Violation point: red, larger
+            parts.append(
+                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" '
+                f'fill="#dc2626" stroke="white" stroke-width="1"/>'
+            )
+        else:
+            # Normal point
+            parts.append(
+                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="2.5" '
+                f'fill="#3b82f6" stroke="white" stroke-width="0.5"/>'
+            )
+
+    # X-axis label
+    parts.append(
+        f'<text x="{padding_left + plot_w / 2}" y="{height - 3}" '
+        f'font-size="8" text-anchor="middle" fill="#94a3b8">'
+        f'{n} samples</text>'
+    )
+
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # HTML builder
 # ---------------------------------------------------------------------------
 
@@ -351,8 +592,12 @@ def _build_html(
     capability: list[dict],
     char_names: dict[int, str],
     char_count: int,
+    chart_data: dict[int, dict] | None = None,
 ) -> str:
     """Build the full HTML report."""
+    if chart_data is None:
+        chart_data = {}
+
     parts = [
         "<html><head>",
         _CSS,
@@ -410,6 +655,22 @@ def _build_html(
                 have no unacknowledged violations in the reporting window.
             </p>
         """)
+        parts.append("</div>")
+
+    # Inline SVG control charts
+    if chart_data:
+        parts.append("""<div class="section"><h2>Control Charts</h2>""")
+        for char_id, cdata in chart_data.items():
+            char_name = char_names.get(char_id, str(char_id))
+            svg = _generate_svg_chart(
+                values=cdata["values"],
+                ucl=cdata["ucl"],
+                lcl=cdata["lcl"],
+                center_line=cdata["center_line"],
+                violation_indices=cdata["violation_indices"],
+                char_name=char_name,
+            )
+            parts.append(svg)
         parts.append("</div>")
 
     # Recent violations table

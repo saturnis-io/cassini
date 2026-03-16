@@ -47,6 +47,7 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
 
   // Supervisor level
   '/reports': 'supervisor',
+  '/compare-plants': 'supervisor',
 
   // Engineer level
   '/connectivity': 'engineer',

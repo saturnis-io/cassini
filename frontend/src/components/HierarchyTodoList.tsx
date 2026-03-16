@@ -11,6 +11,8 @@ import {
   Clock,
   CheckCircle,
   Loader2,
+  Pin,
+  PinOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboardStore'
@@ -380,6 +382,8 @@ function TodoTreeNode({
   const selectedId = useDashboardStore((state) => state.selectedCharacteristicId)
   const setSelectedId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const openInputModal = useDashboardStore((state) => state.openInputModal)
+  const togglePinCharacteristic = useDashboardStore((state) => state.togglePinCharacteristic)
+  const pinnedCharacteristicIds = useDashboardStore((state) => state.pinnedCharacteristicIds)
 
   const isExpanded = expandedNodeIds.has(node.id)
   const hasChildren = node.children && node.children.length > 0
@@ -524,6 +528,25 @@ function TodoTreeNode({
                   {status === 'OK' && <CheckCircle className="text-success h-4 w-4" />}
                   <span className="flex-1 font-medium">{char.name}</span>
                   <StatusBadge status={status} />
+                  <button
+                    className={cn(
+                      'text-xs transition-opacity',
+                      pinnedCharacteristicIds.includes(char.id)
+                        ? 'text-primary opacity-100'
+                        : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary',
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      togglePinCharacteristic(char.id)
+                    }}
+                    title={pinnedCharacteristicIds.includes(char.id) ? 'Unpin' : 'Pin to overview'}
+                  >
+                    {pinnedCharacteristicIds.includes(char.id) ? (
+                      <PinOff className="h-3 w-3" />
+                    ) : (
+                      <Pin className="h-3 w-3" />
+                    )}
+                  </button>
                   {!char.data_source && (
                     <button
                       className="text-primary text-xs opacity-0 transition-opacity group-hover:opacity-100 hover:underline"

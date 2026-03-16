@@ -30,11 +30,12 @@ import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
 import { useKonamiSequence } from '@/hooks/useKonamiSequence'
-import { AlertTriangle, Activity, Hash, Gauge, ClipboardList } from 'lucide-react'
+import { AlertTriangle, Activity, Hash, Gauge, ClipboardList, Pin, LayoutGrid } from 'lucide-react'
 import { BottomDrawer } from '@/components/BottomDrawer'
 import type { DrawerTab } from '@/components/BottomDrawer'
 import { Explainable } from '@/components/Explainable'
 import { DiagnoseTab } from '@/components/DiagnoseTab'
+import { PinnedChartsView } from '@/components/PinnedChartsView'
 
 /** Maximum data points to fetch for duration/custom time ranges */
 const MAX_CHART_POINTS = 500
@@ -124,6 +125,9 @@ export function OperatorDashboard() {
   const rangeWindow = useDashboardStore((state) => state.rangeWindow)
   const setRangeWindow = useDashboardStore((state) => state.setRangeWindow)
   const materialIdFilter = useDashboardStore((state) => state.materialIdFilter)
+  const viewMode = useDashboardStore((state) => state.viewMode)
+  const setViewMode = useDashboardStore((state) => state.setViewMode)
+  const pinnedCount = useDashboardStore((state) => state.pinnedCharacteristicIds.length)
 
   const { data: annotationsData } = useAnnotations(selectedId ?? 0)
 
@@ -454,9 +458,46 @@ export function OperatorDashboard() {
         </div>
       )}
 
+      {/* ── View Mode Toggle ── */}
+      <div data-ui="dashboard-view-toggle" className="flex flex-shrink-0 items-center gap-1 px-1">
+        <button
+          onClick={() => setViewMode('single')}
+          className={cn(
+            'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
+            viewMode === 'single'
+              ? 'bg-primary/15 text-primary border-primary/30 border'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent',
+          )}
+          title="Single characteristic view"
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          Single View
+        </button>
+        <button
+          onClick={() => setViewMode('pinned')}
+          className={cn(
+            'flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors',
+            viewMode === 'pinned'
+              ? 'bg-primary/15 text-primary border-primary/30 border'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent',
+          )}
+          title="Pinned characteristics overview"
+        >
+          <Pin className="h-3.5 w-3.5" />
+          Pinned View
+          {pinnedCount > 0 && (
+            <span className="bg-primary/20 text-primary rounded-full px-1.5 text-[10px] font-semibold">
+              {pinnedCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* ── Main Content Area (hierarchy now in sidebar) ── */}
       <div data-ui="dashboard-content" className="flex min-h-0 flex-1 flex-col gap-2">
-          {selectedId ? (
+        {viewMode === 'pinned' ? (
+          <PinnedChartsView />
+        ) : selectedId ? (
             <>
               {/* ── Toolbar ── */}
               <ChartToolbar

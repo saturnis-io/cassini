@@ -46,6 +46,8 @@ import {
   ReportProbabilityPlot,
   ReportPareto,
   ReportDOEResiduals,
+  ReportGageRRGraphics,
+  ReportUserActivity,
 } from '@/components/report-sections'
 
 interface ReportPreviewProps {
@@ -350,6 +352,12 @@ function ReportSectionComponent({
       return <ReportCapabilityEvidence characteristicId={characteristicId} />
     case 'measurementData':
       return <ReportMeasurementData characteristicId={characteristicId} chartOptions={chartOptions} />
+    // Gage R&R graphics (Wave 3)
+    case 'gageRRGraphics':
+      return <ReportGageRRGraphics studyId={studyId} />
+    // User activity (Wave 3)
+    case 'userActivity':
+      return <ReportUserActivity chartOptions={chartOptions} />
     default:
       return null
   }

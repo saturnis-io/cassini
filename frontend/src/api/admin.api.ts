@@ -26,6 +26,21 @@ export interface AuditIntegrityResult {
   message: string
 }
 
+export interface UserActivityEntry {
+  user_id: number | null
+  username: string
+  login_count: number
+  actions_by_type: Record<string, number>
+  violations_acknowledged: number
+}
+
+export interface UserActivitySummaryResponse {
+  users: UserActivityEntry[]
+  start_date: string | null
+  end_date: string | null
+  total_actions: number
+}
+
 // Database Admin API
 export const databaseApi = {
   getConfig: () => fetchApi<DatabaseConfig>('/database/config'),
@@ -146,6 +161,14 @@ export const auditApi = {
   getStats: () => fetchApi<AuditStats>('/audit/stats'),
 
   verifyIntegrity: () => fetchApi<AuditIntegrityResult>('/audit/verify-integrity'),
+
+  getUserActivitySummary: (params?: { start_date?: string; end_date?: string }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.start_date) searchParams.set('start_date', params.start_date)
+    if (params?.end_date) searchParams.set('end_date', params.end_date)
+    const query = searchParams.toString()
+    return fetchApi<UserActivitySummaryResponse>(`/audit/user-activity-summary${query ? `?${query}` : ''}`)
+  },
 
   exportLogs: async (params?: AuditLogParams) => {
     const searchParams = new URLSearchParams()

@@ -105,6 +105,13 @@ export function useAuditStats() {
   })
 }
 
+export function useUserActivitySummary(params?: { start_date?: string; end_date?: string }) {
+  return useQuery({
+    queryKey: [...queryKeys.audit.all, 'user-activity', params] as const,
+    queryFn: () => auditApi.getUserActivitySummary(params),
+  })
+}
+
 export function useExportAuditLogs() {
   return useMutation({
     mutationFn: (params?: AuditLogParams) => auditApi.exportLogs(params),

@@ -6,6 +6,10 @@ import type { ChartTypeId } from '@/types/charts'
 export type TimeRangeType = 'points' | 'duration' | 'custom'
 export type HistogramPosition = 'below' | 'right' | 'hidden'
 export type XAxisMode = 'index' | 'timestamp'
+export type DashboardViewMode = 'single' | 'pinned'
+
+/** Maximum number of characteristics that can be pinned */
+export const MAX_PINNED_CHARACTERISTICS = 10
 
 export interface TimeRangeOption {
   label: string
@@ -117,6 +121,17 @@ interface DashboardState {
   setDrawerOpen: (open: boolean) => void
   drawerTab: 'capability' | 'annotations' | 'diagnose'
   setDrawerTab: (tab: 'capability' | 'annotations' | 'diagnose') => void
+
+  // Dashboard view mode (single characteristic vs pinned multi-characteristic)
+  viewMode: DashboardViewMode
+  setViewMode: (mode: DashboardViewMode) => void
+
+  // Pinned characteristics for multi-characteristic view
+  pinnedCharacteristicIds: number[]
+  pinCharacteristic: (id: number) => void
+  unpinCharacteristic: (id: number) => void
+  togglePinCharacteristic: (id: number) => void
+  isCharacteristicPinned: (id: number) => boolean
 }
 
 // Default time range: last 50 points
@@ -277,6 +292,32 @@ export const useDashboardStore = create<DashboardState>()(
       setDrawerOpen: (open) => set({ drawerOpen: open }),
       drawerTab: 'capability' as 'capability' | 'annotations' | 'diagnose',
       setDrawerTab: (tab) => set({ drawerTab: tab }),
+
+      // Dashboard view mode
+      viewMode: 'single' as DashboardViewMode,
+      setViewMode: (mode) => set({ viewMode: mode }),
+
+      // Pinned characteristics
+      pinnedCharacteristicIds: [],
+      pinCharacteristic: (id) =>
+        set((state) => {
+          if (state.pinnedCharacteristicIds.includes(id)) return state
+          if (state.pinnedCharacteristicIds.length >= MAX_PINNED_CHARACTERISTICS) return state
+          return { pinnedCharacteristicIds: [...state.pinnedCharacteristicIds, id] }
+        }),
+      unpinCharacteristic: (id) =>
+        set((state) => ({
+          pinnedCharacteristicIds: state.pinnedCharacteristicIds.filter((pid) => pid !== id),
+        })),
+      togglePinCharacteristic: (id) =>
+        set((state) => {
+          if (state.pinnedCharacteristicIds.includes(id)) {
+            return { pinnedCharacteristicIds: state.pinnedCharacteristicIds.filter((pid) => pid !== id) }
+          }
+          if (state.pinnedCharacteristicIds.length >= MAX_PINNED_CHARACTERISTICS) return state
+          return { pinnedCharacteristicIds: [...state.pinnedCharacteristicIds, id] }
+        }),
+      isCharacteristicPinned: (id) => get().pinnedCharacteristicIds.includes(id),
     }),
     {
       name: 'cassini-dashboard',
@@ -297,6 +338,8 @@ export const useDashboardStore = create<DashboardState>()(
         showPredictions: state.showPredictions,
         drawerOpen: state.drawerOpen,
         drawerTab: state.drawerTab,
+        viewMode: state.viewMode,
+        pinnedCharacteristicIds: state.pinnedCharacteristicIds,
       }),
     },
   ),

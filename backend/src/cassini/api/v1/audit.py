@@ -15,7 +15,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import get_current_admin, get_db_session
-from cassini.api.schemas.audit import AuditIntegrityResult, AuditLogEntry, AuditLogListResponse, AuditStats
+from cassini.api.schemas.audit import (
+    AuditIntegrityResult,
+    AuditLogEntry,
+    AuditLogListResponse,
+    AuditStats,
+    UserActivitySummaryResponse,
+)
 from cassini.core.audit import AuditService, compute_audit_hash
 from cassini.core.resource_display import resolve_resource_display
 from cassini.db.models.audit_log import AuditLog
@@ -39,6 +45,75 @@ async def audit_health(
     """
     audit_service: AuditService = request.app.state.audit_service
     return audit_service.get_health()
+
+
+@router.get("/user-activity-summary", response_model=UserActivitySummaryResponse)
+async def get_user_activity_summary(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    session: AsyncSession = Depends(get_db_session),
+    _admin: User = Depends(get_current_admin),
+) -> UserActivitySummaryResponse:
+    """Get per-user activity summary for a date range. Admin-only.
+
+    Groups audit log entries by user_id, counting logins, actions
+    by type, and acknowledged violations.
+    """
+    # Base filter
+    conditions = []
+    if start_date is not None:
+        conditions.append(AuditLog.timestamp >= start_date)
+    if end_date is not None:
+        conditions.append(AuditLog.timestamp <= end_date)
+
+    # Total actions
+    total_stmt = select(func.count(AuditLog.id))
+    if conditions:
+        total_stmt = total_stmt.where(*conditions)
+    total_actions = (await session.execute(total_stmt)).scalar() or 0
+
+    # Group by username: action counts
+    action_stmt = select(
+        AuditLog.user_id,
+        AuditLog.username,
+        AuditLog.action,
+        func.count(AuditLog.id),
+    ).group_by(AuditLog.user_id, AuditLog.username, AuditLog.action)
+    if conditions:
+        action_stmt = action_stmt.where(*conditions)
+    action_rows = (await session.execute(action_stmt)).all()
+
+    # Aggregate per-user
+    user_map: dict[str, dict] = {}
+    for user_id, username, action, count in action_rows:
+        uname = username or "system"
+        if uname not in user_map:
+            user_map[uname] = {
+                "user_id": user_id,
+                "username": uname,
+                "login_count": 0,
+                "actions_by_type": {},
+                "violations_acknowledged": 0,
+            }
+        entry = user_map[uname]
+        entry["actions_by_type"][action] = entry["actions_by_type"].get(action, 0) + count
+        if action == "login":
+            entry["login_count"] += count
+        if action == "acknowledge":
+            entry["violations_acknowledged"] += count
+
+    from cassini.api.schemas.audit import UserActivityEntry
+
+    users = [UserActivityEntry(**data) for data in user_map.values()]
+    # Sort by total action count descending
+    users.sort(key=lambda u: sum(u.actions_by_type.values()), reverse=True)
+
+    return UserActivitySummaryResponse(
+        users=users,
+        start_date=start_date,
+        end_date=end_date,
+        total_actions=total_actions,
+    )
 
 
 # --- Helpers ---

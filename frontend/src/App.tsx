@@ -25,6 +25,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { UpgradePage } from '@/pages/UpgradePage'
 import { RequiresTier } from '@/components/RequiresTier'
 import { getRegistry } from '@/lib/extensionRegistry'
+import { IdleTimeoutBanner } from '@/components/IdleTimeoutBanner'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded page/view components — each becomes its own chunk
@@ -73,6 +74,9 @@ const GalaxyPage = lazy(() =>
 )
 const GuidePage = lazy(() =>
   import('@/pages/GuidePage').then((m) => ({ default: m.GuidePage })),
+)
+const PlantComparisonView = lazy(() =>
+  import('@/components/PlantComparisonView').then((m) => ({ default: m.PlantComparisonView })),
 )
 
 // Lazy-loaded settings sub-pages
@@ -269,7 +273,10 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
   return (
     <PlantProvider>
-      <WebSocketProvider>{children}</WebSocketProvider>
+      <WebSocketProvider>
+        <IdleTimeoutBanner />
+        {children}
+      </WebSocketProvider>
     </PlantProvider>
   )
 }
@@ -352,6 +359,20 @@ function App() {
                         <ReportsView />
                       </Suspense>
                     </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="compare-plants"
+                  element={
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
+                      <ProtectedRoute requiredRole="supervisor">
+                        <ErrorBoundary>
+                          <Suspense fallback={<PageSpinner />}>
+                            <PlantComparisonView />
+                          </Suspense>
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    </RequiresTier>
                   }
                 />
                 <Route

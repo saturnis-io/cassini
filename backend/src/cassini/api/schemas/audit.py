@@ -41,3 +41,22 @@ class AuditIntegrityResult(BaseModel):
     first_break_id: int | None = None
     first_break_timestamp: datetime | None = None
     message: str
+
+
+class UserActivityEntry(BaseModel):
+    """Per-user activity summary within a date range."""
+
+    user_id: int | None = None
+    username: str
+    login_count: int
+    actions_by_type: dict[str, int]
+    violations_acknowledged: int
+
+
+class UserActivitySummaryResponse(BaseModel):
+    """Aggregated user activity report."""
+
+    users: list[UserActivityEntry]
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    total_actions: int

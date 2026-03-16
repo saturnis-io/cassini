@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ChevronDown,
   X,
+  Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
@@ -159,6 +160,13 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'reports',
       icon: <FileText className="h-5 w-5" />,
       requiredRole: 'supervisor',
+    },
+    {
+      path: '/compare-plants',
+      labelKey: 'comparePlants',
+      icon: <Building2 className="h-5 w-5" />,
+      requiredRole: 'supervisor',
+      requiredTier: 'pro',
     },
   ]
 
