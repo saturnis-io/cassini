@@ -51,8 +51,12 @@ def seed_ts(hours_back: float | None = None) -> str:
 
 
 def insert_plant(cur: sqlite3.Cursor, name: str, code: str) -> int:
+    cur.execute("SELECT id FROM plant WHERE code = ?", (code,))
+    row = cur.fetchone()
+    if row:
+        return row[0]
     cur.execute(
-        "INSERT INTO plant (name, code, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
+        "INSERT OR IGNORE INTO plant (name, code, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
         (name, code, utcnow(), utcnow()),
     )
     return cur.lastrowid
@@ -60,14 +64,28 @@ def insert_plant(cur: sqlite3.Cursor, name: str, code: str) -> int:
 
 def insert_hierarchy(cur: sqlite3.Cursor, plant_id: int, name: str, htype: str, parent_id: int | None = None) -> int:
     cur.execute(
-        "INSERT INTO hierarchy (plant_id, name, type, parent_id) VALUES (?, ?, ?, ?)",
+        "SELECT id FROM hierarchy WHERE plant_id = ? AND name = ? AND parent_id IS ?",
+        (plant_id, name, parent_id),
+    )
+    row = cur.fetchone()
+    if row:
+        return row[0]
+    cur.execute(
+        "INSERT OR IGNORE INTO hierarchy (plant_id, name, type, parent_id) VALUES (?, ?, ?, ?)",
         (plant_id, name, htype, parent_id),
     )
     return cur.lastrowid
 
 
 def insert_characteristic(cur: sqlite3.Cursor, hierarchy_id: int, name: str, **kwargs) -> int:
-    """Insert a characteristic with sensible defaults."""
+    """Insert a characteristic with sensible defaults. Idempotent by hierarchy_id + name."""
+    cur.execute(
+        "SELECT id FROM characteristic WHERE hierarchy_id = ? AND name = ?",
+        (hierarchy_id, name),
+    )
+    row = cur.fetchone()
+    if row:
+        return row[0]
     defaults = {
         "subgroup_size": 1,
         "data_type": "variable",
@@ -78,7 +96,7 @@ def insert_characteristic(cur: sqlite3.Cursor, hierarchy_id: int, name: str, **k
     }
     defaults.update(kwargs)
     cur.execute(
-        """INSERT INTO characteristic
+        """INSERT OR IGNORE INTO characteristic
         (hierarchy_id, name, subgroup_size, data_type, subgroup_mode,
          min_measurements, decimal_precision, target_value, usl, lsl, ucl, lcl,
          stored_sigma, stored_center_line, attribute_chart_type, default_sample_size,
@@ -126,7 +144,7 @@ def insert_nelson_rules(cur: sqlite3.Cursor, char_id: int) -> None:
     ]
     for rule_id, is_enabled, require_ack in rules:
         cur.execute(
-            """INSERT INTO characteristic_rules
+            """INSERT OR IGNORE INTO characteristic_rules
             (char_id, rule_id, is_enabled, require_acknowledgement)
             VALUES (?, ?, ?, ?)""",
             (char_id, rule_id, is_enabled, require_ack),
@@ -136,18 +154,19 @@ def insert_nelson_rules(cur: sqlite3.Cursor, char_id: int) -> None:
 def insert_variable_sample(
     cur: sqlite3.Cursor, char_id: int, value: float,
     ts: str | None = None, material_id: int | None = None,
+    source: str = "MANUAL",
 ) -> int:
     """Insert a variable sample with one measurement."""
     ts = ts or seed_ts()
     cur.execute(
-        """INSERT INTO sample
-        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified, material_id)
-        VALUES (?, ?, 1, 0, 0, 0, ?)""",
-        (char_id, ts, material_id),
+        """INSERT OR IGNORE INTO sample
+        (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified, material_id, source)
+        VALUES (?, ?, 1, 0, 0, 0, ?, ?)""",
+        (char_id, ts, material_id, source),
     )
     sample_id = cur.lastrowid
     cur.execute(
-        "INSERT INTO measurement (sample_id, value) VALUES (?, ?)",
+        "INSERT OR IGNORE INTO measurement (sample_id, value) VALUES (?, ?)",
         (sample_id, value),
     )
     return sample_id
@@ -164,7 +183,7 @@ def insert_material_class(
     """
     now = utcnow()
     cur.execute(
-        """INSERT INTO material_class
+        """INSERT OR IGNORE INTO material_class
         (plant_id, parent_id, name, code, path, depth, description, created_at, updated_at)
         VALUES (?, ?, ?, ?, '/', ?, ?, ?, ?)""",
         (plant_id, parent_id, name, code, depth, description, now, now),
@@ -182,7 +201,7 @@ def insert_material(
     """Insert a material row. Returns material_id."""
     now = utcnow()
     cur.execute(
-        """INSERT INTO material
+        """INSERT OR IGNORE INTO material
         (plant_id, class_id, name, code, description, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (plant_id, class_id, name, code, description, now, now),
@@ -200,7 +219,7 @@ def insert_material_limit_override(
     """
     now = utcnow()
     cur.execute(
-        """INSERT INTO material_limit_override
+        """INSERT OR IGNORE INTO material_limit_override
         (characteristic_id, material_id, class_id, ucl, lcl, stored_sigma,
          stored_center_line, target_value, usl, lsl, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -218,16 +237,16 @@ def insert_material_limit_override(
 def insert_attribute_sample(
     cur: sqlite3.Cursor, char_id: int, defect_count: int,
     sample_size: int | None = None, units_inspected: int | None = None,
-    ts: str | None = None,
+    ts: str | None = None, source: str = "MANUAL",
 ) -> int:
     """Insert an attribute sample (no measurement row needed)."""
     ts = ts or seed_ts()
     cur.execute(
-        """INSERT INTO sample
+        """INSERT OR IGNORE INTO sample
         (char_id, timestamp, actual_n, is_excluded, is_undersized, is_modified,
-         defect_count, sample_size, units_inspected)
-        VALUES (?, ?, 1, 0, 0, 0, ?, ?, ?)""",
-        (char_id, ts, defect_count, sample_size, units_inspected),
+         defect_count, sample_size, units_inspected, source)
+        VALUES (?, ?, 1, 0, 0, 0, ?, ?, ?, ?)""",
+        (char_id, ts, defect_count, sample_size, units_inspected, source),
     )
     return cur.lastrowid
 
@@ -239,7 +258,7 @@ def insert_violation(
 ) -> int:
     """Insert a violation for a sample (simulates SPC engine detection)."""
     cur.execute(
-        """INSERT INTO violation
+        """INSERT OR IGNORE INTO violation
         (sample_id, char_id, rule_id, rule_name, severity, acknowledged,
          requires_acknowledgement, created_at)
         VALUES (?, ?, ?, ?, ?, 0, ?, ?)""",
@@ -249,9 +268,14 @@ def insert_violation(
 
 
 def insert_user(cur: sqlite3.Cursor, username: str, password: str, must_change: bool = False) -> int:
+    # Check if user already exists (idempotent for running against existing DBs)
+    cur.execute("SELECT id FROM user WHERE username = ?", (username,))
+    row = cur.fetchone()
+    if row:
+        return row[0]
     hashed = hash_password(password)
     cur.execute(
-        """INSERT INTO user (username, hashed_password, is_active, must_change_password, created_at, updated_at)
+        """INSERT OR IGNORE INTO user (username, hashed_password, is_active, must_change_password, created_at, updated_at)
         VALUES (?, ?, 1, ?, ?, ?)""",
         (username, hashed, must_change, utcnow(), utcnow()),
     )
@@ -260,7 +284,13 @@ def insert_user(cur: sqlite3.Cursor, username: str, password: str, must_change: 
 
 def insert_role(cur: sqlite3.Cursor, user_id: int, plant_id: int, role: str) -> None:
     cur.execute(
-        "INSERT INTO user_plant_role (user_id, plant_id, role) VALUES (?, ?, ?)",
+        "SELECT id FROM user_plant_role WHERE user_id = ? AND plant_id = ?",
+        (user_id, plant_id),
+    )
+    if cur.fetchone():
+        return
+    cur.execute(
+        "INSERT OR IGNORE INTO user_plant_role (user_id, plant_id, role) VALUES (?, ?, ?)",
         (user_id, plant_id, role),
     )
 
@@ -523,7 +553,7 @@ def seed(db_path: str) -> dict:
 
     # ── 8. Notifications seed webhook ──
     cur.execute(
-        """INSERT INTO webhook_config (name, url, is_active, retry_count, created_at, updated_at)
+        """INSERT OR IGNORE INTO webhook_config (name, url, is_active, retry_count, created_at, updated_at)
         VALUES (?, ?, 1, 3, ?, ?)""",
         ("E2E Seed Hook", "https://httpbin.org/post", utcnow(), utcnow()),
     )
@@ -572,7 +602,7 @@ def seed(db_path: str) -> dict:
 
     # Insert study initially without results_json (we'll UPDATE after computing)
     cur.execute(
-        """INSERT INTO msa_study
+        """INSERT OR IGNORE INTO msa_study
         (plant_id, name, study_type, characteristic_id, num_operators, num_parts,
          num_replicates, tolerance, status, created_by, created_at, completed_at, results_json)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -588,7 +618,7 @@ def seed(db_path: str) -> dict:
     operator_ids = []
     for seq, name in enumerate(["Alice", "Bob", "Carlos"]):
         cur.execute(
-            "INSERT INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO msa_operator (study_id, name, sequence_order) VALUES (?, ?, ?)",
             (msa_study_id, name, seq),
         )
         operator_ids.append(cur.lastrowid)
@@ -601,7 +631,7 @@ def seed(db_path: str) -> dict:
         ref_val = round(10.0 + rng_msa.uniform(-1.5, 1.5), 3)
         ref_values.append(ref_val)
         cur.execute(
-            "INSERT INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO msa_part (study_id, name, reference_value, sequence_order) VALUES (?, ?, ?, ?)",
             (msa_study_id, f"Part {seq + 1}", ref_val, seq),
         )
         part_ids.append(cur.lastrowid)
@@ -618,7 +648,7 @@ def seed(db_path: str) -> dict:
                 val = round(ref + rng_msa.gauss(0, 0.15), 4)
                 rep_measurements.append(val)
                 cur.execute(
-                    """INSERT INTO msa_measurement
+                    """INSERT OR IGNORE INTO msa_measurement
                     (study_id, operator_id, part_id, replicate_num, value, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?)""",
                     (msa_study_id, op_id, part_id, rep, val, now),
@@ -638,7 +668,7 @@ def seed(db_path: str) -> dict:
 
     # ── 9b. FAI Report ──
     cur.execute(
-        """INSERT INTO fai_report
+        """INSERT OR IGNORE INTO fai_report
         (plant_id, part_number, part_name, revision, serial_number, drawing_number,
          organization_name, supplier, reason_for_inspection, status,
          created_by, created_at, submitted_by, submitted_at)
@@ -663,7 +693,7 @@ def seed(db_path: str) -> dict:
     ]
     for seq, (balloon, name, nom, usl, lsl, actual, unit, tool, designed, result) in enumerate(fai_items):
         cur.execute(
-            """INSERT INTO fai_item
+            """INSERT OR IGNORE INTO fai_item
             (report_id, balloon_number, characteristic_name, nominal, usl, lsl,
              actual_value, unit, tools_used, designed_char, result, sequence_order)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -672,7 +702,7 @@ def seed(db_path: str) -> dict:
 
     # ── 9c. DOE Study ──
     cur.execute(
-        """INSERT INTO doe_study
+        """INSERT OR IGNORE INTO doe_study
         (plant_id, name, design_type, status, response_name, response_unit,
          notes, created_by, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -687,13 +717,13 @@ def seed(db_path: str) -> dict:
 
     # 2 factors: Temperature, Speed
     cur.execute(
-        """INSERT INTO doe_factor
+        """INSERT OR IGNORE INTO doe_factor
         (study_id, name, low_level, high_level, center_point, unit, display_order)
         VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (doe_study_id, "Temperature", 150.0, 250.0, 200.0, "C", 0),
     )
     cur.execute(
-        """INSERT INTO doe_factor
+        """INSERT OR IGNORE INTO doe_factor
         (study_id, name, low_level, high_level, center_point, unit, display_order)
         VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (doe_study_id, "Cutting Speed", 500.0, 1500.0, 1000.0, "RPM", 1),
@@ -722,7 +752,7 @@ def seed(db_path: str) -> dict:
                          + rng_doe.gauss(0, 0.1), 3)
         factor_vals = json.dumps({"Temperature": temp, "Cutting Speed": speed})
         cur.execute(
-            """INSERT INTO doe_run
+            """INSERT OR IGNORE INTO doe_run
             (study_id, run_order, standard_order, factor_values, factor_actuals,
              response_value, is_center_point, replicate, completed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -732,7 +762,7 @@ def seed(db_path: str) -> dict:
 
     # DOE Analysis results
     cur.execute(
-        """INSERT INTO doe_analysis
+        """INSERT OR IGNORE INTO doe_analysis
         (study_id, anova_table, effects, interactions, r_squared, adj_r_squared,
          regression_model, optimal_settings, computed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -757,7 +787,7 @@ def seed(db_path: str) -> dict:
 
     # ── 9d. MQTT Broker ──
     cur.execute(
-        """INSERT INTO mqtt_broker
+        """INSERT OR IGNORE INTO mqtt_broker
         (plant_id, name, host, port, client_id, keepalive, max_reconnect_delay,
          use_tls, tls_insecure, is_active, payload_format,
          outbound_enabled, outbound_topic_prefix, outbound_format, outbound_rate_limit,
@@ -775,7 +805,7 @@ def seed(db_path: str) -> dict:
 
     # ── 9e. Signature Workflow ──
     cur.execute(
-        """INSERT INTO signature_workflow
+        """INSERT OR IGNORE INTO signature_workflow
         (plant_id, name, resource_type, is_active, is_required, description, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
@@ -788,13 +818,13 @@ def seed(db_path: str) -> dict:
 
     # 2 workflow steps
     cur.execute(
-        """INSERT INTO signature_workflow_step
+        """INSERT OR IGNORE INTO signature_workflow_step
         (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (tour_workflow_id, 1, "Engineering Review", "engineer", "reviewed", 1, 0, 48),
     )
     cur.execute(
-        """INSERT INTO signature_workflow_step
+        """INSERT OR IGNORE INTO signature_workflow_step
         (workflow_id, step_order, name, min_role, meaning_code, is_required, allow_self_sign, timeout_hours)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (tour_workflow_id, 2, "Quality Approval", "supervisor", "approved", 1, 0, 24),
@@ -807,7 +837,7 @@ def seed(db_path: str) -> dict:
         ("rejected", "Rejected", "Content has been rejected — requires rework", 1),
     ]):
         cur.execute(
-            """INSERT INTO signature_meaning
+            """INSERT OR IGNORE INTO signature_meaning
             (plant_id, code, display_name, description, requires_comment, is_active, sort_order)
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (tour_plant_id, code, display, desc, req_comment, 1, sort_order),
@@ -815,7 +845,7 @@ def seed(db_path: str) -> dict:
 
     # ── 9f. Retention Policy (7 years) ──
     cur.execute(
-        """INSERT INTO retention_policy
+        """INSERT OR IGNORE INTO retention_policy
         (plant_id, scope, hierarchy_id, characteristic_id,
          retention_type, retention_value, retention_unit, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -833,7 +863,7 @@ def seed(db_path: str) -> dict:
     ]
     for user_id, username, action, res_type, res_id, detail, ip in audit_entries:
         cur.execute(
-            """INSERT INTO audit_log
+            """INSERT OR IGNORE INTO audit_log
             (user_id, username, action, resource_type, resource_id, detail, ip_address, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (user_id, username, action, res_type, res_id, json.dumps(detail), ip, now),
@@ -942,7 +972,7 @@ def seed(db_path: str) -> dict:
         ("unfreeze", "Control limits unfrozen for 'S13 Phase' (back to Phase I)"),
     ]:
         cur.execute(
-            """INSERT INTO audit_log
+            """INSERT OR IGNORE INTO audit_log
             (user_id, username, action, resource_type, resource_id, detail, ip_address, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (admin_id, "admin", action, "characteristic", s13_phase_char,
