@@ -71,6 +71,7 @@ class SampleResponse(BaseModel):
     z_score: float | None = None
     material_id: int | None = None
     is_modified: bool = False
+    source: str = "MANUAL"
     edit_count: int = 0
     display_key: str = ""
     # Attribute data fields (populated for attribute-type characteristics)

@@ -83,6 +83,10 @@ class CharacteristicCreate(BaseModel):
         None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range|pooled)$",
         description="Sigma estimation method override (null = auto-select based on subgroup size)"
     )
+    manual_entry_policy: str | None = Field(
+        None, pattern=r"^(open|supplemental|restricted|locked)$",
+        description="Manual entry policy when characteristic has automated data source"
+    )
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -152,6 +156,10 @@ class CharacteristicUpdate(BaseModel):
         None, pattern=r"^(r_bar_d2|s_bar_c4|moving_range|pooled)$",
         description="Sigma estimation method override"
     )
+    manual_entry_policy: str | None = Field(
+        None, pattern=r"^(open|supplemental|restricted|locked)$",
+        description="Manual entry policy when characteristic has automated data source"
+    )
     change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
@@ -188,6 +196,7 @@ class CharacteristicResponse(BaseModel):
     short_run_mode: str | None = None
     distribution_method: str | None = None
     sigma_method: str | None = None
+    manual_entry_policy: str = "open"
     # Phase I/II mode
     limits_frozen: bool = False
     limits_frozen_at: str | None = None
