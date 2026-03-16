@@ -118,6 +118,8 @@ export interface Characteristic {
   distribution_method?: 'auto' | 'normal' | 'box_cox' | 'percentile' | 'distribution_fit' | null
   // Sigma estimation method override (null = auto-select)
   sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled' | null
+  // Manual entry policy for automated characteristics
+  manual_entry_policy?: 'open' | 'supplemental' | 'restricted' | 'locked'
   // Phase I/II mode
   limits_frozen?: boolean
   limits_frozen_at?: string | null
