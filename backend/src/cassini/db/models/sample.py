@@ -67,6 +67,11 @@ class Sample(Base):
     # Edit tracking - indicates sample has been modified from original
     is_modified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Data ingestion source — which path created this sample
+    source: Mapped[str] = mapped_column(
+        String(20), default="MANUAL", server_default="MANUAL", nullable=False, index=True
+    )
+
     # Async SPC processing status (for deferred batch processing)
     spc_status: Mapped[str] = mapped_column(
         String(20), default="complete", server_default="complete", nullable=False
