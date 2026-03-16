@@ -58,6 +58,15 @@ export interface SeedManifest {
     broker_id: number
     workflow_id: number
   }
+  // Sprint 13 (SPC, auth, audit features)
+  sprint13: StandardHierarchy & {
+    pooled_char_id: number
+    phase_char_id: number
+    locked_user_id: number
+    deactivated_user_id: number
+    mat_a_id: number
+    mat_b_id: number
+  }
 }
 
 export interface StandardHierarchy {

@@ -848,6 +848,121 @@ def seed(db_path: str) -> dict:
         "workflow_id": tour_workflow_id,
     }
 
+    # ── 10. Sprint 13 Test Plant ──────────────────────────────────────────
+    s13_plant = insert_plant(cur, "Sprint 13 Tests", "SPRINT13")
+    s13_dept = insert_hierarchy(cur, s13_plant, "S13 Dept", "Area")
+    s13_line = insert_hierarchy(cur, s13_plant, "S13 Line", "Line", s13_dept)
+    s13_station = insert_hierarchy(cur, s13_plant, "S13 Station", "Cell", s13_line)
+    insert_role(cur, admin_id, s13_plant, "admin")
+
+    # Variable characteristic with known data for capability testing
+    s13_char = insert_characteristic(
+        cur, s13_station, "S13 Variable",
+        target_value=10.0, usl=12.0, lsl=8.0,
+        ucl=11.5, lcl=8.5, stored_sigma=0.5, stored_center_line=10.0,
+    )
+    insert_nelson_rules(cur, s13_char)
+
+    # Seed 100 normal samples (mean~10.0, sigma~0.5 deterministic spread)
+    rng_s13 = random.Random(1337)
+    for i in range(100):
+        val = round(rng_s13.gauss(10.0, 0.5), 3)
+        insert_variable_sample(cur, s13_char, val)
+
+    # Add 5 OOC samples to trigger violations + stability warning
+    ooc_vals_s13 = [14.0, 6.0, 13.5, 5.5, 14.5]
+    s13_violation_ids = []
+    for val in ooc_vals_s13:
+        sid = insert_variable_sample(cur, s13_char, val)
+        vid = insert_violation(cur, sid, s13_char)
+        s13_violation_ids.append(vid)
+
+    # Characteristic for pooled sigma testing (with material overrides)
+    s13_pooled_char = insert_characteristic(
+        cur, s13_station, "S13 Pooled",
+        target_value=10.0, usl=15.0, lsl=5.0,
+        ucl=13.0, lcl=7.0, stored_sigma=0.8, stored_center_line=10.0,
+        sigma_method="pooled",
+    )
+    insert_nelson_rules(cur, s13_pooled_char)
+
+    # Create materials for pooled sigma char
+    s13_raw_cls_id, s13_raw_path = insert_material_class(
+        cur, s13_plant, "S13 Materials", "S13MAT",
+        description="Sprint 13 test materials",
+    )
+    s13_mat_a = insert_material(cur, s13_plant, s13_raw_cls_id, "S13 Material A", "S13-MAT-A")
+    s13_mat_b = insert_material(cur, s13_plant, s13_raw_cls_id, "S13 Material B", "S13-MAT-B")
+
+    insert_material_limit_override(
+        cur, s13_pooled_char, material_id=s13_mat_a,
+        target_value=10.0, stored_sigma=0.8, stored_center_line=10.0,
+    )
+    insert_material_limit_override(
+        cur, s13_pooled_char, material_id=s13_mat_b,
+        target_value=11.0, stored_sigma=0.9, stored_center_line=11.0,
+    )
+
+    # Seed samples for pooled char with materials
+    for i in range(30):
+        val = round(rng_s13.gauss(10.0, 0.8), 3)
+        insert_variable_sample(cur, s13_pooled_char, val, material_id=s13_mat_a)
+    for i in range(30):
+        val = round(rng_s13.gauss(11.0, 0.9), 3)
+        insert_variable_sample(cur, s13_pooled_char, val, material_id=s13_mat_b)
+
+    # Characteristic for Phase I/II testing
+    s13_phase_char = insert_characteristic(
+        cur, s13_station, "S13 Phase",
+        target_value=10.0, usl=20.0, lsl=0.0,
+        ucl=13.0, lcl=7.0, stored_sigma=1.0, stored_center_line=10.0,
+    )
+    insert_nelson_rules(cur, s13_phase_char)
+    for i in range(50):
+        val = round(rng_s13.gauss(10.0, 1.0), 3)
+        insert_variable_sample(cur, s13_phase_char, val)
+
+    # Create a locked-out user for unlock testing
+    s13_locked_user = insert_user(cur, "s13-locked", "S13Locked123!")
+    insert_role(cur, s13_locked_user, s13_plant, "operator")
+    # Set 10 failed login attempts and lock until far future
+    cur.execute(
+        "UPDATE user SET failed_login_count = 10, locked_until = ? WHERE id = ?",
+        ((_SEED_BASE_TIME + timedelta(hours=24)).isoformat(), s13_locked_user),
+    )
+
+    # Create a deactivated user for username recycling test
+    s13_deactivated_user = insert_user(cur, "s13-deactivated", "S13Deact123!")
+    insert_role(cur, s13_deactivated_user, s13_plant, "operator")
+    cur.execute("UPDATE user SET is_active = 0 WHERE id = ?", (s13_deactivated_user,))
+
+    # Audit log entries for Sprint 13 (freeze/unfreeze actions)
+    for action, summary in [
+        ("freeze", "Control limits frozen for 'S13 Phase' (Phase II)"),
+        ("unfreeze", "Control limits unfrozen for 'S13 Phase' (back to Phase I)"),
+    ]:
+        cur.execute(
+            """INSERT INTO audit_log
+            (user_id, username, action, resource_type, resource_id, detail, ip_address, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (admin_id, "admin", action, "characteristic", s13_phase_char,
+             json.dumps({"summary": summary}), "192.168.1.100", utcnow()),
+        )
+
+    manifest["sprint13"] = {
+        "plant_id": s13_plant,
+        "dept_id": s13_dept,
+        "line_id": s13_line,
+        "station_id": s13_station,
+        "char_id": s13_char,
+        "pooled_char_id": s13_pooled_char,
+        "phase_char_id": s13_phase_char,
+        "locked_user_id": s13_locked_user,
+        "deactivated_user_id": s13_deactivated_user,
+        "mat_a_id": s13_mat_a,
+        "mat_b_id": s13_mat_b,
+    }
+
     conn.commit()
     conn.close()
 
