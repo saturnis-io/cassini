@@ -6,6 +6,9 @@ import { useFormValidation } from '@/hooks/useFormValidation'
 import { attributeEntrySchema } from '@/schemas/data-entry'
 import { inputErrorClass } from '@/lib/validation'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/providers/AuthProvider'
+import { hasAccess } from '@/lib/roles'
+import { Info, Lock, ShieldAlert } from 'lucide-react'
 import type { Characteristic } from '@/types'
 
 interface AttributeEntryFormProps {
@@ -20,6 +23,13 @@ const CHART_TYPE_LABELS: Record<string, string> = {
 }
 
 export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) {
+  const { role: userRole } = useAuth()
+  const entryPolicy = characteristic.manual_entry_policy ?? 'open'
+  const hasDataSource = characteristic.data_source != null
+  const isRestricted = entryPolicy === 'restricted' && !hasAccess(userRole, 'supervisor')
+  const isLocked = entryPolicy === 'locked'
+  const isBlocked = isRestricted || isLocked
+
   const chartType = characteristic.attribute_chart_type
   const needsSampleSize = chartType === 'p' || chartType === 'np'
   const needsUnitsInspected = chartType === 'u'
@@ -78,9 +88,42 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
     )
   }
 
+  if (isBlocked) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-6 text-center">
+        {isLocked ? (
+          <>
+            <Lock className="text-destructive h-8 w-8" />
+            <p className="text-sm font-medium">Manual entry disabled</p>
+            <p className="text-muted-foreground text-xs">This characteristic only accepts automated data.</p>
+          </>
+        ) : (
+          <>
+            <ShieldAlert className="text-destructive h-8 w-8" />
+            <p className="text-sm font-medium">Manual entry restricted</p>
+            <p className="text-muted-foreground text-xs">Requires supervisor or higher role.</p>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Chart type badge */}
+    <>
+      {hasDataSource && entryPolicy === 'supplemental' && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>This characteristic uses automated data collection. Manual entries will be tagged.</span>
+        </div>
+      )}
+      {entryPolicy === 'restricted' && hasAccess(userRole, 'supervisor') && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Restricted: your entry will be audit-logged.</span>
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Chart type badge */}
       <div className="flex items-center gap-2">
         <span className="bg-primary/10 text-primary rounded px-2 py-1 text-xs font-medium">
           {CHART_TYPE_LABELS[chartType ?? ''] ?? 'Attribute Chart'}
@@ -218,5 +261,6 @@ export function AttributeEntryForm({ characteristic }: AttributeEntryFormProps) 
         </button>
       </div>
     </form>
+    </>
   )
 }

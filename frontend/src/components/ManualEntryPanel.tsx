@@ -15,7 +15,9 @@ import { AttributeEntryForm } from './AttributeEntryForm'
 import { FieldError } from '@/components/FieldError'
 import { useFormValidation } from '@/hooks/useFormValidation'
 import { measurementsSchema } from '@/schemas/data-entry'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Info, Lock, ShieldAlert } from 'lucide-react'
+import { useAuth } from '@/providers/AuthProvider'
+import { hasAccess } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 
 export function ManualEntryPanel() {
@@ -36,6 +38,7 @@ export function ManualEntryPanel() {
   const { data: allMaterials } = useMaterials(plantId)
   const { data: overrides } = useMaterialOverrides(globalCharId ?? 0)
   const submitSample = useSubmitSample()
+  const { role: userRole } = useAuth()
 
   // Separate materials into those with overrides vs others
   const { withOverrides, withoutOverrides } = useMemo(() => {
@@ -89,6 +92,13 @@ export function ManualEntryPanel() {
   }, [materialId, withOverrides])
 
   const { validate, getError, clearErrors } = useFormValidation(measurementsSchema)
+
+  // Manual entry policy enforcement
+  const entryPolicy = selectedChar?.manual_entry_policy ?? 'open'
+  const hasDataSource = selectedChar?.data_source != null
+  const isRestricted = entryPolicy === 'restricted' && !hasAccess(userRole, 'supervisor')
+  const isLocked = entryPolicy === 'locked'
+  const isBlocked = isRestricted || isLocked
 
   // Calculate the number of input fields to show and minimum required
   const { inputCount, minRequired } = useMemo(() => {
@@ -189,7 +199,35 @@ export function ManualEntryPanel() {
             {selectedChar.data_type === 'attribute' ? 'Submit Attribute Data' : 'Submit Sample'}
           </h3>
 
-          {selectedChar.data_type === 'attribute' ? (
+          {/* Entry Policy Banner */}
+          {hasDataSource && entryPolicy === 'supplemental' && !isBlocked && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>This characteristic uses automated data collection. Manual entries will be tagged.</span>
+            </div>
+          )}
+          {entryPolicy === 'restricted' && hasAccess(userRole, 'supervisor') && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>Restricted: manual entry requires supervisor approval. Your entry will be audit-logged.</span>
+            </div>
+          )}
+          {isRestricted && (
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-6 text-center">
+              <ShieldAlert className="text-destructive h-8 w-8" />
+              <p className="text-sm font-medium">Manual entry restricted</p>
+              <p className="text-muted-foreground text-xs">This characteristic requires supervisor or higher role for manual data entry.</p>
+            </div>
+          )}
+          {isLocked && (
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-6 text-center">
+              <Lock className="text-destructive h-8 w-8" />
+              <p className="text-sm font-medium">Manual entry disabled</p>
+              <p className="text-muted-foreground text-xs">This characteristic only accepts automated data from its configured data source.</p>
+            </div>
+          )}
+
+          {isBlocked ? null : selectedChar.data_type === 'attribute' ? (
             <AttributeEntryForm characteristic={selectedChar} />
           ) : (
             <form onSubmit={handleSubmit} className={cn('space-y-4', touchMode && 'space-y-6')}>

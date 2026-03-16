@@ -33,6 +33,7 @@ interface GeneralCharacteristic {
   created_at?: string
   updated_at?: string
   sample_count?: number
+  manual_entry_policy?: string
 }
 
 interface HierarchyBreadcrumb {
@@ -138,6 +139,40 @@ export function GeneralTab({
           </div>
         </div>
       </AccordionSection>
+
+      {/* Manual Entry Policy — only shown when data source is configured */}
+      {characteristic.data_source && (
+        <AccordionSection id="entry-policy" title="Manual Entry Policy">
+          <div className="space-y-3">
+            <p className="text-muted-foreground text-xs">
+              Controls whether manual data entry is allowed on this automated characteristic.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'open', label: 'Open', desc: 'No restrictions' },
+                { value: 'supplemental', label: 'Supplemental', desc: 'Allowed, tagged' },
+                { value: 'restricted', label: 'Restricted', desc: 'Supervisor+ only' },
+                { value: 'locked', label: 'Locked', desc: 'Disabled' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onChange('manual_entry_policy', opt.value)}
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-left text-sm transition-all',
+                    (characteristic.manual_entry_policy ?? 'open') === opt.value
+                      ? 'border-primary bg-primary/5 font-medium'
+                      : 'border-border hover:border-primary/50',
+                  )}
+                >
+                  <div className="font-medium">{opt.label}</div>
+                  <div className="text-muted-foreground text-xs">{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </AccordionSection>
+      )}
 
       {/* Data Retention Section - Default Closed */}
       <AccordionSection id="retention" title="Data Retention">
