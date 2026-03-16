@@ -289,6 +289,7 @@ async def list_samples(
                 sample_size=sample.sample_size,
                 units_inspected=sample.units_inspected,
                 material_id=sample.material_id,
+                source=getattr(sample, 'source', 'MANUAL'),
             )
         )
 
@@ -348,6 +349,32 @@ async def submit_sample(
         characteristic = await char_repo.get_by_id(data.characteristic_id)
         if characteristic is None:
             raise ValueError(f"Characteristic {data.characteristic_id} not found")
+
+        # Enforce manual entry policy
+        policy = getattr(characteristic, 'manual_entry_policy', 'open')
+        if policy == "locked":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Manual entry is disabled for this characteristic.",
+            )
+        if policy == "restricted":
+            # check_plant_role already verified operator+ access above
+            # For restricted, we need supervisor+
+            check_plant_role(_user, plant_id, "supervisor")
+
+        # Audit: enrich context for manual entries on automated characteristics
+        if getattr(characteristic, 'data_source', None) is not None and policy in ("supplemental", "restricted"):
+            request.state.audit_context = {
+                "resource_type": "sample",
+                "action": "manual_override",
+                "summary": f"Manual entry on automated ({policy}) characteristic '{characteristic.name}'",
+                "fields": {
+                    "characteristic_id": data.characteristic_id,
+                    "policy": policy,
+                    "user": _user.username,
+                    "measurement_count": len(data.measurements),
+                },
+            }
 
         # Validate material belongs to the same plant as the characteristic
         if data.material_id is not None:
