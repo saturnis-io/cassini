@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Nelson rule definitions
+// Nelson Rules 1-8 (Shewhart pattern detection) + CUSUM 9-10 + EWMA 11-12
 export const NELSON_RULES: Record<number, { name: string; description: string }> = {
   1: {
     name: 'Beyond 3σ',
@@ -34,6 +35,24 @@ export const NELSON_RULES: Record<number, { name: string; description: string }>
   8: {
     name: '8 Beyond 1σ',
     description: '8 consecutive points beyond 1σ on either side (mixture)',
+  },
+  // CUSUM shift detection (cumulative sum crossing decision interval)
+  9: {
+    name: 'CUSUM+ Shift',
+    description: 'Upper CUSUM accumulator exceeded decision interval (upward shift detected)',
+  },
+  10: {
+    name: 'CUSUM− Shift',
+    description: 'Lower CUSUM accumulator exceeded decision interval (downward shift detected)',
+  },
+  // EWMA limit violations (weighted moving average crossing control limits)
+  11: {
+    name: 'EWMA Above UCL',
+    description: 'EWMA statistic exceeded upper control limit',
+  },
+  12: {
+    name: 'EWMA Below LCL',
+    description: 'EWMA statistic fell below lower control limit',
   },
 }
 

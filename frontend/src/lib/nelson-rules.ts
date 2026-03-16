@@ -20,6 +20,9 @@ export interface NelsonRuleDetail {
 
 /**
  * Nelson rule metadata with display information.
+ * Rules 1-8: Nelson Rules (Shewhart pattern detection)
+ * Rules 9-10: CUSUM shift detection (cumulative sum crossing decision interval)
+ * Rules 11-12: EWMA limit violations (weighted moving average crossing control limits)
  */
 export const NELSON_RULES: readonly NelsonRuleMeta[] = [
   { id: 1, name: 'Beyond 3σ', shortDesc: 'Single point outside limits', severity: 'CRITICAL' },
@@ -30,6 +33,12 @@ export const NELSON_RULES: readonly NelsonRuleMeta[] = [
   { id: 6, name: 'Zone B Pattern', shortDesc: '4 of 5 beyond 1σ', severity: 'WARNING' },
   { id: 7, name: 'Zone C Stability', shortDesc: '15 consecutive within 1σ', severity: 'INFO' },
   { id: 8, name: 'Mixed Zones', shortDesc: '8 consecutive outside C', severity: 'WARNING' },
+  // CUSUM shift detection
+  { id: 9, name: 'CUSUM+ Shift', shortDesc: 'Upper CUSUM exceeded threshold', severity: 'CRITICAL' },
+  { id: 10, name: 'CUSUM− Shift', shortDesc: 'Lower CUSUM exceeded threshold', severity: 'CRITICAL' },
+  // EWMA limit violations
+  { id: 11, name: 'EWMA Above UCL', shortDesc: 'EWMA exceeded upper limit', severity: 'CRITICAL' },
+  { id: 12, name: 'EWMA Below LCL', shortDesc: 'EWMA below lower limit', severity: 'CRITICAL' },
 ] as const
 
 /**
@@ -98,5 +107,39 @@ export const NELSON_RULE_DETAILS: Record<number, NelsonRuleDetail> = {
       'Two distinct processes or conditions being mixed, alternating operators with different techniques, or two measurement systems.',
     action:
       'Separate and analyze data by source. Identify the two populations and address the cause of inconsistency.',
+  },
+  // CUSUM shift detection (not Nelson Rules — different detection method)
+  9: {
+    description:
+      'The upper CUSUM accumulator (C+) has exceeded the decision interval H. This indicates a sustained upward shift in the process mean that the cumulative sum has detected.',
+    cause:
+      'A persistent small-to-moderate upward shift in the process mean (typically 0.5–2 sigma). Common causes include tool wear, material change, or environmental drift.',
+    action:
+      'Investigate what changed around the time the CUSUM signaled. The CUSUM is more sensitive than Shewhart charts for small sustained shifts — the root cause may be subtle.',
+  },
+  10: {
+    description:
+      'The lower CUSUM accumulator (C−) has exceeded the decision interval H. This indicates a sustained downward shift in the process mean that the cumulative sum has detected.',
+    cause:
+      'A persistent small-to-moderate downward shift in the process mean (typically 0.5–2 sigma). Common causes include tool wear, material change, or environmental drift.',
+    action:
+      'Investigate what changed around the time the CUSUM signaled. The CUSUM is more sensitive than Shewhart charts for small sustained shifts — the root cause may be subtle.',
+  },
+  // EWMA limit violations (not Nelson Rules — different detection method)
+  11: {
+    description:
+      'The EWMA statistic has exceeded the upper control limit. The exponentially weighted moving average smooths recent observations, making it sensitive to gradual shifts.',
+    cause:
+      'A sustained upward shift in the process mean, possibly too small for Shewhart detection. EWMA gives more weight to recent data, so this often indicates a developing trend.',
+    action:
+      'Investigate recent process changes. The EWMA signal may precede a Shewhart Rule 1 violation — early intervention can prevent further drift.',
+  },
+  12: {
+    description:
+      'The EWMA statistic has fallen below the lower control limit. The exponentially weighted moving average smooths recent observations, making it sensitive to gradual shifts.',
+    cause:
+      'A sustained downward shift in the process mean, possibly too small for Shewhart detection. EWMA gives more weight to recent data, so this often indicates a developing trend.',
+    action:
+      'Investigate recent process changes. The EWMA signal may precede a Shewhart Rule 1 violation — early intervention can prevent further drift.',
   },
 }

@@ -1454,11 +1454,13 @@ def replay_spc_violations(cur: sqlite3.Cursor) -> None:
                 ch = max(0.0, ch + (val - target - k_val))
                 cl = max(0.0, cl + (target - val - k_val))
                 if ch > h_val:
-                    insert_violation(cur, sid, char_id, 1, "CUSUM+ Shift", "CRITICAL")
+                    insert_violation(cur, sid, char_id, 9, "CUSUM+ Shift", "CRITICAL")
                     n_viol += 1
+                    ch = 0.0  # Reset after signal (Montgomery Ch. 9)
                 if cl > h_val:
-                    insert_violation(cur, sid, char_id, 1, "CUSUM- Shift", "CRITICAL")
+                    insert_violation(cur, sid, char_id, 10, "CUSUM- Shift", "CRITICAL")
                     n_viol += 1
+                    cl = 0.0  # Reset after signal (Montgomery Ch. 9)
 
         # ═══════════════════════════════════════════════════════════
         # EWMA characteristics
@@ -1483,10 +1485,10 @@ def replay_spc_violations(cur: sqlite3.Cursor) -> None:
                 if ewma_val is None:
                     continue
                 if ewma_val > ucl:
-                    insert_violation(cur, sid, char_id, 1, "EWMA Above UCL", "CRITICAL")
+                    insert_violation(cur, sid, char_id, 11, "EWMA Above UCL", "CRITICAL")
                     n_viol += 1
                 elif ewma_val < lcl:
-                    insert_violation(cur, sid, char_id, 1, "EWMA Below LCL", "CRITICAL")
+                    insert_violation(cur, sid, char_id, 12, "EWMA Below LCL", "CRITICAL")
                     n_viol += 1
 
         # ═══════════════════════════════════════════════════════════

@@ -67,6 +67,16 @@ from cassini.core.engine.rolling_window import RollingWindow, WindowSample, Zone
 # All 8 standard Nelson Rule IDs
 NELSON_RULE_IDS = list(range(1, 9))
 
+# CUSUM/EWMA violation rule IDs (separate from Nelson Rules)
+# These use IDs 9-12 to avoid colliding with Nelson Rules 1-8.
+CUSUM_PLUS_RULE_ID = 9    # CUSUM+ Shift Detected (upper accumulator exceeded H)
+CUSUM_MINUS_RULE_ID = 10  # CUSUM- Shift Detected (lower accumulator exceeded H)
+EWMA_ABOVE_RULE_ID = 11   # EWMA Above UCL
+EWMA_BELOW_RULE_ID = 12   # EWMA Below LCL
+
+# All valid violation rule IDs (Nelson 1-8 + CUSUM 9-10 + EWMA 11-12)
+ALL_RULE_IDS = list(range(1, 13))
+
 
 class Severity(Enum):
     """Violation severity levels."""

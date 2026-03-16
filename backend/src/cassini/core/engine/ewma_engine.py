@@ -57,8 +57,10 @@ KEY DECISIONS:
       consistent with the CUSUM engine and per Montgomery Ch. 9/10
       recommendation.
     - EWMA running value (z_n) is persisted on the sample record.
-    - Supplementary EWMA uses rule_id 11/12 to avoid collision with
-      Nelson Rule 1 and CUSUM rule_ids 9/10 in the violations table.
+    - EWMA violations use rule_id 11 (Above UCL) and 12 (Below LCL)
+      to distinguish them from Nelson Rule 1 (Beyond 3-sigma on Shewhart
+      charts) and CUSUM rule_ids 9/10. These are fundamentally different
+      detection methods — EWMA detects shifts via weighted moving averages.
 """
 
 import math
@@ -67,6 +69,8 @@ import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from cassini.core.engine.nelson_rules import EWMA_ABOVE_RULE_ID, EWMA_BELOW_RULE_ID
 
 if TYPE_CHECKING:
     from cassini.db.repositories import (
@@ -374,36 +378,36 @@ async def process_ewma_sample(
     violations = []
 
     if ewma_value > ucl:
-        requires_ack = rule_require_ack.get(1, True)
+        requires_ack = rule_require_ack.get(EWMA_ABOVE_RULE_ID, True)
         await violation_repo.create(
             sample_id=sample.id,
             char_id=char_id,
-            rule_id=1,
+            rule_id=EWMA_ABOVE_RULE_ID,
             rule_name="EWMA Above UCL",
             severity="CRITICAL",
             acknowledged=False,
             requires_acknowledgement=requires_ack,
         )
         violations.append({
-            "rule_id": 1,
+            "rule_id": EWMA_ABOVE_RULE_ID,
             "rule_name": "EWMA Above UCL",
             "severity": "CRITICAL",
             "message": f"EWMA = {ewma_value:.4f} exceeds UCL = {ucl:.4f}",
         })
 
     if ewma_value < lcl:
-        requires_ack = rule_require_ack.get(1, True)
+        requires_ack = rule_require_ack.get(EWMA_BELOW_RULE_ID, True)
         await violation_repo.create(
             sample_id=sample.id,
             char_id=char_id,
-            rule_id=1,
+            rule_id=EWMA_BELOW_RULE_ID,
             rule_name="EWMA Below LCL",
             severity="CRITICAL",
             acknowledged=False,
             requires_acknowledgement=requires_ack,
         )
         violations.append({
-            "rule_id": 1,
+            "rule_id": EWMA_BELOW_RULE_ID,
             "rule_name": "EWMA Below LCL",
             "severity": "CRITICAL",
             "message": f"EWMA = {ewma_value:.4f} below LCL = {lcl:.4f}",

@@ -55,8 +55,12 @@ KEY DECISIONS:
       already exist, reducing sensitivity.
     - CUSUM accumulators (C+, C-) are persisted on the sample record to
       maintain state across API calls without requiring in-memory persistence.
-    - Supplementary CUSUM uses rule_id 9/10 to avoid collision with Nelson
-      Rule 1 in the violations table.
+    - CUSUM violations use rule_id 9 (CUSUM+ Shift) and 10 (CUSUM- Shift)
+      to distinguish them from Nelson Rule 1 (Beyond 3-sigma on Shewhart
+      charts). These are fundamentally different detection methods.
+    - After the CUSUM signals (C > H), the accumulator is reset to 0.
+      The shift has been detected; continuing to accumulate would flag
+      every subsequent sample. Ref: Montgomery (2019), Section 9.1.4.
 """
 
 import math
@@ -65,6 +69,8 @@ import structlog
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from cassini.core.engine.nelson_rules import CUSUM_PLUS_RULE_ID, CUSUM_MINUS_RULE_ID
 
 if TYPE_CHECKING:
     from cassini.db.repositories import (
@@ -249,45 +255,58 @@ async def process_cusum_sample(
     await sample_repo.session.flush()
 
     # Step 6: Check for violations
+    # Per Montgomery (2019) Ch. 9: after the CUSUM signals (C > H), reset
+    # the accumulator to 0. The shift has been detected — continuing to
+    # accumulate would flag every subsequent sample as a violation.
     violations = []
 
     if cusum_high > h:
         # CUSUM+ exceeded decision interval - upward shift detected
-        requires_ack = rule_require_ack.get(1, True)
+        requires_ack = rule_require_ack.get(CUSUM_PLUS_RULE_ID, True)
         await violation_repo.create(
             sample_id=sample.id,
             char_id=char_id,
-            rule_id=1,
+            rule_id=CUSUM_PLUS_RULE_ID,
             rule_name="CUSUM+ Shift",
             severity="CRITICAL",
             acknowledged=False,
             requires_acknowledgement=requires_ack,
         )
         violations.append({
-            "rule_id": 1,
+            "rule_id": CUSUM_PLUS_RULE_ID,
             "rule_name": "CUSUM+ Shift",
             "severity": "CRITICAL",
             "message": f"CUSUM+ = {cusum_high:.4f} exceeds H = {h:.4f} (upward shift)",
         })
+        # Reset accumulator after signaling (Montgomery Ch. 9, Section 9.1.4)
+        cusum_high = 0.0
+        sample.cusum_high = 0.0
 
     if cusum_low > h:
         # CUSUM- exceeded decision interval - downward shift detected
-        requires_ack = rule_require_ack.get(1, True)
+        requires_ack = rule_require_ack.get(CUSUM_MINUS_RULE_ID, True)
         await violation_repo.create(
             sample_id=sample.id,
             char_id=char_id,
-            rule_id=1,
+            rule_id=CUSUM_MINUS_RULE_ID,
             rule_name="CUSUM- Shift",
             severity="CRITICAL",
             acknowledged=False,
             requires_acknowledgement=requires_ack,
         )
         violations.append({
-            "rule_id": 1,
+            "rule_id": CUSUM_MINUS_RULE_ID,
             "rule_name": "CUSUM- Shift",
             "severity": "CRITICAL",
             "message": f"CUSUM- = {cusum_low:.4f} exceeds H = {h:.4f} (downward shift)",
         })
+        # Reset accumulator after signaling (Montgomery Ch. 9, Section 9.1.4)
+        cusum_low = 0.0
+        sample.cusum_low = 0.0
+
+    # Flush updated accumulator values if reset occurred
+    if violations:
+        await sample_repo.session.flush()
 
     end_time = time.perf_counter()
     processing_time_ms = (end_time - start_time) * 1000
