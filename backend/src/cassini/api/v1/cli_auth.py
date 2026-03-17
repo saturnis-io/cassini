@@ -94,10 +94,12 @@ async def create_cli_token(
         user_plant_ids = []
 
     # Revoke all previous CLI tokens for this user
-    # CLI tokens are identified by name starting with "cli-{username}"
-    user_cli_prefix = f"{CLI_TOKEN_PREFIX}{current_user.username}"
+    # CLI tokens are identified by name matching "cli-{username}" or "cli-{username}-{label}"
+    # The delimiter "/" after username prevents prefix collision (e.g., "bob" vs "bobby")
+    user_cli_exact = f"{CLI_TOKEN_PREFIX}{current_user.username}"
+    user_cli_labeled = f"{CLI_TOKEN_PREFIX}{current_user.username}-"
     previous_tokens_stmt = select(APIKey).where(
-        APIKey.name.startswith(user_cli_prefix),
+        (APIKey.name == user_cli_exact) | APIKey.name.startswith(user_cli_labeled),
         APIKey.is_active == True,  # noqa: E712
     )
     result = await session.execute(previous_tokens_stmt)

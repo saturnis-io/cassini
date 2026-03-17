@@ -104,6 +104,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/gage-bridges(?:/(\d+))?"), "gage_bridge"),
     (re.compile(r"/api/v1/anomaly/"), "anomaly"),
     (re.compile(r"/api/v1/signatures/"), "signature"),
+    (re.compile(r"/api/v1/auth/cli-token"), "api_key"),
     (re.compile(r"/api/v1/auth/oidc/config(?:/(\d+))?"), "oidc_config"),
     (re.compile(r"/api/v1/auth/oidc/links(?:/(\d+))?"), "oidc_link"),
     (re.compile(r"/api/v1/push/"), "push_subscription"),
