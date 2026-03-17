@@ -21,7 +21,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("UPDATE api_key SET key_prefix = NULL WHERE key_prefix = 'cassini_'")
+    op.execute("UPDATE api_keys SET key_prefix = NULL WHERE key_prefix = 'cassini_'")
 
 
 def downgrade() -> None:

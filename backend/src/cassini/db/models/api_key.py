@@ -70,6 +70,17 @@ class APIKey(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    scope: Mapped[str] = mapped_column(
+        String(20), default="read-write", server_default="read-write", nullable=False
+    )
+    plant_ids: Mapped[Optional[list[int]]] = mapped_column(
+        JSON, nullable=True, default=None
+    )
+
+    @property
+    def is_read_only(self) -> bool:
+        """Check if this API key has read-only scope."""
+        return self.scope == "read-only"
 
     def is_expired(self) -> bool:
         """Check if the API key has expired.

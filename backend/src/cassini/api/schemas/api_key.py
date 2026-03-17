@@ -11,6 +11,8 @@ class APIKeyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Human-readable name")
     expires_at: Optional[datetime] = Field(None, description="Optional expiration date")
     rate_limit_per_minute: int = Field(60, ge=1, le=1000, description="Rate limit")
+    scope: str = Field("read-write", description="API key scope: 'read-only' or 'read-write'")
+    plant_ids: Optional[list[int]] = Field(None, description="Restrict key to specific plant IDs (None = all plants)")
 
 
 class APIKeyResponse(BaseModel):
@@ -22,6 +24,8 @@ class APIKeyResponse(BaseModel):
     rate_limit_per_minute: int
     is_active: bool
     last_used_at: Optional[datetime]
+    scope: str
+    plant_ids: Optional[list[int]]
 
     model_config = {"from_attributes": True}
 
@@ -35,6 +39,8 @@ class APIKeyCreateResponse(BaseModel):
     expires_at: Optional[datetime]
     rate_limit_per_minute: int
     is_active: bool
+    scope: str
+    plant_ids: Optional[list[int]]
 
 
 class APIKeyUpdate(BaseModel):

@@ -53,6 +53,8 @@ async def create_api_key(
         key_prefix=APIKeyAuth.extract_prefix(plain_key),
         expires_at=data.expires_at,
         rate_limit_per_minute=data.rate_limit_per_minute,
+        scope=data.scope,
+        plant_ids=data.plant_ids,
     )
 
     session.add(api_key)
@@ -69,6 +71,8 @@ async def create_api_key(
             "key_prefix": api_key.key_prefix,
             "expires_at": str(api_key.expires_at) if api_key.expires_at else None,
             "rate_limit_per_minute": api_key.rate_limit_per_minute,
+            "scope": api_key.scope,
+            "plant_ids": api_key.plant_ids,
         },
     }
 
@@ -81,6 +85,8 @@ async def create_api_key(
         expires_at=api_key.expires_at,
         rate_limit_per_minute=api_key.rate_limit_per_minute,
         is_active=api_key.is_active,
+        scope=api_key.scope,
+        plant_ids=api_key.plant_ids,
     )
 
 
