@@ -119,14 +119,12 @@ async def activate_commercial_features(
             push_service = PushNotificationService(event_bus, db.session)
             app.state.push_service = push_service
 
-            # Audit trail service and event bus subscriptions
-            from cassini.core.audit import AuditService
-
-            audit_service = AuditService(db.session)
-            app.state.audit_service = audit_service
-            audit_service.setup_subscriptions(event_bus)
-            await audit_service.recover_last_hash()
-            logger.info("Audit trail service initialized")
+            # Audit trail event subscriptions (commercial events only).
+            # The AuditService itself is initialised in main.py lifespan
+            # for ALL tiers; here we just wire the commercial event handlers.
+            if hasattr(app.state, 'audit_service'):
+                app.state.audit_service.setup_subscriptions(event_bus)
+                logger.info("Audit trail commercial event subscriptions wired")
 
             # Start report scheduler (background, checks every 15 minutes)
             from cassini.core.report_scheduler import ReportScheduler

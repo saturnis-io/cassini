@@ -30,7 +30,7 @@ class ElectronicSignature(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("user.id", ondelete="RESTRICT"), nullable=True
     )
     username: Mapped[str] = mapped_column(String(50), nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

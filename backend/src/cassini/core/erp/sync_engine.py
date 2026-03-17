@@ -276,12 +276,198 @@ class ERPSyncEngine:
     async def _sync_outbound(
         self, session: Any, adapter: BaseERPAdapter, connector: ERPConnector, mappings: list
     ) -> tuple[int, int]:
-        """Execute outbound sync — push SPC data to ERP."""
+        """Execute outbound sync — push recent SPC data to ERP.
+
+        Queries samples and violations created since the connector's
+        ``last_sync_at`` timestamp, applies outbound field mappings,
+        and pushes each record to the ERP adapter.  This complements
+        the real-time ERPOutboundPublisher by catching up on any data
+        that was created while the connector was offline or during
+        transient push failures.
+        """
+        from cassini.db.models.sample import Sample
+        from cassini.db.models.violation import Violation
+
         processed = 0
         failed = 0
-        # Outbound sync is handled by ERPOutboundPublisher for real-time events
-        # Scheduled outbound could batch recent data
+
+        # Determine the sync window — everything since last successful sync
+        since = connector.last_sync_at or connector.created_at
+
+        # Normalize timezone for SQLite compatibility
+        if since.tzinfo is None:
+            since = since.replace(tzinfo=timezone.utc)
+
+        # Group mappings by openspc_entity so we know which data types to push
+        entity_mappings: dict[str, list[ERPFieldMapping]] = {}
+        for m in mappings:
+            entity_mappings.setdefault(m.openspc_entity, []).append(m)
+
+        # --- Samples ---
+        if "sample" in entity_mappings:
+            sample_maps = entity_mappings["sample"]
+            erp_entity = sample_maps[0].erp_entity
+
+            stmt = (
+                select(Sample)
+                .where(
+                    Sample.timestamp >= since,
+                    Sample.spc_status == "complete",
+                )
+                .options(selectinload(Sample.measurements))
+                .order_by(Sample.timestamp)
+                .limit(5000)
+            )
+
+            # Scope to connector's plant via characteristic
+            from cassini.db.models.characteristic import Characteristic
+
+            stmt = stmt.join(
+                Characteristic, Sample.char_id == Characteristic.id
+            ).where(Characteristic.plant_id == connector.plant_id)
+
+            result = await session.execute(stmt)
+            samples = result.scalars().all()
+
+            for sample in samples:
+                payload = self._build_sample_payload(sample)
+                mapped = self._apply_outbound_mappings(payload, sample_maps)
+                try:
+                    await adapter.push_record(erp_entity, mapped)
+                    processed += 1
+                except Exception as e:
+                    logger.warning(
+                        "erp_outbound_sample_failed",
+                        connector_id=connector.id,
+                        sample_id=sample.id,
+                        error=type(e).__name__,
+                    )
+                    failed += 1
+
+        # --- Violations ---
+        if "violation" in entity_mappings:
+            violation_maps = entity_mappings["violation"]
+            erp_entity = violation_maps[0].erp_entity
+
+            stmt = (
+                select(Violation)
+                .where(Violation.created_at >= since)
+                .order_by(Violation.created_at)
+                .limit(5000)
+            )
+
+            # Scope to connector's plant via characteristic
+            from cassini.db.models.characteristic import Characteristic
+
+            stmt = stmt.join(
+                Characteristic, Violation.char_id == Characteristic.id
+            ).where(Characteristic.plant_id == connector.plant_id)
+
+            result = await session.execute(stmt)
+            violations = result.scalars().all()
+
+            for violation in violations:
+                payload = self._build_violation_payload(violation)
+                mapped = self._apply_outbound_mappings(payload, violation_maps)
+                try:
+                    await adapter.push_record(erp_entity, mapped)
+                    processed += 1
+                except Exception as e:
+                    logger.warning(
+                        "erp_outbound_violation_failed",
+                        connector_id=connector.id,
+                        violation_id=violation.id,
+                        error=type(e).__name__,
+                    )
+                    failed += 1
+
         return processed, failed
+
+    @staticmethod
+    def _build_sample_payload(sample) -> dict[str, Any]:
+        """Build a flat payload dict from a Sample ORM instance."""
+        measurements = getattr(sample, "measurements", []) or []
+        values = [m.value for m in measurements]
+        mean = sum(values) / len(values) if values else None
+
+        return {
+            "sample_id": sample.id,
+            "characteristic_id": sample.char_id,
+            "timestamp": sample.timestamp.isoformat() if sample.timestamp else None,
+            "batch_number": sample.batch_number,
+            "operator_id": sample.operator_id,
+            "mean": mean,
+            "values": values,
+            "actual_n": sample.actual_n,
+            "is_excluded": sample.is_excluded,
+            "z_score": sample.z_score,
+            "effective_ucl": sample.effective_ucl,
+            "effective_lcl": sample.effective_lcl,
+            "material_id": sample.material_id,
+        }
+
+    @staticmethod
+    def _build_violation_payload(violation) -> dict[str, Any]:
+        """Build a flat payload dict from a Violation ORM instance."""
+        return {
+            "violation_id": violation.id,
+            "sample_id": violation.sample_id,
+            "characteristic_id": violation.char_id,
+            "rule_id": violation.rule_id,
+            "rule_name": violation.rule_name,
+            "severity": violation.severity,
+            "acknowledged": violation.acknowledged,
+            "created_at": violation.created_at.isoformat() if violation.created_at else None,
+        }
+
+    @staticmethod
+    def _apply_outbound_mappings(
+        payload: dict[str, Any], mappings: list[ERPFieldMapping]
+    ) -> dict[str, Any]:
+        """Apply field mappings to transform SPC data for the ERP system.
+
+        Mirrors ERPOutboundPublisher._apply_outbound_mappings for consistency.
+        """
+        result: dict[str, Any] = {}
+
+        for mapping in mappings:
+            value = payload.get(mapping.openspc_field)
+            if value is None:
+                continue
+
+            # Apply transform if configured
+            if mapping.transform:
+                try:
+                    transform = (
+                        json.loads(mapping.transform)
+                        if isinstance(mapping.transform, str)
+                        else mapping.transform
+                    )
+                    if isinstance(transform, dict):
+                        if "multiply" in transform:
+                            value = float(value) * float(transform["multiply"])
+                        elif "divide" in transform:
+                            divisor = float(transform["divide"])
+                            if divisor != 0:
+                                value = float(value) / divisor
+                        elif "round" in transform:
+                            value = round(float(value), int(transform["round"]))
+                        elif "map" in transform:
+                            value = transform["map"].get(str(value), value)
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    pass
+
+            # Set in result using ERP field path (simple dot notation)
+            parts = mapping.erp_field_path.replace("$.", "").split(".")
+            current = result
+            for part in parts[:-1]:
+                if part not in current:
+                    current[part] = {}
+                current = current[part]
+            if parts:
+                current[parts[-1]] = value
+
+        return result
 
     def _create_adapter(self, connector: ERPConnector) -> BaseERPAdapter:
         """Create the appropriate adapter for a connector."""

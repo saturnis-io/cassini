@@ -10,7 +10,7 @@ import { fetchApi } from '@/api/client'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { applyFormat } from '@/lib/date-format'
-import { ViolationLegend, getPrimaryViolationRule } from './ViolationLegend'
+import { ViolationLegend, getPrimaryViolationRule, NELSON_RULES } from './ViolationLegend'
 import { StatNote } from './StatNote'
 import { RotateCcw } from 'lucide-react'
 import type { EChartsMouseEvent } from '@/hooks/useECharts'
@@ -56,8 +56,8 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
       await queryClient.invalidateQueries({
         queryKey: ['characteristics', 'chartData', characteristicId],
       })
-    } catch (err) {
-      console.error('CUSUM reset failed:', err)
+    } catch {
+      // Reset failure is non-critical — query will retry on next render
     }
   }
 
@@ -283,7 +283,11 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
             html += `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,0.3)">`
             const allAcked = point.unacknowledged_violation_ids.length === 0
             const vColor = allAcked ? 'hsl(357,25%,55%)' : 'hsl(357,80%,52%)'
-            html += `<div style="color:${vColor};font-weight:500">Violations:</div>`
+            const vLabel = allAcked ? 'Violations (acknowledged):' : 'Violations:'
+            html += `<div style="color:${vColor};font-weight:500;margin-bottom:4px">${vLabel}</div>`
+            for (const ruleId of point.violation_rules) {
+              html += `<div style="font-size:11px;opacity:0.8">${ruleId}: ${NELSON_RULES[ruleId]?.name || `Rule ${ruleId}`}</div>`
+            }
             html += `</div>`
           }
           return html

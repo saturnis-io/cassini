@@ -3,7 +3,7 @@
 Provides a 3-step import workflow:
 1. Upload — parse file, return column preview
 2. Validate — apply column mapping, preview valid/invalid rows
-3. Confirm — import valid rows as samples
+3. Confirm — import valid rows as samples (with full SPC engine processing)
 """
 
 import json
@@ -18,6 +18,11 @@ from cassini.core.import_service import parse_file, validate_and_map, _parse_csv
 from cassini.db.models.characteristic import Characteristic
 from cassini.db.models.user import User
 from cassini.db.repositories.sample import SampleRepository
+from cassini.db.repositories import CharacteristicRepository, ViolationRepository
+from cassini.core.engine.nelson_rules import NelsonRuleLibrary
+from cassini.core.engine.rolling_window import get_shared_window_manager
+from cassini.core.engine.spc_engine import SPCEngine, extract_char_data
+from cassini.core.providers.protocol import SampleContext
 
 logger = structlog.get_logger(__name__)
 
@@ -236,56 +241,73 @@ async def confirm_import(
             detail="No valid rows to import",
         )
 
+    # Sort rows by timestamp (chronological order) so Nelson rules evaluate
+    # correctly on historical data. Rows without timestamps sort last.
+    valid_rows_indexed = list(enumerate(valid_rows))
+    valid_rows_indexed.sort(
+        key=lambda pair: (
+            pair[1].get("timestamp") is None,
+            pair[1].get("timestamp"),
+        )
+    )
+
+    # Set up SPC engine for processing (same pattern as data_entry.py / samples.py)
     sample_repo = SampleRepository(session)
+    char_repo = CharacteristicRepository(session)
+    violation_repo = ViolationRepository(session)
+    engine = SPCEngine(
+        sample_repo=sample_repo,
+        char_repo=char_repo,
+        violation_repo=violation_repo,
+        window_manager=get_shared_window_manager(),
+        rule_library=NelsonRuleLibrary(),
+    )
+
+    # Pre-load characteristic with rules for SPC engine dedup (avoids
+    # per-sample get_with_rules query inside the engine)
+    char_with_rules = await char_repo.get_with_rules(characteristic_id)
+    char_data = extract_char_data(char_with_rules) if char_with_rules is not None else None
+
     imported = 0
     import_errors: list[dict] = []
 
-    for idx, row_data in enumerate(valid_rows):
+    for original_idx, row_data in valid_rows_indexed:
         try:
             if data_type == "variable":
-                context: dict = {}
-                if "timestamp" in row_data and row_data["timestamp"] is not None:
-                    context["timestamp"] = row_data["timestamp"]
-                if "batch_number" in row_data:
-                    context["batch_number"] = row_data["batch_number"]
-                if "operator_id" in row_data:
-                    context["operator_id"] = row_data["operator_id"]
+                context = SampleContext(
+                    batch_number=row_data.get("batch_number"),
+                    operator_id=row_data.get("operator_id"),
+                    source="CSV_IMPORT",
+                )
 
-                await sample_repo.create_with_measurements(
-                    char_id=characteristic_id,
-                    values=row_data["measurements"],
-                    **context,
+                await engine.process_sample(
+                    characteristic_id=characteristic_id,
+                    measurements=row_data["measurements"],
+                    context=context,
+                    char_data=char_data,
                 )
                 imported += 1
             else:
-                # TODO: Use SampleRepository.create_attribute_sample() once Track A adds it.
-                # For now, create attribute samples directly with the Sample model.
-                from cassini.db.models.sample import Sample
+                # Attribute data — use the attribute SPC engine
+                from cassini.core.engine.attribute_engine import process_attribute_sample
 
-                sample_kwargs: dict = {
-                    "char_id": characteristic_id,
-                    "defect_count": row_data["defect_count"],
-                }
-                if "sample_size" in row_data:
-                    sample_kwargs["sample_size"] = row_data["sample_size"]
-                if "units_inspected" in row_data:
-                    sample_kwargs["units_inspected"] = row_data["units_inspected"]
-                if "timestamp" in row_data and row_data["timestamp"] is not None:
-                    sample_kwargs["timestamp"] = row_data["timestamp"]
-                if "batch_number" in row_data:
-                    sample_kwargs["batch_number"] = row_data["batch_number"]
-                if "operator_id" in row_data:
-                    sample_kwargs["operator_id"] = row_data["operator_id"]
-
-                sample = Sample(**sample_kwargs)
-                session.add(sample)
-                await session.flush()
+                await process_attribute_sample(
+                    char_id=characteristic_id,
+                    defect_count=row_data["defect_count"],
+                    sample_size=row_data.get("sample_size"),
+                    units_inspected=row_data.get("units_inspected"),
+                    batch_number=row_data.get("batch_number"),
+                    operator_id=row_data.get("operator_id"),
+                    sample_repo=sample_repo,
+                    char_repo=char_repo,
+                    violation_repo=violation_repo,
+                )
                 imported += 1
         except Exception as e:
-            import_errors.append({"row_index": idx, "error": "Failed to import row"})
+            import_errors.append({"row_index": original_idx, "error": "Failed to import row"})
             logger.warning(
                 "import_row_failed",
-                row_index=idx,
+                row_index=original_idx,
                 error=str(e),
                 characteristic_id=characteristic_id,
             )

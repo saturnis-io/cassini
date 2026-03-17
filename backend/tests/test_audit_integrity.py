@@ -96,7 +96,7 @@ class TestAuditHashChainSequential:
         stmt = (
             select(AuditLog)
             .where(AuditLog.sequence_hash.isnot(None))
-            .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
+            .order_by(AuditLog.sequence_number.asc())
         )
         rows = (await query_session.execute(stmt)).scalars().all()
         assert len(rows) == 3
@@ -106,7 +106,7 @@ class TestAuditHashChainSequential:
             assert row.sequence_hash is not None
             assert len(row.sequence_hash) == 64, "SHA-256 hex digest must be 64 chars"
 
-        # Walk the chain and verify each hash
+        # Walk the chain and verify each hash (includes sequence_number)
         previous_hash = GENESIS_HASH
         for row in rows:
             expected = compute_audit_hash(
@@ -117,6 +117,7 @@ class TestAuditHashChainSequential:
                 row.user_id,
                 row.username,
                 row.timestamp,
+                sequence_number=row.sequence_number,
             )
             assert row.sequence_hash == expected, (
                 f"Hash mismatch at entry {row.id}: "
@@ -207,7 +208,7 @@ class TestAuditHashChainRecovery:
         stmt = (
             select(AuditLog)
             .where(AuditLog.sequence_hash.isnot(None))
-            .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
+            .order_by(AuditLog.sequence_number.asc())
         )
         rows = (await query_session.execute(stmt)).scalars().all()
         assert len(rows) == 3
@@ -222,6 +223,7 @@ class TestAuditHashChainRecovery:
                 row.user_id,
                 row.username,
                 row.timestamp,
+                sequence_number=row.sequence_number,
             )
             assert row.sequence_hash == expected, (
                 f"Chain break at entry {row.id} after recovery"
@@ -348,6 +350,7 @@ class TestAuditIntegrityEndpointValid:
             ts = datetime(2026, 3, 15, 12, 0, i)
             seq_hash = compute_audit_hash(
                 previous_hash, "create", "sample", i, 1, "admin", ts,
+                sequence_number=i,
             )
             entry = AuditLog(
                 action="create",
@@ -356,6 +359,7 @@ class TestAuditIntegrityEndpointValid:
                 user_id=1,
                 username="admin",
                 timestamp=ts,
+                sequence_number=i,
                 sequence_hash=seq_hash,
             )
             async_session.add(entry)
@@ -391,6 +395,7 @@ class TestAuditIntegrityDetectsTampering:
             ts = datetime(2026, 3, 15, 13, 0, i)
             seq_hash = compute_audit_hash(
                 previous_hash, "create", "broker", i, 1, "admin", ts,
+                sequence_number=i,
             )
             entry = AuditLog(
                 action="create",
@@ -399,6 +404,7 @@ class TestAuditIntegrityDetectsTampering:
                 user_id=1,
                 username="admin",
                 timestamp=ts,
+                sequence_number=i,
                 sequence_hash=seq_hash,
             )
             async_session.add(entry)
@@ -421,3 +427,44 @@ class TestAuditIntegrityDetectsTampering:
         assert data["valid"] is False
         assert data["first_break_id"] == tampered_id
         assert data["verified_count"] == 1  # Only entry 1 verified OK
+
+    @pytest.mark.asyncio
+    async def test_sequence_gap_detected(
+        self, async_session: AsyncSession, audit_client: AsyncClient
+    ) -> None:
+        """Deleting a record creates a sequence gap that is detected."""
+        from datetime import datetime
+
+        previous_hash = GENESIS_HASH
+        for i in range(1, 4):
+            ts = datetime(2026, 3, 15, 14, 0, i)
+            seq_hash = compute_audit_hash(
+                previous_hash, "create", "plant", i, 1, "admin", ts,
+                sequence_number=i,
+            )
+            entry = AuditLog(
+                action="create",
+                resource_type="plant",
+                resource_id=i,
+                user_id=1,
+                username="admin",
+                timestamp=ts,
+                sequence_number=i,
+                sequence_hash=seq_hash,
+            )
+            async_session.add(entry)
+            await async_session.flush()
+            previous_hash = seq_hash
+
+        # Delete the 2nd entry (simulates tampering / unauthorized deletion)
+        await async_session.execute(
+            AuditLog.__table__.delete().where(AuditLog.sequence_number == 2)
+        )
+        await async_session.flush()
+
+        resp = await audit_client.get("/api/v1/audit/verify-integrity")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["valid"] is False
+        assert "Sequence gap" in data["message"]
+        assert "1 missing" in data["message"]

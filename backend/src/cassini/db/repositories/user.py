@@ -106,13 +106,20 @@ class UserRepository:
         """Permanently delete a user and all their role assignments.
 
         Only deletes inactive users. Returns False if user not found.
-        Raises ValueError if user is still active.
+        Raises ValueError if user is still active or has signature records.
         """
         user = await self.get_by_id(user_id)
         if user is None:
             return False
         if user.is_active:
             raise ValueError("Cannot delete an active user")
+
+        sig_count = await self.count_user_signatures(user_id)
+        if sig_count > 0:
+            raise ValueError(
+                f"Cannot delete user with {sig_count} electronic signature(s). "
+                "21 CFR Part 11 requires signature attribution be preserved."
+            )
 
         await self.session.delete(user)
         await self.session.flush()
@@ -121,6 +128,20 @@ class UserRepository:
     async def count(self) -> int:
         """Count total users."""
         stmt = select(func.count(User.id))
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def count_user_signatures(self, user_id: int) -> int:
+        """Count electronic signatures belonging to a user.
+
+        Used to prevent permanent deletion of users with signature records,
+        which would destroy attribution required by 21 CFR Part 11.
+        """
+        from cassini.db.models.signature import ElectronicSignature
+
+        stmt = select(func.count(ElectronicSignature.id)).where(
+            ElectronicSignature.user_id == user_id
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
