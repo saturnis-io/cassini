@@ -24,6 +24,7 @@ from cassini.api.v1.audit import router as audit_router
 from cassini.api.v1.health import router as health_router
 from cassini.api.v1.auth import router as auth_router
 from cassini.api.v1.cli_auth import router as cli_auth_router
+from cassini.api.v1.cluster import router as cluster_router
 from cassini.api.v1.brokers import router as brokers_router
 from cassini.api.v1.opcua_servers import router as opcua_servers_router
 from cassini.api.v1.database_admin import router as database_admin_router
@@ -544,6 +545,7 @@ app.include_router(brokers_router)
 app.include_router(providers_router)
 app.include_router(license_router)
 app.include_router(audit_router)
+app.include_router(cluster_router)
 app.include_router(explain_router)
 
 # Commercial routers are registered lazily via activate_commercial_features()
