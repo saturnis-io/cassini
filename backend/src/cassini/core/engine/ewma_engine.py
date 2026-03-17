@@ -476,17 +476,23 @@ async def process_ewma_supplementary(
 
     ewma_value = ewma_lambda * measurement + (1.0 - ewma_lambda) * prev_ewma
 
-    # Count total samples for time-varying limits
+    # Count sequential position of this sample among non-excluded samples
+    # for time-varying limits. Must use the 1-based sequential index (i.e.,
+    # how many non-excluded samples exist up to and including this one), NOT
+    # the total non-excluded count — those differ when excluded samples exist
+    # after this sample in the sequence.
+    # Ref: Montgomery (2019), Eq. (9.20)-(9.21): i = sequential sample index.
     from sqlalchemy import select as sa_select, func as sa_func, update
     from cassini.db.models.sample import Sample as SampleModel
 
     count_stmt = sa_select(sa_func.count()).select_from(SampleModel).where(
         SampleModel.char_id == char.id,
         SampleModel.is_excluded == False,  # noqa: E712
+        SampleModel.id <= sample_id,
     )
-    total = (await sample_repo.session.execute(count_stmt)).scalar_one()
+    sample_index = (await sample_repo.session.execute(count_stmt)).scalar_one()
 
-    ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l, sample_index=total)
+    ucl, lcl = calculate_ewma_limits(target, sigma, ewma_lambda, ewma_l, sample_index=sample_index)
 
     # Update sample cache column
     await sample_repo.session.execute(
