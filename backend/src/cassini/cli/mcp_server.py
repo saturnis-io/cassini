@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 try:
     from mcp.server import Server
+    from mcp.server.lowlevel.helper_types import ReadResourceContents
     from mcp.server.stdio import stdio_server
-    from mcp.types import TextContent, Tool
+    from mcp.types import Resource, TextContent, Tool
 
     HAS_MCP = True
 except ImportError:
@@ -259,6 +260,32 @@ async def _dispatch_tool(
         raise ValueError(f"Unknown tool: {name}")
 
 
+# ── Resource definitions ──────────────────────────────────────────────
+
+_RESOURCES: dict[str, dict[str, str]] = {
+    "cassini://plants": {
+        "name": "Plant List",
+        "description": "Current plant list with summary stats",
+        "mimeType": "application/json",
+    },
+    "cassini://health": {
+        "name": "Server Health",
+        "description": "Server health status, broker info, queue depth",
+        "mimeType": "application/json",
+    },
+}
+
+
+async def _dispatch_resource(client: Any, uri: str) -> Any:
+    """Route resource reads to CassiniClient methods."""
+    if uri == "cassini://plants":
+        return await client.plants_list()
+    elif uri == "cassini://health":
+        return await client.health()
+    else:
+        raise ValueError(f"Unknown resource: {uri}")
+
+
 # ── Server entrypoint ─────────────────────────────────────────────────
 
 
@@ -303,6 +330,34 @@ async def run_mcp_server(
     async def list_tools() -> list[Tool]:
         return _build_tool_list(active_tools)
 
+    # ── Resource handlers ────────────────────────────────────────────
+    @server.list_resources()
+    async def list_resources() -> list[Resource]:
+        return [
+            Resource(
+                uri=uri,
+                name=info["name"],
+                description=info["description"],
+                mimeType=info["mimeType"],
+            )
+            for uri, info in _RESOURCES.items()
+        ]
+
+    @server.read_resource()
+    async def read_resource(uri: Any) -> list[ReadResourceContents]:
+        uri_str = str(uri)
+        async with CassiniClient(
+            server_url=url, api_key=key, actor="mcp:resource"
+        ) as client:
+            data = await _dispatch_resource(client, uri_str)
+        return [
+            ReadResourceContents(
+                content=json.dumps(data, indent=2, default=str),
+                mime_type="application/json",
+            )
+        ]
+
+    # ── Tool handlers ─────────────────────────────────────────────────
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         actor = f"mcp:{name}"
