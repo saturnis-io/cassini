@@ -383,7 +383,7 @@ async def create_workflow(
     body: WorkflowCreate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Create a new signature workflow."""
@@ -430,7 +430,7 @@ async def update_workflow(
     body: WorkflowUpdate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Update a signature workflow."""
@@ -474,7 +474,7 @@ async def delete_workflow(
     workflow_id: int,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Delete a signature workflow."""
@@ -530,7 +530,7 @@ async def add_workflow_step(
     body: StepCreate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Add a step to a workflow."""
@@ -579,7 +579,7 @@ async def update_workflow_step(
     body: StepUpdate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Update a workflow step."""
@@ -628,7 +628,7 @@ async def delete_workflow_step(
     step_id: int,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Delete a workflow step."""
@@ -689,7 +689,7 @@ async def create_meaning(
     body: MeaningCreate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Create a new signature meaning."""
@@ -734,7 +734,7 @@ async def update_meaning(
     body: MeaningUpdate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Update a signature meaning."""
@@ -782,7 +782,7 @@ async def delete_meaning(
     meaning_id: int,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Soft-delete a signature meaning (set inactive)."""
@@ -840,7 +840,7 @@ async def update_password_policy(
     body: PasswordPolicyUpdate,
     request: Request,
     plant_id: int = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_key),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Create or update password policy for a plant."""

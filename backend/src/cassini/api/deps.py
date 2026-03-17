@@ -166,18 +166,15 @@ async def get_alert_manager(
 # ---------------------------------------------------------------------------
 # Auth dependencies
 # ---------------------------------------------------------------------------
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    session: AsyncSession = Depends(get_db_session),
+async def _get_user_from_jwt(
+    authorization: Optional[str],
+    session: AsyncSession,
 ) -> User:
-    """Extract and validate the current user from JWT Bearer token.
+    """Extract and validate a user from a JWT Bearer token.
 
-    Uses an in-memory TTL cache (60s) to avoid DB queries on every request.
-    Cache is invalidated on user mutations (password change, role change, etc.).
-
-    Args:
-        authorization: Authorization header value.
-        session: Database session.
+    Shared logic for all JWT-based auth dependencies.  Validates the token,
+    checks the user cache, verifies the user is active and that the token
+    has not been revoked by a password change.
 
     Returns:
         Authenticated User object with plant_roles loaded.
@@ -251,6 +248,28 @@ async def get_current_user(
     _cache_user(user, session)
 
     return user
+
+
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    session: AsyncSession = Depends(get_db_session),
+) -> User:
+    """Extract and validate the current user from JWT Bearer token.
+
+    Uses an in-memory TTL cache (60s) to avoid DB queries on every request.
+    Cache is invalidated on user mutations (password change, role change, etc.).
+
+    Args:
+        authorization: Authorization header value.
+        session: Database session.
+
+    Returns:
+        Authenticated User object with plant_roles loaded.
+
+    Raises:
+        HTTPException: 401 if token is invalid, missing, or user not found.
+    """
+    return await _get_user_from_jwt(authorization, session)
 
 
 async def get_current_admin(
@@ -329,68 +348,7 @@ async def get_current_user_no_api_key(
             detail="Electronic signatures require user authentication, not API key",
         )
 
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    from cassini.core.auth.jwt import verify_access_token
-
-    token = authorization.split(" ", 1)[1]
-    payload = verify_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    user_id = int(payload["sub"])
-    pwd_changed_claim = payload.get("pwd_changed")
-
-    # Check in-memory cache first
-    cached = _get_cached_user(user_id)
-    if cached is not None:
-        if not cached.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        if cached.password_changed_at and pwd_changed_claim is not None:
-            user_pwd_epoch = int(cached.password_changed_at.timestamp())
-            if pwd_changed_claim < user_pwd_epoch:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token invalidated by password change",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-        return cached
-
-    # Cache miss — query DB
-    repo = UserRepository(session)
-    user = await repo.get_by_id(user_id)
-
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if user.password_changed_at and pwd_changed_claim is not None:
-        user_pwd_epoch = int(user.password_changed_at.timestamp())
-        if pwd_changed_claim < user_pwd_epoch:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token invalidated by password change",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-    _cache_user(user, session)
-    return user
+    return await _get_user_from_jwt(authorization, session)
 
 
 async def get_current_user_or_api_key(
