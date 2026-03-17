@@ -197,6 +197,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     for event_cls, topic in _event_mappings:
         typed_event_bus.register_event_type(event_cls, topic)
 
+    # Bridge the legacy module-level event_bus singleton to the new
+    # TypedEventBusAdapter.  Any code that imports the old ``event_bus``
+    # and calls ``await event_bus.publish(SomeEvent(...))`` will now
+    # forward through the adapter, ensuring a single event bus for the
+    # entire process (no split-brain).
+    event_bus.set_delegate(typed_event_bus)
+
     logger.info(
         "broker_initialized",
         backend=broker.backend,
@@ -335,7 +342,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from cassini.core.engine.spc_engine import invalidate_rule_cache
 
     async def _on_characteristic_updated(event) -> None:
-        char_id = event.characteristic_id if hasattr(event, 'characteristic_id') else event.get('characteristic_id')
+        # Handle both typed event objects and raw dict payloads safely
+        if hasattr(event, 'characteristic_id'):
+            char_id = event.characteristic_id
+        elif isinstance(event, dict):
+            char_id = event.get('characteristic_id')
+        else:
+            char_id = None
         if char_id is not None:
             invalidate_rule_cache(char_id)
 
@@ -364,12 +377,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await spc_consumer.start()
         app.state.spc_consumer = spc_consumer
 
+        # Pass exactly ONE queue to recovery to avoid double-evaluation.
+        # Cluster mode (broker.backend != "local"): use broker.task_queue
+        # Local mode: use the in-process SPCQueue
+        _is_cluster = broker.backend != "local"
         try:
             async with db.session() as session:
                 await _recover_pending_spc(
                     session,
-                    spc_queue=spc_queue,
-                    task_queue=broker.task_queue,
+                    spc_queue=None if _is_cluster else spc_queue,
+                    task_queue=broker.task_queue if _is_cluster else None,
                 )
         except Exception as e:
             logger.warning("spc_recovery_failed", error=str(e))
@@ -411,6 +428,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if hasattr(app.state, 'spc_queue'):
         await app.state.spc_queue.shutdown(timeout=10.0)
+
+    # Disconnect the legacy singleton before shutting down the adapter
+    event_bus.set_delegate(None)
 
     # Wait for pending event handlers to complete, then shutdown broker
     await typed_event_bus.shutdown()

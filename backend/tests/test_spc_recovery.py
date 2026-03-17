@@ -164,8 +164,8 @@ class TestRecoverPendingSPC:
         await task_queue.shutdown()
 
     @pytest.mark.asyncio
-    async def test_both_queues_enqueued(self, recovery_session):
-        """When both spc_queue and task_queue are provided, both get items."""
+    async def test_both_queues_only_task_queue_used(self, recovery_session):
+        """When both queues are provided, only task_queue is used (no double-eval)."""
         from cassini.core.engine.spc_recovery import recover_pending_spc
         from cassini.core.broker.local import LocalTaskQueue
 
@@ -182,9 +182,10 @@ class TestRecoverPendingSPC:
         )
         assert count == 1
 
-        # Both should have received items
-        mock_queue.enqueue_nowait.assert_called_once()
+        # task_queue takes precedence — spc_queue should NOT be called
+        mock_queue.enqueue_nowait.assert_not_called()
 
+        # task_queue should have received the item
         item = await task_queue.dequeue(timeout=1.0)
         assert item is not None
         assert item["characteristic_id"] == 5

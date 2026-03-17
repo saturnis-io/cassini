@@ -65,6 +65,21 @@ class EventBus:
         self._handlers: dict[Type[Event], list[EventHandler]] = {}
         self._running_tasks: set[asyncio.Task[None]] = set()
         self._handler_semaphore = asyncio.Semaphore(max_concurrent_handlers)
+        self._delegate: object | None = None
+
+    def set_delegate(self, delegate: object | None) -> None:
+        """Set a delegate bus for publish forwarding.
+
+        When a delegate is set, all calls to publish() and publish_and_wait()
+        forward to the delegate instead of dispatching to local handlers.
+        This bridges the legacy module-level singleton to the new
+        TypedEventBusAdapter so events converge on a single bus.
+
+        Args:
+            delegate: An object with an async publish() method (typically
+                TypedEventBusAdapter), or None to restore local dispatch.
+        """
+        self._delegate = delegate
 
     def subscribe(self, event_type: Type[Event], handler: EventHandler) -> None:
         """Subscribe a handler to an event type.
@@ -117,6 +132,10 @@ class EventBus:
     async def publish(self, event: Event) -> None:
         """Publish an event to all subscribed handlers.
 
+        If a delegate is set (via set_delegate), the event is forwarded to the
+        delegate and local handlers are NOT invoked. This prevents duplicate
+        delivery when the delegate's subscribers already cover all consumers.
+
         Handlers are invoked asynchronously and do not block the publisher.
         Errors in handlers are caught and logged but do not propagate.
 
@@ -137,6 +156,10 @@ class EventBus:
             This method returns immediately after creating handler tasks.
             Use publish_and_wait() if you need to ensure all handlers complete.
         """
+        if self._delegate is not None:
+            await self._delegate.publish(event)
+            return
+
         event_type = type(event)
         handlers = self._handlers.get(event_type, [])
 
@@ -154,6 +177,10 @@ class EventBus:
 
     async def publish_and_wait(self, event: Event) -> list[Exception]:
         """Publish an event and wait for all handlers to complete.
+
+        If a delegate is set, forwards to the delegate's publish_and_wait()
+        (if available) or plain publish(). Returns an empty error list for
+        delegated calls since the delegate handles its own error reporting.
 
         Unlike publish(), this method waits for all handlers to finish
         before returning. This is useful when you need to ensure event
@@ -177,6 +204,13 @@ class EventBus:
             >>> if errors:
             ...     logger.error(f"{len(errors)} handler(s) failed")
         """
+        if self._delegate is not None:
+            if hasattr(self._delegate, "publish_and_wait"):
+                await self._delegate.publish_and_wait(event)
+            else:
+                await self._delegate.publish(event)
+            return []
+
         event_type = type(event)
         handlers = self._handlers.get(event_type, [])
 

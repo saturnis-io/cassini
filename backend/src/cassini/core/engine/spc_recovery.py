@@ -4,12 +4,12 @@ On crash or restart, samples with spc_status='pending_spc' were accepted into
 the database but never evaluated. This module scans for them and re-enqueues
 one request per (characteristic_id, material_id) group.
 
-Two enqueue targets are supported:
-- SPCQueue (legacy, in-process): via enqueue_nowait()
-- TaskQueue (broker-based):      via await enqueue()
+Exactly ONE enqueue target is used per invocation to avoid double-evaluation:
+- SPCQueue (legacy, in-process): for local / single-node mode
+- TaskQueue (broker-based):      for cluster mode
 
-Both can be used simultaneously — the SPCQueue handles the local backlog while
-the TaskQueue enables cross-node recovery in cluster mode.
+If both are provided, only the TaskQueue is used (cluster mode takes
+precedence). Callers should pass only the appropriate queue for their mode.
 """
 
 from __future__ import annotations
@@ -32,6 +32,11 @@ async def recover_pending_spc(
 ) -> int:
     """Scan for pending_spc samples and re-enqueue by characteristic.
 
+    Exactly one queue is used to avoid double-evaluation. If *task_queue*
+    is provided it takes precedence (cluster mode); otherwise *spc_queue*
+    is used (local / single-node mode). If neither is provided, recovery
+    is skipped.
+
     Args:
         session: Async database session.
         spc_queue: Optional SPCQueue instance (legacy in-process queue).
@@ -42,6 +47,14 @@ async def recover_pending_spc(
     Returns:
         Number of characteristic groups re-enqueued.
     """
+    # Select exactly one target to prevent double-evaluation
+    use_task_queue = task_queue is not None
+    use_spc_queue = not use_task_queue and spc_queue is not None
+
+    if not use_task_queue and not use_spc_queue:
+        logger.info("spc_recovery_skipped: no queue provided")
+        return 0
+
     from cassini.db.models.sample import Sample
 
     stmt = (
@@ -64,8 +77,7 @@ async def recover_pending_spc(
     enqueued = 0
 
     for (char_id, material_id), sample_ids in groups.items():
-        # Enqueue to legacy SPCQueue (in-process)
-        if spc_queue is not None:
+        if use_spc_queue:
             try:
                 from cassini.core.engine.spc_queue import SPCEvaluationRequest
 
@@ -81,9 +93,7 @@ async def recover_pending_spc(
                     pending=len(sample_ids),
                 )
                 break
-
-        # Enqueue to broker TaskQueue (cluster-mode)
-        if task_queue is not None:
+        elif use_task_queue:
             try:
                 await task_queue.enqueue({
                     "characteristic_id": char_id,
@@ -105,5 +115,6 @@ async def recover_pending_spc(
         "spc_recovery_complete",
         groups=enqueued,
         total_samples=len(rows),
+        target="task_queue" if use_task_queue else "spc_queue",
     )
     return enqueued
