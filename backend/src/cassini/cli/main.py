@@ -192,7 +192,12 @@ def cli() -> None:
     default=False,
     help="Skip automatic database migrations",
 )
-def serve(host: str | None, port: int | None, workers: int, no_migrate: bool) -> None:
+@click.option(
+    "--roles",
+    default=None,
+    help="Comma-separated node roles (e.g. api,spc,ingestion). Overrides CASSINI_ROLES.",
+)
+def serve(host: str | None, port: int | None, workers: int, no_migrate: bool, roles: str | None) -> None:
     """Start the Cassini server.
 
     By default, runs database migrations before starting. Use --no-migrate
@@ -200,8 +205,20 @@ def serve(host: str | None, port: int | None, workers: int, no_migrate: bool) ->
 
     Host and port default to the values in cassini.toml ([server] section),
     falling back to 127.0.0.1:8000 if not configured.
+
+    Use --roles to restrict which subsystems this node runs. Default is "all"
+    (every subsystem). In a cluster, split roles across nodes, e.g.:
+    --roles api on the frontend nodes, --roles spc,ingestion on workers.
     """
+    import os
+
     from cassini.core.config import get_settings
+
+    # Override CASSINI_ROLES env var if --roles is provided (before settings load)
+    if roles is not None:
+        os.environ["CASSINI_ROLES"] = roles
+        # Clear cached settings so the new env var is picked up
+        get_settings.cache_clear()
 
     settings = get_settings()
     host = host if host is not None else settings.server_host

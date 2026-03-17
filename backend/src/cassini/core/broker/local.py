@@ -48,7 +48,12 @@ class LocalTaskQueue:
 
 
 class LocalEventBus:
-    """In-process pub/sub event bus."""
+    """In-process pub/sub event bus.
+
+    subscribe/unsubscribe are synchronous (just a list append/remove).
+    They are also declared async to satisfy the EventBusInterface protocol,
+    but they can safely be called without await from sync contexts.
+    """
 
     def __init__(self):
         self._handlers: dict[str, list[Callable[[dict], Awaitable[None]]]] = {}

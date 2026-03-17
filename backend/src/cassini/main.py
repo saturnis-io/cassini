@@ -14,6 +14,8 @@ from fastapi import FastAPI, Request as FastAPIRequest
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from cassini.core.broker import create_broker
+from cassini.core.broker.event_adapter import TypedEventBusAdapter
 from cassini.api.v1.license import router as license_router
 from cassini.api.v1.anomaly import router as anomaly_router
 from cassini.api.v1.annotations import router as annotations_router
@@ -164,6 +166,68 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Starting Cassini application")
 
+    # -----------------------------------------------------------------------
+    # Broker abstraction — wraps event_bus for cluster-ready pub/sub
+    # -----------------------------------------------------------------------
+    broker = create_broker(broker_url=settings.broker_url)
+    app.state.broker = broker
+
+    # Wrap the broker's event bus with TypedEventBusAdapter for backward compat
+    typed_event_bus = TypedEventBusAdapter(broker.event_bus)
+
+    # Register all known event types to string topics
+    from cassini.core.events.events import (
+        SampleProcessedEvent,
+        ViolationCreatedEvent,
+        ViolationAcknowledgedEvent,
+        ControlLimitsUpdatedEvent,
+        CharacteristicCreatedEvent,
+        CharacteristicUpdatedEvent,
+        CharacteristicDeletedEvent,
+        AlertThresholdExceededEvent,
+        AnomalyDetectedEvent,
+        SignatureCreatedEvent,
+        SignatureRejectedEvent,
+        WorkflowCompletedEvent,
+        WorkflowExpiredEvent,
+        SignatureInvalidatedEvent,
+        ERPSyncCompletedEvent,
+        PredictedOOCEvent,
+        CorrelationAlertEvent,
+        PurgeCompletedEvent,
+        BatchEvaluationCompleteEvent,
+    )
+
+    _event_mappings: list[tuple[type, str]] = [
+        (SampleProcessedEvent, "sample.processed"),
+        (ViolationCreatedEvent, "violation.created"),
+        (ViolationAcknowledgedEvent, "violation.acknowledged"),
+        (ControlLimitsUpdatedEvent, "control_limits.updated"),
+        (CharacteristicCreatedEvent, "characteristic.created"),
+        (CharacteristicUpdatedEvent, "characteristic.updated"),
+        (CharacteristicDeletedEvent, "characteristic.deleted"),
+        (AlertThresholdExceededEvent, "alert.threshold_exceeded"),
+        (AnomalyDetectedEvent, "anomaly.detected"),
+        (SignatureCreatedEvent, "signature.created"),
+        (SignatureRejectedEvent, "signature.rejected"),
+        (WorkflowCompletedEvent, "workflow.completed"),
+        (WorkflowExpiredEvent, "workflow.expired"),
+        (SignatureInvalidatedEvent, "signature.invalidated"),
+        (ERPSyncCompletedEvent, "erp_sync.completed"),
+        (PredictedOOCEvent, "predicted_ooc"),
+        (CorrelationAlertEvent, "correlation.alert"),
+        (PurgeCompletedEvent, "purge.completed"),
+        (BatchEvaluationCompleteEvent, "batch_evaluation.complete"),
+    ]
+    for event_cls, topic in _event_mappings:
+        typed_event_bus.register_event_type(event_cls, topic)
+
+    logger.info(
+        "broker_initialized",
+        backend=broker.backend,
+        roles=settings.role_list,
+    )
+
     # Store module-level license service on app.state (single instance)
     app.state.license_service = _license_svc
     license_service = _license_svc
@@ -182,7 +246,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Store db and event_bus on app.state for lazy activation
     app.state.db = db
-    app.state.event_bus = event_bus
+    app.state.event_bus = typed_event_bus
 
     # Bootstrap admin user if no users exist
     try:
@@ -223,38 +287,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await ws_manager.start()
 
     # Initialize WebSocket broadcaster and wire it to event bus
-    broadcaster = WebSocketBroadcaster(ws_manager, event_bus)
+    broadcaster = WebSocketBroadcaster(ws_manager, typed_event_bus)
 
     # Store broadcaster in app state for access by other components
     app.state.broadcaster = broadcaster
 
-    # Initialize MQTT manager with database session
-    try:
-        async with db.session() as session:
-            mqtt_connected = await mqtt_manager.initialize(session)
-            if mqtt_connected:
-                logger.info("MQTT manager connected successfully")
+    # Initialize MQTT / ingestion subsystems (gated by ingestion role)
+    if settings.has_role("ingestion"):
+        try:
+            async with db.session() as session:
+                mqtt_connected = await mqtt_manager.initialize(session)
+                if mqtt_connected:
+                    logger.info("MQTT manager connected successfully")
 
-                # Initialize TAG provider if MQTT is connected
-                tag_connected = await tag_provider_manager.initialize(session)
-                if tag_connected:
-                    logger.info("TAG provider initialized successfully")
+                    # Initialize TAG provider if MQTT is connected
+                    tag_connected = await tag_provider_manager.initialize(session)
+                    if tag_connected:
+                        logger.info("TAG provider initialized successfully")
+                    else:
+                        logger.info("TAG provider initialization deferred")
                 else:
-                    logger.info("TAG provider initialization deferred")
-            else:
-                logger.info(
-                    "MQTT manager initialized -- brokers connecting in background "
-                    "or no active brokers configured"
-                )
-    except Exception as e:
-        logger.warning("mqtt_init_failed", error=str(e))
+                    logger.info(
+                        "MQTT manager initialized -- brokers connecting in background "
+                        "or no active brokers configured"
+                    )
+        except Exception as e:
+            logger.warning("mqtt_init_failed", error=str(e))
 
-    # Initialize MQTT outbound publisher (after MQTT manager so brokers are connected)
-    mqtt_publisher = MQTTPublisher(mqtt_manager, event_bus, db.session)
-    app.state.mqtt_publisher = mqtt_publisher
-    logger.info("MQTT outbound publisher initialized")
+        # Initialize MQTT outbound publisher (after MQTT manager so brokers are connected)
+        mqtt_publisher = MQTTPublisher(mqtt_manager, typed_event_bus, db.session)
+        app.state.mqtt_publisher = mqtt_publisher
+        logger.info("MQTT outbound publisher initialized")
+    else:
+        logger.info("ingestion_role_skipped", roles=settings.role_list)
 
-    # Store community managers in app state
+    # Store community managers in app state (always — used by API endpoints)
     app.state.mqtt_manager = mqtt_manager
     app.state.tag_provider_manager = tag_provider_manager
 
@@ -274,7 +341,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if license_service.is_commercial:
         tier = license_service.tier
         routers = _PRO_ROUTERS + _ENTERPRISE_ROUTERS if license_service.is_enterprise else _PRO_ROUTERS
-        await activate_commercial_features(app, routers, db, event_bus, tier=tier)
+        await activate_commercial_features(app, routers, db, typed_event_bus, tier=tier)
     else:
         logger.info("Community edition -- commercial services not initialized")
 
@@ -286,27 +353,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("initial_compliance_check_failed", error=str(e))
 
     # Wire rule cache invalidation to event bus (must happen once per worker)
-    from cassini.core.events.events import CharacteristicUpdatedEvent
     from cassini.core.engine.spc_engine import invalidate_rule_cache
 
-    async def _on_characteristic_updated(event: CharacteristicUpdatedEvent) -> None:
-        invalidate_rule_cache(event.characteristic_id)
+    async def _on_characteristic_updated(event) -> None:
+        char_id = event.characteristic_id if hasattr(event, 'characteristic_id') else event.get('characteristic_id')
+        if char_id is not None:
+            invalidate_rule_cache(char_id)
 
-    event_bus.subscribe(CharacteristicUpdatedEvent, _on_characteristic_updated)
+    typed_event_bus.subscribe(CharacteristicUpdatedEvent, _on_characteristic_updated)
 
-    # Start async SPC queue (commercial feature but always starts — community just won't use it)
-    from cassini.core.engine.spc_queue import get_spc_queue
-    from cassini.core.engine.rolling_window import get_shared_window_manager
+    # Start async SPC queue (gated by spc role)
+    if settings.has_role("spc"):
+        from cassini.core.engine.spc_queue import get_spc_queue
+        from cassini.core.engine.rolling_window import get_shared_window_manager
 
-    spc_queue = get_spc_queue()
-    await spc_queue.start(db.session, event_bus, get_shared_window_manager())
-    app.state.spc_queue = spc_queue
+        spc_queue = get_spc_queue()
+        await spc_queue.start(db.session, typed_event_bus, get_shared_window_manager())
+        app.state.spc_queue = spc_queue
 
-    try:
-        async with db.session() as session:
-            await _recover_pending_spc(session, spc_queue)
-    except Exception as e:
-        logger.warning("spc_recovery_failed", error=str(e))
+        try:
+            async with db.session() as session:
+                await _recover_pending_spc(session, spc_queue)
+        except Exception as e:
+            logger.warning("spc_recovery_failed", error=str(e))
+    else:
+        logger.info("spc_role_skipped", roles=settings.role_list)
 
     logger.info("Cassini application startup complete")
 
@@ -332,18 +403,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if hasattr(app.state, 'opcua_manager'):
         await opcua_manager.shutdown()
 
-    # Shutdown TAG provider first (before MQTT) -- community
-    await tag_provider_manager.shutdown()
-
-    # Shutdown MQTT manager -- community
-    await mqtt_manager.shutdown()
+    # Shutdown TAG provider first (before MQTT) -- community (only if ingestion role)
+    if settings.has_role("ingestion"):
+        await tag_provider_manager.shutdown()
+        await mqtt_manager.shutdown()
 
     # Shutdown SPC queue (drain remaining items)
     if hasattr(app.state, 'spc_queue'):
         await app.state.spc_queue.shutdown(timeout=10.0)
 
-    # Wait for pending event handlers to complete
-    await event_bus.shutdown()
+    # Wait for pending event handlers to complete, then shutdown broker
+    await typed_event_bus.shutdown()
+    await broker.broadcast.shutdown()
 
     # Stop WebSocket connection manager
     await ws_manager.stop()

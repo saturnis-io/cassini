@@ -59,7 +59,9 @@ async def test_adapter_subscribe_typed():
     async def handler(event: FakeSampleProcessedEvent) -> None:
         received.append(event)
 
-    await adapter.subscribe(FakeSampleProcessedEvent, handler)
+    adapter.subscribe(FakeSampleProcessedEvent, handler)
+    # Allow scheduled subscription coroutine to run
+    await asyncio.sleep(0.05)
     await adapter.publish(
         FakeSampleProcessedEvent(characteristic_id=5, sample_id=20)
     )
@@ -72,7 +74,11 @@ async def test_adapter_subscribe_typed():
 
 @pytest.mark.asyncio
 async def test_adapter_backwards_compatible_with_existing_api():
-    """The adapter must support the same subscribe(Type, handler) API as the old EventBus."""
+    """The adapter must support the same subscribe(Type, handler) API as the old EventBus.
+
+    subscribe() is sync (like the original EventBus) for backward compatibility
+    with callers that don't await it (WebSocketBroadcaster, MQTTPublisher, etc.).
+    """
     from cassini.core.broker.local import LocalEventBus
     from cassini.core.broker.event_adapter import TypedEventBusAdapter
 
@@ -90,8 +96,11 @@ async def test_adapter_backwards_compatible_with_existing_api():
     async def on_violation(event: FakeViolationCreatedEvent) -> None:
         violation_events.append(event)
 
-    await adapter.subscribe(FakeSampleProcessedEvent, on_sample)
-    await adapter.subscribe(FakeViolationCreatedEvent, on_violation)
+    # subscribe() is sync — no await needed (matches old EventBus API)
+    adapter.subscribe(FakeSampleProcessedEvent, on_sample)
+    adapter.subscribe(FakeViolationCreatedEvent, on_violation)
+    # Allow scheduled subscription coroutines to run
+    await asyncio.sleep(0.05)
 
     await adapter.publish(
         FakeSampleProcessedEvent(characteristic_id=1, sample_id=1)
