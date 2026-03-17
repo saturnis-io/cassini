@@ -23,6 +23,7 @@ from cassini.api.v1.api_keys import router as api_keys_router
 from cassini.api.v1.audit import router as audit_router
 from cassini.api.v1.health import router as health_router
 from cassini.api.v1.auth import router as auth_router
+from cassini.api.v1.cli_auth import router as cli_auth_router
 from cassini.api.v1.brokers import router as brokers_router
 from cassini.api.v1.opcua_servers import router as opcua_servers_router
 from cassini.api.v1.database_admin import router as database_admin_router
@@ -140,6 +141,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging(settings.log_format)
 
     logger.info("Starting Cassini application")
+
+    # Drain mode flag — load balancers poll /health/ready and stop sending
+    # traffic when this is True.  Set to True at the very start of shutdown.
+    app.state.draining = False
 
     # -----------------------------------------------------------------------
     # Broker abstraction — wraps event_bus for cluster-ready pub/sub
@@ -397,7 +402,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
-    # Shutdown
+    # Shutdown — signal drain FIRST so /health/ready returns 503 immediately
+    app.state.draining = True
     logger.info("Shutting down Cassini application")
 
     # Shutdown commercial services (may not exist in Community edition)
@@ -514,6 +520,7 @@ app.add_middleware(AuditMiddleware)
 
 # Community routers -- always registered regardless of license
 app.include_router(auth_router)
+app.include_router(cli_auth_router)
 app.include_router(users_router)
 app.include_router(hierarchy_router, prefix="/api/v1/hierarchy")
 app.include_router(plant_hierarchy_router, prefix="/api/v1/plants/{plant_id}/hierarchies")
