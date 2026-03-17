@@ -379,7 +379,9 @@ async def security_headers(request: FastAPIRequest, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    # CSP only on HTML responses (not API JSON)
+    # CSP only on HTML responses (not API JSON).
+    # CSP: unsafe-inline required for Vite SPA module loading.
+    # TODO: Migrate to nonce-based CSP in a future wave.
     if "text/html" in response.headers.get("content-type", ""):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
