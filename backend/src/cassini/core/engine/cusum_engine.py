@@ -391,6 +391,7 @@ async def process_cusum_supplementary(
     )
 
     # Check for violations (rule_id 9/10 to avoid collision with Nelson Rule 1)
+    reset_needed = False
     if cusum_high > h:
         await violation_repo.create(
             sample_id=sample_id,
@@ -401,6 +402,9 @@ async def process_cusum_supplementary(
             acknowledged=False,
             requires_acknowledgement=True,
         )
+        # Reset accumulator after signaling (Montgomery Ch. 9, Section 9.1.4)
+        cusum_high = 0.0
+        reset_needed = True
     if cusum_low > h:
         await violation_repo.create(
             sample_id=sample_id,
@@ -410,4 +414,15 @@ async def process_cusum_supplementary(
             severity="CRITICAL",
             acknowledged=False,
             requires_acknowledgement=True,
+        )
+        # Reset accumulator after signaling (Montgomery Ch. 9, Section 9.1.4)
+        cusum_low = 0.0
+        reset_needed = True
+
+    # Persist reset accumulator values so next sample starts from 0
+    if reset_needed:
+        await sample_repo.session.execute(
+            update(SampleModel).where(SampleModel.id == sample_id).values(
+                cusum_high=cusum_high, cusum_low=cusum_low
+            )
         )
