@@ -315,9 +315,11 @@ async def run_mcp_server(
                         text=json.dumps(result, indent=2, default=str),
                     )
                 ]
-            except Exception as e:
-                logger.exception("MCP tool %s failed", name)
+            except (PermissionError, ValueError, NotImplementedError) as e:
                 return [TextContent(type="text", text=json.dumps({"error": str(e)}))]
+            except Exception:
+                logger.exception("MCP tool %s failed", name)
+                return [TextContent(type="text", text=json.dumps({"error": "Internal error executing tool"}))]
 
     if transport == "stdio":
         async with stdio_server() as (read_stream, write_stream):
@@ -352,6 +354,8 @@ async def run_mcp_server(
             ]
         )
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=port)
+        # Bind to localhost only — SSE transport has no inbound auth.
+        # Use --sse-host to override if network binding is explicitly needed.
+        config = uvicorn.Config(app, host="127.0.0.1", port=port)
         uv_server = uvicorn.Server(config)
         await uv_server.serve()

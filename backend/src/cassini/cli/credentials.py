@@ -43,9 +43,20 @@ def _secure_write(path: Path, data: str) -> None:
         os.write(fd, data.encode("utf-8"))
         os.close(fd)
 
-        # Set secure permissions on Unix
+        # Set secure permissions
         if platform.system() != "Windows":
             os.chmod(tmp_path, stat.S_IRUSR | stat.S_IWUSR)  # 0600
+        else:
+            # On Windows, restrict to current user via icacls
+            try:
+                import subprocess
+                username = os.getlogin()
+                subprocess.run(
+                    ["icacls", tmp_path, "/inheritance:r", "/grant:r", f"{username}:(R,W)"],
+                    capture_output=True, check=False,
+                )
+            except Exception:
+                logger.warning("Could not set Windows file permissions on credentials")
 
         # Atomic replace
         os.replace(tmp_path, path)
