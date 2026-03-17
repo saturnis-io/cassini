@@ -13,6 +13,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
+VALID_ROLES = {"all", "api", "spc", "ingestion", "reports", "erp", "purge", "ai"}
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and TOML.
@@ -102,6 +104,20 @@ class Settings(BaseSettings):
     license_file: str = ""
     license_public_key_file: str = ""  # Path to Ed25519 public key PEM
     dev_tier: str = ""  # Dev license tier: "" (community), "pro", or "enterprise"
+
+    # Cluster / broker
+    broker_url: str = ""  # e.g. "valkey://localhost:6379"
+    roles: str = "all"  # Comma-separated node roles: "all", "api", "spc", etc.
+
+    @property
+    def role_list(self) -> list[str]:
+        """Parse comma-separated roles into a list."""
+        return [r.strip() for r in self.roles.split(",") if r.strip()]
+
+    def has_role(self, role: str) -> bool:
+        """Check if this node should run the given role."""
+        roles = self.role_list
+        return "all" in roles or role in roles
 
     @property
     def cors_origin_list(self) -> list[str]:
