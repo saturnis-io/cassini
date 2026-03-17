@@ -234,6 +234,11 @@ def _get_client_factory(
 def cli(ctx: click.Context, server: str | None, api_key: str | None, profile: str) -> None:
     """Cassini SPC — Event-Driven Statistical Process Control."""
     ctx.ensure_object(dict)
+
+    # If a test already injected a client factory, don't overwrite it.
+    if "client" in ctx.obj:
+        return
+
     # Store raw options — the client factory is built lazily on first use.
     # Server-local commands (serve, migrate, check) never touch ctx.obj["client"].
     ctx.obj["_server"] = server
