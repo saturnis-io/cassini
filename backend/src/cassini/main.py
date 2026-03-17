@@ -121,40 +121,15 @@ _ENTERPRISE_ROUTERS = [
 ]
 
 
-async def _recover_pending_spc(session, spc_queue) -> None:
+async def _recover_pending_spc(session, spc_queue=None, task_queue=None) -> None:
     """Re-enqueue samples with spc_status='pending_spc' from a previous crash."""
-    from collections import defaultdict
-    from sqlalchemy import select as sa_select
-    from cassini.db.models.sample import Sample
-    from cassini.core.engine.spc_queue import SPCEvaluationRequest
+    from cassini.core.engine.spc_recovery import recover_pending_spc
 
-    stmt = (
-        sa_select(Sample.id, Sample.char_id, Sample.material_id)
-        .where(Sample.spc_status == "pending_spc")
-        .order_by(Sample.id)
+    await recover_pending_spc(
+        session,
+        spc_queue=spc_queue,
+        task_queue=task_queue,
     )
-    result = await session.execute(stmt)
-    rows = result.all()
-
-    if not rows:
-        return
-
-    groups: dict[tuple[int, int | None], list[int]] = defaultdict(list)
-    for row in rows:
-        groups[(row.char_id, row.material_id)].append(row.id)
-
-    for (char_id, material_id), sample_ids in groups.items():
-        try:
-            spc_queue.enqueue_nowait(SPCEvaluationRequest(
-                characteristic_id=char_id,
-                sample_ids=sample_ids,
-                material_id=material_id,
-            ))
-        except asyncio.QueueFull:
-            logger.error("spc_recovery_queue_full", char_id=char_id, pending=len(sample_ids))
-            break
-
-    logger.info("spc_recovery_complete", groups=len(groups), total_samples=len(rows))
 
 
 @asynccontextmanager
@@ -391,7 +366,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         try:
             async with db.session() as session:
-                await _recover_pending_spc(session, spc_queue)
+                await _recover_pending_spc(
+                    session,
+                    spc_queue=spc_queue,
+                    task_queue=broker.task_queue,
+                )
         except Exception as e:
             logger.warning("spc_recovery_failed", error=str(e))
     else:
