@@ -67,16 +67,19 @@ class APIKeyAuth:
     def extract_prefix(plain_key: str) -> str:
         """Extract the lookup prefix from a plain API key.
 
-        The prefix is the first 8 characters of the key, stored unhashed
-        to allow O(1) candidate narrowing before bcrypt verification.
+        Uses chars 8-15 (after 'cassini_') for keys with the standard prefix,
+        ensuring different keys produce different prefixes for O(1) candidate
+        narrowing before bcrypt verification.
 
         Args:
             plain_key: The full plain text API key.
 
         Returns:
-            First 8 characters of the key.
+            8-character prefix suitable for database lookup.
         """
-        return plain_key[:8]
+        if plain_key.startswith("cassini_"):
+            return plain_key[8:16]
+        return plain_key[:8]  # Legacy keys without cassini_ prefix
 
 
 async def verify_api_key(
