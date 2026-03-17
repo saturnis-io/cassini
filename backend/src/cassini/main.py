@@ -367,9 +367,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from cassini.core.engine.spc_queue import get_spc_queue
         from cassini.core.engine.rolling_window import get_shared_window_manager
 
+        window_manager = get_shared_window_manager()
+
         spc_queue = get_spc_queue()
-        await spc_queue.start(db.session, typed_event_bus, get_shared_window_manager())
+        await spc_queue.start(db.session, typed_event_bus, window_manager)
         app.state.spc_queue = spc_queue
+
+        # Start broker-based SPC consumer (reads from broker.task_queue)
+        from cassini.core.engine.spc_consumer import SPCConsumerService
+
+        spc_consumer = SPCConsumerService(
+            task_queue=broker.task_queue,
+            session_factory=db.session,
+            event_bus=typed_event_bus,
+            window_manager=window_manager,
+        )
+        await spc_consumer.start()
+        app.state.spc_consumer = spc_consumer
 
         try:
             async with db.session() as session:
@@ -408,7 +422,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await tag_provider_manager.shutdown()
         await mqtt_manager.shutdown()
 
-    # Shutdown SPC queue (drain remaining items)
+    # Shutdown SPC consumer (broker-based) and queue (drain remaining items)
+    if hasattr(app.state, 'spc_consumer'):
+        await app.state.spc_consumer.stop(timeout=10.0)
+
     if hasattr(app.state, 'spc_queue'):
         await app.state.spc_queue.shutdown(timeout=10.0)
 
