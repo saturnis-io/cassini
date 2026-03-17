@@ -283,6 +283,33 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
 
+    # Compute ss_type_warning on-the-fly from ANOVA rows (avoids DB column).
+    # If individual factor SS (Type I) deviate from SS(Model) by >1%, flag it.
+    ss_type_warning: str | None = None
+    if len(anova_table) >= 2:
+        ss_factor_sum = sum(
+            row.sum_of_squares
+            for row in anova_table
+            if row.source not in ("Residual", "Total", "Blocks")
+        )
+        residual_row = next(
+            (row for row in anova_table if row.source == "Residual"), None
+        )
+        total_row = next(
+            (row for row in anova_table if row.source == "Total"), None
+        )
+        if residual_row and total_row:
+            ss_model_ols = total_row.sum_of_squares - residual_row.sum_of_squares
+            if (
+                ss_model_ols > 1e-10
+                and abs(ss_factor_sum - ss_model_ols) / ss_model_ols > 0.01
+            ):
+                ss_type_warning = (
+                    "This design is non-orthogonal. Individual factor SS "
+                    "values are Type I (sequential) and may not sum to "
+                    "SS(Model). R\u00b2 and p-values use OLS and are correct."
+                )
+
     return DOEAnalysisResponse(
         id=analysis.id,
         study_id=analysis.study_id,
@@ -295,6 +322,7 @@ def _build_analysis_response(analysis: DOEAnalysis) -> DOEAnalysisResponse:
         pred_r_squared=analysis.pred_r_squared,
         lack_of_fit_f=analysis.lack_of_fit_f,
         lack_of_fit_p=analysis.lack_of_fit_p,
+        ss_type_warning=ss_type_warning,
         regression=regression,
         taguchi_anom=taguchi_anom,
         residuals=residuals,

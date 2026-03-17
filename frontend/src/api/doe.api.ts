@@ -144,6 +144,7 @@ export interface DOEAnalysis {
   pred_r_squared: number | null
   lack_of_fit_f: number | null
   lack_of_fit_p: number | null
+  ss_type_warning: string | null
   grand_mean: number
   taguchi_anom: TaguchiANOM | null
   residuals: number[] | null

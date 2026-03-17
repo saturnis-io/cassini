@@ -32,6 +32,7 @@ export function ReportAnovaResults({ studyId }: ReportAnovaResultsProps) {
         pred_r_squared={analysis.pred_r_squared}
         lack_of_fit_f={analysis.lack_of_fit_f}
         lack_of_fit_p={analysis.lack_of_fit_p}
+        ss_type_warning={analysis.ss_type_warning}
       />
     </div>
   )

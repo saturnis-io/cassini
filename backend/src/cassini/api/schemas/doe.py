@@ -296,6 +296,7 @@ class DOEAnalysisResponse(BaseModel):
     pred_r_squared: float | None = None
     lack_of_fit_f: float | None = None
     lack_of_fit_p: float | None = None
+    ss_type_warning: str | None = None
     regression: RegressionResponse | None = None
     taguchi_anom: TaguchiANOMResponse | None = None
     desirability: DesirabilityResponse | None = None

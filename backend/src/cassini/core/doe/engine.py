@@ -483,6 +483,7 @@ class DOEEngine:
             "pred_r_squared": anova.pred_r_squared,
             "lack_of_fit_f": anova.lack_of_fit_f,
             "lack_of_fit_p": anova.lack_of_fit_p,
+            "ss_type_warning": anova.ss_type_warning,
         }
 
         # Add warning for designs that cannot estimate interactions

@@ -16,6 +16,7 @@ interface ANOVATableProps {
   pred_r_squared?: number | null
   lack_of_fit_f?: number | null
   lack_of_fit_p?: number | null
+  ss_type_warning?: string | null
 }
 
 function formatNumber(value: number, decimals = 4): string {
@@ -51,6 +52,7 @@ export function ANOVATable({
   pred_r_squared,
   lack_of_fit_f,
   lack_of_fit_p,
+  ss_type_warning,
 }: ANOVATableProps) {
   return (
     <div className="space-y-4">
@@ -114,6 +116,24 @@ export function ANOVATable({
           </tbody>
         </table>
       </div>
+
+      {/* Type I SS warning for non-orthogonal designs */}
+      {ss_type_warning && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+          <svg
+            className="mt-0.5 h-4 w-4 shrink-0"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <span>{ss_type_warning}</span>
+        </div>
+      )}
 
       {/* R-squared summary */}
       <div className="bg-muted/30 flex flex-wrap items-center gap-6 rounded-lg px-4 py-3">

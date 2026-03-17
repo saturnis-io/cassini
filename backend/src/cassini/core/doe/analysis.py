@@ -77,6 +77,11 @@ class ANOVAResult:
     pred_r_squared: float | None = None
     lack_of_fit_f: float | None = None
     lack_of_fit_p: float | None = None
+    ss_type_warning: str | None = None
+    """Non-None when individual factor SS values (Type I / sequential) do not
+    sum to SS(Model).  This occurs in non-orthogonal designs (e.g. fractional
+    factorials with aliased columns).  R² and p-values use OLS and are
+    unaffected."""
 
 
 @dataclass
@@ -521,6 +526,22 @@ def compute_anova(
     except Exception:
         pass  # Defensive: leave as None on unexpected errors
 
+    # Detect non-orthogonal designs: individual factor SS (Type I) may not
+    # sum to SS(Model) = SS(Total) - SS(Residual).
+    ss_type_warning: str | None = None
+    ss_factor_sum = sum(
+        row.sum_of_squares
+        for row in rows
+        if row.source not in ("Residual", "Total")
+    )
+    ss_model_ols = ss_total - ss_resid
+    if ss_model_ols > 1e-10 and abs(ss_factor_sum - ss_model_ols) / ss_model_ols > 0.01:
+        ss_type_warning = (
+            "This design is non-orthogonal. Individual factor SS values are "
+            "Type I (sequential) and may not sum to SS(Model). "
+            "R\u00b2 and p-values use OLS and are correct."
+        )
+
     return ANOVAResult(
         rows=rows,
         r_squared=r_sq,
@@ -528,6 +549,7 @@ def compute_anova(
         pred_r_squared=pred_r_sq,
         lack_of_fit_f=lof_f,
         lack_of_fit_p=lof_p,
+        ss_type_warning=ss_type_warning,
     )
 
 
