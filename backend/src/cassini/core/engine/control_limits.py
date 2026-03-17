@@ -82,6 +82,7 @@ from cassini.core.explain import ExplanationCollector
 from cassini.utils.constants import get_c4, get_d2
 from cassini.utils.statistics import (
     estimate_sigma_moving_range,
+    estimate_sigma_pooled,
     estimate_sigma_rbar,
     estimate_sigma_sbar,
 )
@@ -558,7 +559,7 @@ class ControlLimitService:
                     subgroup_size=subgroup_size,
                     action="falling_back_to_auto",
                 )
-            elif sigma_method in ("r_bar_d2", "s_bar_c4") and subgroup_size == 1:
+            elif sigma_method in ("r_bar_d2", "s_bar_c4", "pooled") and subgroup_size == 1:
                 logger.warning(
                     "sigma_method_subgroup_mismatch",
                     sigma_method=sigma_method,
@@ -587,7 +588,7 @@ class ControlLimitService:
         decoupled from the individual calculation implementations.
 
         Args:
-            method: One of "moving_range", "r_bar_d2", "s_bar_c4".
+            method: One of "moving_range", "r_bar_d2", "s_bar_c4", "pooled".
             samples: List of Sample objects with measurements.
             subgroup_size: Nominal subgroup size.
             collector: Optional ExplanationCollector for Show Your Work.
@@ -599,6 +600,10 @@ class ControlLimitService:
             return self._calculate_moving_range(samples, collector=collector)
         elif method == "r_bar_d2":
             return self._calculate_r_bar(
+                samples, subgroup_size, collector=collector
+            )
+        elif method == "pooled":
+            return self._calculate_pooled(
                 samples, subgroup_size, collector=collector
             )
         else:  # s_bar_c4
@@ -1015,6 +1020,143 @@ class ControlLimitService:
             collector.step(
                 label="sigma_xbar (Sigma of the Mean)",
                 formula_latex=r"\sigma_{\bar{x}} = \frac{\sigma}{\sqrt{n}}",
+                substitution_latex=(
+                    r"\sigma_{\bar{x}} = \frac{"
+                    + str(round(sigma, 6))
+                    + r"}{\sqrt{"
+                    + str(subgroup_size)
+                    + r"}}"
+                ),
+                result=sigma_xbar,
+            )
+
+        ucl = center_line + 3 * sigma_xbar
+        lcl = center_line - 3 * sigma_xbar
+
+        if collector:
+            collector.step(
+                label="UCL (Upper Control Limit)",
+                formula_latex=r"UCL = \bar{\bar{x}} + 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"UCL = "
+                    + str(round(center_line, 6))
+                    + r" + 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=ucl,
+            )
+            collector.step(
+                label="LCL (Lower Control Limit)",
+                formula_latex=r"LCL = \bar{\bar{x}} - 3\sigma_{\bar{x}}",
+                substitution_latex=(
+                    r"LCL = "
+                    + str(round(center_line, 6))
+                    + r" - 3 \times "
+                    + str(round(sigma_xbar, 6))
+                ),
+                result=lcl,
+            )
+
+        return center_line, ucl, lcl, sigma
+
+    def _calculate_pooled(
+        self,
+        samples: list,
+        subgroup_size: int,
+        collector: ExplanationCollector | None = None,
+    ) -> tuple[float, float, float, float]:
+        """Calculate limits using pooled standard deviation method.
+
+        Uses the pooled within-subgroup standard deviation:
+        - X-bar = mean of subgroup means
+        - Sp = sqrt(sum((n_i - 1) * s_i^2) / sum(n_i - 1))
+        - sigma_xbar = Sp / sqrt(n)  (standard error of the mean)
+        - UCL = X-bar + 3 * sigma_xbar
+        - LCL = X-bar - 3 * sigma_xbar
+
+        The pooled estimator is more efficient than R-bar/d2 when subgroup
+        variances are homogeneous and is the maximum likelihood estimator
+        under equal-variance assumption.
+
+        Ref: ISO 22514-2:2017; Montgomery (2019), Eq. 8.3.
+
+        Args:
+            samples: List of Sample objects with measurements
+            subgroup_size: Nominal subgroup size
+            collector: Optional ExplanationCollector for Show Your Work
+
+        Returns:
+            Tuple of (center_line, ucl, lcl, sigma)
+        """
+        subgroup_means: list[float] = []
+        subgroup_stds: list[float] = []
+        subgroup_sizes: list[int] = []
+
+        for sample in samples:
+            measurement_values = [m.value for m in sample.measurements]
+            if measurement_values and len(measurement_values) > 1:
+                arr = np.asarray(measurement_values, dtype=np.float64)
+                subgroup_means.append(float(np.mean(arr)))
+                subgroup_stds.append(float(np.std(arr, ddof=1)))
+                subgroup_sizes.append(len(measurement_values))
+
+        if collector:
+            collector.input("n (nominal subgroup size)", subgroup_size)
+            collector.input("k (subgroups)", len(subgroup_means))
+
+        # Calculate center line (X-double-bar)
+        center_line = float(np.mean(subgroup_means))
+
+        if collector:
+            collector.input("\u0078\u0304\u0304", round(center_line, 6))
+            collector.step(
+                label="X-double-bar (Grand Mean)",
+                formula_latex=r"\bar{\bar{x}} = \frac{\sum \bar{x}_i}{k}",
+                substitution_latex=(
+                    r"\bar{\bar{x}} = \frac{"
+                    + str(round(sum(subgroup_means), 6))
+                    + r"}{"
+                    + str(len(subgroup_means))
+                    + r"}"
+                ),
+                result=center_line,
+                note="Mean of subgroup means",
+            )
+
+        # Estimate process sigma using pooled method
+        sigma = estimate_sigma_pooled(subgroup_stds, subgroup_sizes)
+
+        if collector:
+            total_df = sum(n - 1 for n in subgroup_sizes if n > 1)
+            collector.step(
+                label="Sp (Pooled Standard Deviation)",
+                formula_latex=r"S_p = \sqrt{\frac{\sum (n_i - 1) s_i^2}{\sum (n_i - 1)}}",
+                substitution_latex=(
+                    r"S_p = \sqrt{\frac{"
+                    + " + ".join(
+                        f"({n}-1) \\times {s:.4f}^2"
+                        for s, n in zip(subgroup_stds[:5], subgroup_sizes[:5])
+                    )
+                    + (r" + \ldots" if len(subgroup_stds) > 5 else "")
+                    + r"}{"
+                    + str(total_df)
+                    + r"}}"
+                ),
+                result=sigma,
+                note=(
+                    f"Pooled from {len(subgroup_stds)} subgroups, "
+                    f"total df={total_df}. "
+                    "Ref: ISO 22514-2; Montgomery 8th Ed. Eq. 8.3"
+                ),
+            )
+
+        # Control limits use sigma of the mean (sigma / sqrt(n))
+        sigma_xbar = sigma / math.sqrt(subgroup_size)
+
+        if collector:
+            collector.step(
+                label="sigma_xbar (Sigma of the Mean)",
+                formula_latex=r"\sigma_{\bar{x}} = \frac{S_p}{\sqrt{n}}",
                 substitution_latex=(
                     r"\sigma_{\bar{x}} = \frac{"
                     + str(round(sigma, 6))

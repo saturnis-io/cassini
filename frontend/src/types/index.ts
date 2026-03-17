@@ -935,6 +935,9 @@ export interface CapabilityResult {
   // Expected PPM (ISO 3534 / Montgomery 8th Ed.)
   ppm_within_expected: number | null
   ppm_overall_expected: number | null
+  // Process stability assessment (AIAG SPC Manual Ch. 3 Section 3.1)
+  stability_warning: string | null
+  recent_violation_count: number
   // Bootstrap confidence intervals (present when include_ci=true)
   cpk_ci: [number, number] | null
   ppk_ci: [number, number] | null
