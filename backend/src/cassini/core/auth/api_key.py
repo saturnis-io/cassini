@@ -82,6 +82,44 @@ class APIKeyAuth:
         return plain_key[:8]  # Legacy keys without cassini_ prefix
 
 
+_READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def check_api_key_scope(key, request) -> None:
+    """Enforce read-only scope on mutating HTTP methods.
+
+    Args:
+        key: The APIKey object (must have a `scope` attribute).
+        request: The incoming request (must have a `method` attribute).
+
+    Raises:
+        HTTPException: 403 if the key is read-only and the method is mutating.
+    """
+    if key.scope == "read-only" and request.method not in _READ_METHODS:
+        raise HTTPException(
+            status_code=403,
+            detail="This API key is read-only and cannot perform write operations",
+        )
+
+
+def check_api_key_plant_access(key, plant_id: int | None) -> None:
+    """Enforce plant_ids restriction on API key access.
+
+    Args:
+        key: The APIKey object (must have a `plant_ids` attribute).
+        plant_id: The plant ID being accessed, or None if no plant context.
+
+    Raises:
+        HTTPException: 403 if the key is restricted and the plant is not allowed.
+    """
+    if key.plant_ids is not None and plant_id is not None:
+        if plant_id not in key.plant_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="This API key does not have access to the requested plant",
+            )
+
+
 async def verify_api_key(
     x_api_key: str = Header(..., alias="X-API-Key"),
     session: AsyncSession = Depends(get_db_session),
