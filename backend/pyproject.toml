@@ -72,6 +72,9 @@ tray = [
 windows = [
     "pywin32>=306",
 ]
+cluster = [
+    "redis[hiredis]>=5.0",
+]
 desktop = [
     "cassini[windows,tray]",
 ]
