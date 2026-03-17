@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class APIKeyCreate(BaseModel):
@@ -11,8 +13,20 @@ class APIKeyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Human-readable name")
     expires_at: Optional[datetime] = Field(None, description="Optional expiration date")
     rate_limit_per_minute: int = Field(60, ge=1, le=1000, description="Rate limit")
-    scope: str = Field("read-write", description="API key scope: 'read-only' or 'read-write'")
+    scope: Literal["read-only", "read-write"] = Field("read-write", description="API key scope")
     plant_ids: Optional[list[int]] = Field(None, description="Restrict key to specific plant IDs (None = all plants)")
+
+    @field_validator("plant_ids")
+    @classmethod
+    def validate_plant_ids(cls, v: list[int] | None) -> list[int] | None:
+        if v is not None:
+            if len(v) == 0:
+                raise ValueError("plant_ids must be None (unrestricted) or a non-empty list")
+            if any(pid <= 0 for pid in v):
+                raise ValueError("plant_ids must contain only positive integers")
+            if len(v) != len(set(v)):
+                raise ValueError("plant_ids must not contain duplicates")
+        return v
 
 
 class APIKeyResponse(BaseModel):
