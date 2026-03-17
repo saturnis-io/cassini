@@ -41,18 +41,16 @@ async def test_leader_acquire_failure():
 
 @pytest.mark.asyncio
 async def test_leader_release():
+    """Release uses atomic Lua script via Redis server-side EVAL (not Python eval)."""
     from cassini.core.broker.leader import LeaderElection
 
     mock_redis = AsyncMock()
     mock_redis.set = AsyncMock(return_value=True)
-    mock_redis.get = AsyncMock(return_value=None)  # Will use bytes, handle appropriately
-    mock_redis.delete = AsyncMock()
+    # Redis EVAL runs a Lua script server-side for atomic compare-and-delete
+    mock_redis.eval = AsyncMock(return_value=1)  # noqa: S307
 
     election = LeaderElection(mock_redis, role="reports", namespace="inst-abc")
     await election.try_acquire()
-
-    # Mock get to return this node's ID
-    mock_redis.get = AsyncMock(return_value=election._node_id)
     await election.release()
 
     assert not election.is_leader

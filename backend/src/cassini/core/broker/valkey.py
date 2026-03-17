@@ -132,8 +132,12 @@ class ValkeyEventBus:
         # Create consumer group if it doesn't exist
         try:
             await self._client.xgroup_create(stream_key, self._group_name, id="0", mkstream=True)
-        except Exception:
-            pass  # Group already exists
+        except Exception as e:
+            # BUSYGROUP means group already exists — expected and safe to ignore.
+            # Other errors (NOAUTH, NOPERM, OOM) are logged but not fatal here,
+            # as the consumer loop will surface them on xreadgroup.
+            if "BUSYGROUP" not in str(e):
+                logger.warning("xgroup_create for %s: %s", event_type, e)
 
         # Start consumer task if not already running for this topic
         if event_type not in self._consumer_tasks:
@@ -159,13 +163,18 @@ class ValkeyEventBus:
                     for msg_id, fields in messages:
                         payload = json.loads(fields.get("data", "{}"))
                         handlers = self._handlers.get(event_type, [])
+                        any_succeeded = False
                         for handler in handlers:
                             try:
                                 await handler(payload)
+                                any_succeeded = True
                             except Exception:
                                 logger.exception("Event handler failed for %s", event_type)
-                        # Acknowledge the message
-                        await self._client.xack(stream_key, self._group_name, msg_id)
+                        # Only ACK if at least one handler succeeded (preserves at-least-once delivery)
+                        if any_succeeded or not handlers:
+                            await self._client.xack(stream_key, self._group_name, msg_id)
+                        else:
+                            logger.warning("All handlers failed for %s msg %s — not ACKing for retry", event_type, msg_id)
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -280,8 +289,15 @@ class ValkeyBroadcast:
                 await self._listener_task
             except asyncio.CancelledError:
                 pass
-        if self._pubsub:
-            await self._pubsub.aclose()
-        if self._client:
-            await self._client.aclose()
+        try:
+            if self._pubsub:
+                await self._pubsub.aclose()
+        except Exception:
+            logger.exception("Error closing pubsub")
+        finally:
+            try:
+                if self._client:
+                    await self._client.aclose()
+            except Exception:
+                logger.exception("Error closing broadcast client")
         self._handlers.clear()

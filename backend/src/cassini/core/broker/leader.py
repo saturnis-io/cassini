@@ -17,6 +17,15 @@ from typing import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
+# Lua script for atomic compare-and-delete (prevents TOCTOU race in release)
+_RELEASE_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+else
+    return 0
+end
+"""
+
 
 class LeaderElection:
     """Distributed leader election using Valkey SET NX EX."""
@@ -62,14 +71,19 @@ class LeaderElection:
         return self._is_leader
 
     async def release(self) -> None:
-        """Release leadership if we hold it."""
+        """Release leadership if we hold it. Uses atomic Lua script to prevent TOCTOU."""
         if not self._is_leader:
             return
-        # Only delete if we still own the lock
-        current = await self._client.get(self._lock_key)
-        if current == self._node_id:
-            await self._client.delete(self._lock_key)
-            logger.info("Released leadership for %s", self._role)
+        try:
+            # Atomic compare-and-delete via Redis EVAL (Lua script on server)
+            # This is the standard Redis pattern — not Python eval()
+            result = await self._client.eval(  # noqa: S307 — Redis server-side Lua, not Python eval
+                _RELEASE_SCRIPT, 1, self._lock_key, self._node_id
+            )
+            if result:
+                logger.info("Released leadership for %s", self._role)
+        except Exception:
+            logger.exception("Failed to release leadership for %s", self._role)
         self._is_leader = False
         self.stop_renewal()
 

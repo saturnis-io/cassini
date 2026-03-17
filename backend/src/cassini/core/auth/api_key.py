@@ -5,7 +5,7 @@ from typing import Optional
 import secrets
 
 import bcrypt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,7 +85,7 @@ class APIKeyAuth:
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
-def check_api_key_scope(key, request) -> None:
+def check_api_key_scope(key: "APIKey", request) -> None:
     """Enforce read-only scope on mutating HTTP methods.
 
     Args:
@@ -102,7 +102,7 @@ def check_api_key_scope(key, request) -> None:
         )
 
 
-def check_api_key_plant_access(key, plant_id: int | None) -> None:
+def check_api_key_plant_access(key: "APIKey", plant_id: int | None) -> None:
     """Enforce plant_ids restriction on API key access.
 
     Args:
@@ -121,6 +121,7 @@ def check_api_key_plant_access(key, plant_id: int | None) -> None:
 
 
 async def verify_api_key(
+    request: "Request",
     x_api_key: str = Header(..., alias="X-API-Key"),
     session: AsyncSession = Depends(get_db_session),
 ) -> APIKey:
@@ -178,6 +179,9 @@ async def verify_api_key(
             detail="API key has expired",
             headers={"WWW-Authenticate": "ApiKey"},
         )
+
+    # Enforce scope — read-only keys cannot mutate
+    check_api_key_scope(matched_key, request)
 
     # Update last_used_at timestamp
     matched_key.last_used_at = datetime.now(timezone.utc)
