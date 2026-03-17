@@ -287,7 +287,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await ws_manager.start()
 
     # Initialize WebSocket broadcaster and wire it to event bus
-    broadcaster = WebSocketBroadcaster(ws_manager, typed_event_bus)
+    # In cluster mode, pass the BroadcastChannel for cross-node fan-out
+    _bc_channel = broker.broadcast if broker.backend != "local" else None
+    broadcaster = WebSocketBroadcaster(
+        ws_manager, typed_event_bus, broadcast_channel=_bc_channel
+    )
 
     # Store broadcaster in app state for access by other components
     app.state.broadcaster = broadcaster

@@ -7,10 +7,15 @@ WebSocket clients in real-time.
 The broadcaster implements the AlertNotifier protocol for integration with AlertManager
 and subscribes to the Event Bus for other event types like sample processing and
 control limit updates.
+
+In cluster mode, an optional BroadcastChannel provides cross-node fan-out:
+events originating on one node are published to the channel and received by
+all other nodes, which rebroadcast them to their local WebSocket clients.
 """
 
+import asyncio
 import structlog
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from cassini.core.alerts.manager import ViolationAcknowledged, ViolationCreated
 from cassini.core.events import (
@@ -23,8 +28,12 @@ from cassini.core.events import (
 
 if TYPE_CHECKING:
     from cassini.api.v1.websocket import ConnectionManager
+    from cassini.core.broker.interfaces import BroadcastChannel
 
 logger = structlog.get_logger(__name__)
+
+# Channel name for cross-node WebSocket fan-out
+_WS_BROADCAST_CHANNEL = "cassini:ws:fanout"
 
 
 class WebSocketBroadcaster:
@@ -38,9 +47,15 @@ class WebSocketBroadcaster:
     AlertManager (handling violation creation and acknowledgment) and subscribes
     to the Event Bus for other event types.
 
+    When a ``broadcast_channel`` is provided (cluster mode), every message
+    sent to local WebSocket clients is also published to the channel.
+    Messages arriving from the channel are rebroadcast to local clients
+    only (no re-publish to prevent infinite loops).
+
     Attributes:
         _manager: WebSocket connection manager for broadcasting
         _event_bus: Event bus for subscribing to domain events
+        _broadcast_channel: Optional BroadcastChannel for cross-node fan-out
 
     Example:
         >>> from cassini.core.events import event_bus
@@ -54,17 +69,27 @@ class WebSocketBroadcaster:
         self,
         connection_manager: "ConnectionManager",
         event_bus: EventBus,
+        broadcast_channel: "BroadcastChannel | None" = None,
     ):
         """Initialize the WebSocket broadcaster.
 
         Args:
             connection_manager: WebSocket connection manager instance
             event_bus: Event bus instance for event subscriptions
+            broadcast_channel: Optional BroadcastChannel for cross-node fan-out.
+                When provided, messages are published to the channel and
+                incoming messages from other nodes are rebroadcast locally.
         """
         self._manager = connection_manager
         self._event_bus = event_bus
+        self._broadcast_channel = broadcast_channel
         self._setup_subscriptions()
-        logger.info("WebSocketBroadcaster initialized")
+
+        if broadcast_channel is not None:
+            self._setup_broadcast_listener()
+            logger.info("WebSocketBroadcaster initialized (cluster fan-out enabled)")
+        else:
+            logger.info("WebSocketBroadcaster initialized")
 
     def _setup_subscriptions(self) -> None:
         """Subscribe to Event Bus events.
@@ -87,6 +112,50 @@ class WebSocketBroadcaster:
             "Subscribed to SampleProcessedEvent, ControlLimitsUpdatedEvent, "
             "AnomalyDetectedEvent, and CharacteristicUpdatedEvent"
         )
+
+    def _setup_broadcast_listener(self) -> None:
+        """Subscribe to the BroadcastChannel for cross-node messages.
+
+        Messages from other nodes are rebroadcast to LOCAL WebSocket clients
+        only (not re-published to the channel, to prevent infinite loops).
+        """
+
+        async def _on_remote_message(message: dict) -> None:
+            """Handle a message received from the BroadcastChannel (another node)."""
+            msg_type = message.get("type")
+            char_id = message.get("characteristic_id")
+
+            if char_id is not None:
+                await self._manager.broadcast_to_characteristic(char_id, message)
+            elif msg_type == "ack_update":
+                await self._manager.broadcast_to_all(message)
+            else:
+                logger.debug("broadcast_remote_unroutable", message_type=msg_type)
+
+        # Schedule the async subscribe on the event loop
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                self._broadcast_channel.subscribe(
+                    _WS_BROADCAST_CHANNEL, _on_remote_message
+                )
+            )
+        except RuntimeError:
+            logger.warning("No running event loop; broadcast listener not started")
+
+    async def _publish_to_broadcast(self, message: dict) -> None:
+        """Publish a message to the BroadcastChannel for cross-node fan-out.
+
+        Called after sending to local clients. Only active in cluster mode.
+        """
+        if self._broadcast_channel is None:
+            return
+        try:
+            await self._broadcast_channel.broadcast(
+                _WS_BROADCAST_CHANNEL, message
+            )
+        except Exception:
+            logger.exception("broadcast_channel_publish_failed")
 
     async def _on_sample_processed(self, event: SampleProcessedEvent) -> None:
         """Broadcast sample processing event to subscribed WebSocket clients.
@@ -135,6 +204,7 @@ class WebSocketBroadcaster:
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )
+        await self._publish_to_broadcast(message)
 
     async def _on_limits_updated(self, event: ControlLimitsUpdatedEvent) -> None:
         """Broadcast control limit update event to subscribed clients.
@@ -170,6 +240,7 @@ class WebSocketBroadcaster:
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )
+        await self._publish_to_broadcast(message)
 
     async def _on_anomaly_detected(self, event: AnomalyDetectedEvent) -> None:
         message = {
@@ -191,6 +262,7 @@ class WebSocketBroadcaster:
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )
+        await self._publish_to_broadcast(message)
 
     async def _on_characteristic_updated(self, event: CharacteristicUpdatedEvent) -> None:
         message = {
@@ -205,6 +277,7 @@ class WebSocketBroadcaster:
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )
+        await self._publish_to_broadcast(message)
 
     # AlertNotifier protocol implementation
 
@@ -255,6 +328,7 @@ class WebSocketBroadcaster:
         await self._manager.broadcast_to_characteristic(
             event.characteristic_id, message
         )
+        await self._publish_to_broadcast(message)
 
     async def notify_violation_acknowledged(
         self, event: ViolationAcknowledged
@@ -292,6 +366,7 @@ class WebSocketBroadcaster:
 
         # Broadcast to all clients (acknowledgments are important for everyone)
         await self._manager.broadcast_to_all(message)
+        await self._publish_to_broadcast(message)
 
 
 __all__ = ["WebSocketBroadcaster"]
