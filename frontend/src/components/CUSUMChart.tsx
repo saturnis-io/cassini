@@ -124,9 +124,9 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
       const isInspected = localHighlightSampleId != null && point.sample_id === localHighlightSampleId
       const primaryRule = getPrimaryViolationRule(point.violation_rules)
 
-      const ackedColor = 'hsl(357, 30%, 55%)'
+      const ackedColor = localColors.ackedViolationPoint
       const fillColor = isInspected
-        ? 'hsl(180, 100%, 50%)'
+        ? localColors.inspectedPoint
         : isExcluded
           ? localColors.excludedPoint
           : isViolation && isAcked
@@ -140,7 +140,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
 
       // Inspected point glow rings
       if (isInspected) {
-        const ringColor = 'hsl(180, 100%, 50%)'
+        const ringColor = localColors.inspectedPoint
         children.push(
           {
             type: 'circle',
@@ -193,7 +193,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
 
       // Violation badge
       if (isViolation && primaryRule) {
-        const badgeFill = isAcked ? 'hsl(357, 25%, 48%)' : 'hsl(357, 80%, 52%)'
+        const badgeFill = isAcked ? localColors.ackedViolationPoint : localColors.violationPoint
         const badgeTextFill = isAcked ? 'hsl(0, 0%, 80%)' : '#fff'
         children.push(
           {
@@ -222,7 +222,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
               x: cx + 7,
               y: cy - baseRadius - 12,
               text: `+${point.violation_rules.length - 1}`,
-              fill: isAcked ? 'hsl(357, 20%, 48%)' : 'hsl(357, 80%, 45%)',
+              fill: isAcked ? localColors.ackedViolationPoint : localColors.violationPoint,
               fontSize: 8,
               fontWeight: 600,
             },

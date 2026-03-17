@@ -31,6 +31,8 @@ export interface ChartColors {
   violationPoint: string
   undersizedPoint: string
   excludedPoint: string
+  ackedViolationPoint: string
+  inspectedPoint: string
 
   // Out of control region
   outOfControl: string
@@ -69,6 +71,8 @@ export const defaultChartColors: ChartColors = {
   violationPoint: 'hsl(357, 80%, 52%)', // Cassini Red
   undersizedPoint: 'hsl(32, 63%, 51%)', // Cassini Orange
   excludedPoint: 'hsl(210, 8%, 46%)', // Muted gray
+  ackedViolationPoint: 'hsl(357, 30%, 55%)', // Muted Cassini Red
+  inspectedPoint: 'hsl(180, 80%, 50%)', // Cyan highlight
   outOfControl: 'hsl(357, 80%, 52%)', // Cassini Red
   annotationColor: 'hsl(46, 65%, 52%)', // Cassini Gold (brand primary)
 
@@ -92,6 +96,8 @@ export const defaultChartColorsDark: ChartColors = {
   violationPoint: 'hsl(357, 85%, 62%)', // Red boosted
   undersizedPoint: 'hsl(32, 68%, 58%)', // Orange boosted
   excludedPoint: 'hsl(210, 12%, 58%)', // Gray lightened
+  ackedViolationPoint: 'hsl(357, 35%, 60%)', // Muted Red boosted
+  inspectedPoint: 'hsl(180, 85%, 55%)', // Cyan highlight boosted
   outOfControl: 'hsl(357, 85%, 62%)', // Red boosted
   annotationColor: 'hsl(46, 70%, 62%)', // Gold boosted
 
@@ -126,6 +132,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 100%, 40%)',
       undersizedPoint: 'hsl(45, 100%, 45%)',
       excludedPoint: 'hsl(0, 0%, 50%)',
+      ackedViolationPoint: 'hsl(0, 50%, 50%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 100%, 50%)',
       annotationColor: 'hsl(220, 100%, 50%)',
       secondaryLineGradientStart: 'hsl(280, 100%, 50%)',
@@ -145,6 +153,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 100%, 62%)',
       undersizedPoint: 'hsl(45, 100%, 60%)',
       excludedPoint: 'hsl(0, 0%, 60%)',
+      ackedViolationPoint: 'hsl(0, 50%, 62%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 100%, 65%)',
       annotationColor: 'hsl(220, 100%, 65%)',
       secondaryLineGradientStart: 'hsl(280, 100%, 65%)',
@@ -169,6 +179,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(30, 100%, 50%)',
       undersizedPoint: 'hsl(55, 90%, 45%)',
       excludedPoint: 'hsl(0, 0%, 60%)',
+      ackedViolationPoint: 'hsl(30, 50%, 55%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(30, 100%, 50%)',
       annotationColor: 'hsl(220, 80%, 50%)',
       secondaryLineGradientStart: 'hsl(270, 60%, 55%)',
@@ -188,6 +200,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(30, 100%, 65%)',
       undersizedPoint: 'hsl(55, 95%, 62%)',
       excludedPoint: 'hsl(0, 0%, 65%)',
+      ackedViolationPoint: 'hsl(30, 50%, 62%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(30, 100%, 65%)',
       annotationColor: 'hsl(220, 85%, 65%)',
       secondaryLineGradientStart: 'hsl(270, 65%, 70%)',
@@ -212,6 +226,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 0%, 0%)',
       undersizedPoint: 'hsl(0, 0%, 45%)',
       excludedPoint: 'hsl(0, 0%, 75%)',
+      ackedViolationPoint: 'hsl(0, 0%, 40%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 0%, 30%)',
       annotationColor: 'hsl(0, 0%, 25%)',
       secondaryLineGradientStart: 'hsl(0, 0%, 50%)',
@@ -232,6 +248,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 0%, 100%)', // Black -> White
       undersizedPoint: 'hsl(0, 0%, 60%)',
       excludedPoint: 'hsl(0, 0%, 45%)',
+      ackedViolationPoint: 'hsl(0, 0%, 65%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 0%, 70%)',
       annotationColor: 'hsl(0, 0%, 75%)',
       secondaryLineGradientStart: 'hsl(0, 0%, 55%)',
@@ -256,6 +274,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 70%, 48%)',
       undersizedPoint: 'hsl(30, 60%, 50%)',
       excludedPoint: 'hsl(210, 10%, 60%)',
+      ackedViolationPoint: 'hsl(0, 35%, 52%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 65%, 50%)',
       annotationColor: 'hsl(210, 60%, 45%)',
       secondaryLineGradientStart: 'hsl(200, 70%, 35%)',
@@ -275,6 +295,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 75%, 62%)',
       undersizedPoint: 'hsl(30, 65%, 58%)',
       excludedPoint: 'hsl(210, 15%, 60%)',
+      ackedViolationPoint: 'hsl(0, 38%, 60%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 70%, 62%)',
       annotationColor: 'hsl(210, 65%, 62%)',
       secondaryLineGradientStart: 'hsl(200, 75%, 58%)',
@@ -299,6 +321,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 85%, 55%)',
       undersizedPoint: 'hsl(40, 80%, 50%)',
       excludedPoint: 'hsl(200, 10%, 55%)',
+      ackedViolationPoint: 'hsl(0, 42%, 55%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 80%, 55%)',
       annotationColor: 'hsl(187, 80%, 42%)',
       secondaryLineGradientStart: 'hsl(260, 50%, 55%)',
@@ -318,6 +342,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 90%, 65%)',
       undersizedPoint: 'hsl(40, 85%, 58%)',
       excludedPoint: 'hsl(200, 15%, 58%)',
+      ackedViolationPoint: 'hsl(0, 45%, 62%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 85%, 65%)',
       annotationColor: 'hsl(187, 85%, 58%)',
       secondaryLineGradientStart: 'hsl(260, 55%, 65%)',
@@ -342,6 +368,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 65%, 38%)',
       undersizedPoint: 'hsl(35, 50%, 42%)',
       excludedPoint: 'hsl(0, 0%, 65%)',
+      ackedViolationPoint: 'hsl(0, 32%, 45%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 55%, 42%)',
       annotationColor: 'hsl(220, 15%, 30%)',
       secondaryLineGradientStart: 'hsl(0, 0%, 45%)',
@@ -362,6 +390,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 70%, 62%)',
       undersizedPoint: 'hsl(35, 55%, 60%)',
       excludedPoint: 'hsl(0, 0%, 55%)',
+      ackedViolationPoint: 'hsl(0, 35%, 60%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 60%, 62%)',
       annotationColor: 'hsl(220, 40%, 70%)',
       secondaryLineGradientStart: 'hsl(0, 0%, 62%)',
@@ -386,6 +416,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 80%, 55%)',
       undersizedPoint: 'hsl(38, 90%, 50%)',
       excludedPoint: 'hsl(0, 0%, 70%)',
+      ackedViolationPoint: 'hsl(0, 40%, 55%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(0, 75%, 55%)',
       annotationColor: 'hsl(220, 90%, 56%)',
       secondaryLineGradientStart: 'hsl(280, 65%, 55%)',
@@ -406,6 +438,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 85%, 63%)',
       undersizedPoint: 'hsl(38, 92%, 58%)',
       excludedPoint: 'hsl(0, 0%, 65%)',
+      ackedViolationPoint: 'hsl(0, 42%, 62%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(0, 80%, 63%)',
       annotationColor: 'hsl(220, 92%, 64%)',
       secondaryLineGradientStart: 'hsl(280, 70%, 63%)',
@@ -430,6 +464,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 90%, 60%)',
       undersizedPoint: 'hsl(50, 100%, 55%)',
       excludedPoint: 'hsl(270, 15%, 55%)',
+      ackedViolationPoint: 'hsl(0, 45%, 55%)',
+      inspectedPoint: 'hsl(180, 80%, 50%)',
       outOfControl: 'hsl(340, 90%, 55%)',
       annotationColor: 'hsl(185, 100%, 45%)',
       secondaryLineGradientStart: 'hsl(185, 100%, 45%)',
@@ -450,6 +486,8 @@ export const chartPresets: ChartColorPreset[] = [
       violationPoint: 'hsl(0, 92%, 63%)',
       undersizedPoint: 'hsl(50, 100%, 58%)',
       excludedPoint: 'hsl(270, 18%, 58%)',
+      ackedViolationPoint: 'hsl(0, 46%, 60%)',
+      inspectedPoint: 'hsl(180, 85%, 55%)',
       outOfControl: 'hsl(340, 92%, 58%)',
       annotationColor: 'hsl(185, 100%, 48%)',
       secondaryLineGradientStart: 'hsl(185, 100%, 48%)',
