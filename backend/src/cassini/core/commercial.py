@@ -77,6 +77,10 @@ async def activate_commercial_features(
                 new_count += 1
         if new_count:
             logger.info("commercial_routers_registered", new_count=new_count, total=len(registered))
+            # Invalidate cached enforcement patterns so the middleware
+            # picks up newly registered commercial routes.
+            from cassini.api.middleware.compliance import invalidate_enforcement_patterns
+            invalidate_enforcement_patterns(app)
 
         # ------------------------------------------------------------------
         # Pro-level services -- initialised on first commercial activation

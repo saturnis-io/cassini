@@ -109,18 +109,32 @@ def _compile_route_patterns(routers: list) -> list[re.Pattern]:
             seen.add(template)
 
             # Build regex by splitting path segments: literal segments are
-            # escaped, path parameter segments become [^/]+.
+            # escaped, path parameter segments become regex wildcards.
             parts = template.split("/")
             regex_parts = []
             for part in parts:
                 if part.startswith("{") and part.endswith("}"):
-                    regex_parts.append("[^/]+")
+                    # {name:path} matches any path including slashes
+                    if ":path" in part:
+                        regex_parts.append(".+")
+                    else:
+                        regex_parts.append("[^/]+")
                 else:
                     regex_parts.append(re.escape(part))
             regex_str = "^" + "/".join(regex_parts) + "$"
             patterns.append(re.compile(regex_str))
 
     return patterns
+
+
+def invalidate_enforcement_patterns(app) -> None:
+    """Clear the cached enforcement patterns so they recompile on next request.
+
+    Call this after registering new commercial routers at runtime (e.g. after
+    a license upload) so the middleware picks up the new routes.
+    """
+    if hasattr(app.state, "_license_enforcement_patterns"):
+        del app.state._license_enforcement_patterns
 
 
 class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
@@ -134,47 +148,49 @@ class LicenseEnforcementMiddleware(BaseHTTPMiddleware):
     2. If so, verifies the current license tier covers it.
     3. Returns 403 if the tier is insufficient.
 
-    Route patterns are compiled once (lazily, on first request) from
-    ``app.state.pro_routers`` and ``app.state.enterprise_routers`` and
-    cached for the lifetime of the process.
+    Route patterns are compiled lazily on first request from
+    ``app.state.pro_routers`` and ``app.state.enterprise_routers``,
+    then cached on ``app.state`` so they can be invalidated by
+    ``invalidate_enforcement_patterns()`` when new routers are
+    registered at runtime (e.g. after license upload).
     """
 
-    def __init__(self, app) -> None:
-        super().__init__(app)
-        self._pro_patterns: list[re.Pattern] | None = None
-        self._enterprise_patterns: list[re.Pattern] | None = None
-
-    def _ensure_patterns(self, app) -> None:
-        """Lazily compile the commercial route patterns from app.state routers."""
-        if self._pro_patterns is not None:
-            return
+    def _get_patterns(self, app) -> tuple[list[re.Pattern], list[re.Pattern]]:
+        """Get or compile the commercial route patterns from app.state."""
+        cached = getattr(app.state, "_license_enforcement_patterns", None)
+        if cached is not None:
+            return cached
 
         pro_routers = getattr(app.state, "pro_routers", []) or []
         enterprise_routers = getattr(app.state, "enterprise_routers", []) or []
 
-        self._pro_patterns = _compile_route_patterns(pro_routers)
-        self._enterprise_patterns = _compile_route_patterns(enterprise_routers)
-
-    def _match_tier(self, path: str) -> str | None:
-        """Return the required tier for a path, or None if community."""
-        # Check enterprise first (more restrictive)
-        for pattern in self._enterprise_patterns:
-            if pattern.match(path):
-                return "enterprise"
-        for pattern in self._pro_patterns:
-            if pattern.match(path):
-                return "pro"
-        return None
+        compiled = (
+            _compile_route_patterns(pro_routers),
+            _compile_route_patterns(enterprise_routers),
+        )
+        app.state._license_enforcement_patterns = compiled
+        return compiled
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        self._ensure_patterns(request.app)
+        pro_patterns, enterprise_patterns = self._get_patterns(request.app)
 
         # Fast path: if no commercial routes are registered, skip
-        if not self._pro_patterns and not self._enterprise_patterns:
+        if not pro_patterns and not enterprise_patterns:
             return await call_next(request)
 
         path = request.url.path
-        required_tier = self._match_tier(path)
+
+        # Check enterprise first (more restrictive)
+        required_tier: str | None = None
+        for pattern in enterprise_patterns:
+            if pattern.match(path):
+                required_tier = "enterprise"
+                break
+        if required_tier is None:
+            for pattern in pro_patterns:
+                if pattern.match(path):
+                    required_tier = "pro"
+                    break
 
         if required_tier is None:
             # Community route — always allowed

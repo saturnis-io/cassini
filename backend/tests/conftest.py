@@ -5,10 +5,27 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+
+@pytest.fixture(autouse=True)
+def _clear_spc_rule_cache():
+    """Clear the module-level shared rule cache between tests.
+
+    SPCEngine uses a per-worker singleton cache (OrderedDict) that persists
+    across test functions. Without clearing, a test that processes char_id=1
+    with one rule config poisons the cache for subsequent tests using the
+    same char_id with different rules.
+    """
+    import cassini.core.engine.spc_engine as spc_mod
+
+    spc_mod._shared_rule_cache = None
+    yield
+    spc_mod._shared_rule_cache = None
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine

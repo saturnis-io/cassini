@@ -39,7 +39,14 @@ class ERPConnector(Base):
         ForeignKey("plant.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    connector_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    connector_type: Mapped[str] = mapped_column(
+        String(50), nullable=False,
+        doc="Free-form type key matched to adapter_map in ERPSyncEngine. "
+            "Current: 'sap_qm', 'generic_rest', 'generic_lims'. "
+            "To add DB-to-DB connectors (e.g. direct SQL, ODBC), add a new "
+            "BaseERPAdapter subclass and register its dotted path in "
+            "ERPSyncEngine._resolve_adapter(). No schema migration needed.",
+    )
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
     auth_type: Mapped[str] = mapped_column(String(50), nullable=False)
     auth_config: Mapped[str] = mapped_column(
