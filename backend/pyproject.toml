@@ -75,6 +75,9 @@ windows = [
 cluster = [
     "redis[hiredis]>=5.0",
 ]
+mcp = [
+    "mcp>=1.0",
+]
 desktop = [
     "cassini[windows,tray]",
 ]

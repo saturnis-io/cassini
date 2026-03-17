@@ -2,7 +2,8 @@
 
 Provides commands for running the server, managing migrations,
 creating admin users, performing health checks, managing the
-Windows Service, and launching the system tray companion.
+Windows Service, launching the system tray companion, and
+resource-verb commands for plants, characteristics, samples, etc.
 
 Usage:
     cassini serve                  # auto-migrate + start server
@@ -17,6 +18,11 @@ Usage:
     cassini service uninstall      # remove Windows Service
     cassini service start          # start the service
     cassini service stop           # stop the service
+    cassini login --server URL     # authenticate + store CLI key
+    cassini plants list            # list plants via API
+    cassini chars list             # list characteristics
+    cassini samples list           # list samples
+    cassini health                 # remote health check via API
 """
 
 from __future__ import annotations
@@ -177,9 +183,101 @@ def _check_port_available(host: str, port: int) -> bool:
         return False
 
 
+def _get_client_factory(
+    server: str | None = None,
+    api_key: str | None = None,
+    profile: str = "default",
+) -> object:
+    """Create a CassiniClient factory from CLI options or stored credentials.
+
+    Resolution order for both server URL and API key:
+      1. Explicit flag (--server / --api-key)
+      2. Environment variable (CASSINI_SERVER_URL / CASSINI_API_KEY)
+      3. Stored credential profile (~/.cassini/credentials.json)
+
+    Returns:
+        A callable that returns a ``CassiniClient`` async context manager.
+
+    Raises:
+        click.ClickException: If no server URL can be resolved.
+    """
+    import os
+
+    from cassini.cli.client import CassiniClient
+    from cassini.cli.credentials import load_credential
+
+    url = server or os.environ.get("CASSINI_SERVER_URL")
+    key = api_key or os.environ.get("CASSINI_API_KEY")
+
+    if not url or not key:
+        cred = load_credential(profile)
+        if cred:
+            url = url or cred[0]
+            key = key or cred[1]
+
+    if not url:
+        raise click.ClickException(
+            "No server URL. Use --server, CASSINI_SERVER_URL, or 'cassini login'"
+        )
+
+    def factory() -> CassiniClient:
+        return CassiniClient(server_url=url, api_key=key)
+
+    return factory
+
+
 @click.group()
-def cli() -> None:
+@click.option("--server", default=None, envvar="CASSINI_SERVER_URL", hidden=True, help="Cassini server URL")
+@click.option("--api-key", default=None, envvar="CASSINI_API_KEY", hidden=True, help="API key")
+@click.option("--profile", default="default", hidden=True, help="Credential profile")
+@click.pass_context
+def cli(ctx: click.Context, server: str | None, api_key: str | None, profile: str) -> None:
     """Cassini SPC — Event-Driven Statistical Process Control."""
+    ctx.ensure_object(dict)
+    # Store raw options — the client factory is built lazily on first use.
+    # Server-local commands (serve, migrate, check) never touch ctx.obj["client"].
+    ctx.obj["_server"] = server
+    ctx.obj["_api_key"] = api_key
+    ctx.obj["_profile"] = profile
+
+    # Lazy wrapper: resolves credentials and creates a CassiniClient on demand.
+    # Commands call:  async with ctx.obj["client"]() as client: ...
+    _resolved_factory: list[object] = []  # mutable closure cell
+
+    def _lazy_client() -> object:
+        if not _resolved_factory:
+            _resolved_factory.append(
+                _get_client_factory(
+                    server=ctx.obj["_server"],
+                    api_key=ctx.obj["_api_key"],
+                    profile=ctx.obj["_profile"],
+                )
+            )
+        return _resolved_factory[0]()
+
+    ctx.obj["client"] = _lazy_client
+
+
+# ── Remote resource commands (require CassiniClient) ────────────────────
+
+from cassini.cli.commands.auth import login  # noqa: E402
+from cassini.cli.commands.plants import plants  # noqa: E402
+from cassini.cli.commands.data import chars, samples, capability, violations  # noqa: E402
+from cassini.cli.commands.admin import users, audit, license, api_keys  # noqa: E402
+from cassini.cli.commands.ops import health, status  # noqa: E402
+
+cli.add_command(login)
+cli.add_command(plants)
+cli.add_command(chars)
+cli.add_command(samples)
+cli.add_command(capability)
+cli.add_command(violations)
+cli.add_command(users)
+cli.add_command(audit)
+cli.add_command(license)
+cli.add_command(api_keys)
+cli.add_command(health)
+cli.add_command(status)
 
 
 @cli.command()
@@ -480,6 +578,53 @@ def stop() -> None:
     """Stop the Cassini Windows Service."""
     _service_stop()
     click.echo("Cassini service stopped.")
+
+
+@cli.command("mcp-server")
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse"]),
+    default="stdio",
+    show_default=True,
+    help="MCP transport type",
+)
+@click.option("--port", default=3001, show_default=True, help="Port for SSE transport")
+@click.option(
+    "--allow-writes",
+    is_flag=True,
+    default=False,
+    help="Enable write tools (samples submit, plant/user creation)",
+)
+@click.option("--server", default=None, help="Cassini server URL [env: CASSINI_SERVER_URL]")
+@click.option("--api-key", default=None, help="API key [env: CASSINI_API_KEY]")
+def mcp_server_cmd(
+    transport: str, port: int, allow_writes: bool, server: str | None, api_key: str | None
+) -> None:
+    """Start the MCP server for AI agent integration.
+
+    Exposes Cassini data as MCP tools for LLM agents. Read-only by
+    default — pass --allow-writes to enable mutation tools.
+
+    Authentication is via CASSINI_API_KEY env var or --api-key flag.
+    The key is zeroed from the environment after reading for security.
+
+    Examples:
+
+        cassini mcp-server                          # stdio, read-only
+        cassini mcp-server --allow-writes           # stdio, read+write
+        cassini mcp-server --transport sse --port 3001  # SSE transport
+    """
+    from cassini.cli.mcp_server import run_mcp_server
+
+    asyncio.run(
+        run_mcp_server(
+            server_url=server,
+            api_key=api_key,
+            allow_writes=allow_writes,
+            transport=transport,
+            port=port,
+        )
+    )
 
 
 def _redact_url(url: str) -> str:
