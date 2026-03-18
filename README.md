@@ -39,10 +39,13 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 - [Getting Started](docs/getting-started.md) -- install on Windows, macOS, or Linux
 - [Configuration](docs/configuration.md) -- environment variables, TOML, database options
 - [CLI Reference](docs/cli.md) -- `cassini serve`, `cassini check`, etc.
+- [CLI as HTTP Client](#cli-as-http-client) -- `cassini plants list`, `cassini samples submit`
+- [MCP Server (AI Agent Integration)](#mcp-server-ai-agent-integration) -- Claude Code, Cursor, Claude Desktop
 - [Production Deployment](docs/deployment.md) -- reverse proxy, services, backups, upgrading
 - [Open Edition](#open-edition-free-agpl-30) -- what's included for free
 - [Pro Features](#pro-features) -- what the Pro license unlocks
 - [Enterprise Features](#enterprise-features) -- what the Enterprise license unlocks
+- [Cluster-Ready Architecture (Enterprise)](#cluster-ready-architecture-enterprise) -- multi-node deployment
 - [Feature Comparison](#feature-comparison) -- three-tier side-by-side table
 - [Architecture](#architecture) -- tech stack and project structure
 - [License](#license--commercial-use) -- AGPL-3.0 and commercial options
@@ -62,6 +65,98 @@ Cassini runs on **Windows**, **macOS**, and **Linux**. Pick your path:
 Default login: `admin` / `cassini` (you'll be prompted to change the password).
 
 > **Next steps:** [Configuration](docs/configuration.md) · [CLI Reference](docs/cli.md) · [Production Deployment](docs/deployment.md)
+
+---
+
+## CLI as HTTP Client
+
+The `cassini` CLI is a full HTTP client that connects to a running Cassini server. It wraps the operations-first subset of the API and produces structured output suitable for both human operators and AI agents.
+
+### Connection & Authentication
+
+```bash
+# Login (creates a scoped API key, stores in ~/.cassini/credentials.json)
+cassini login --server https://factory-floor:8000
+
+# Or use environment variables
+export CASSINI_SERVER_URL=https://factory-floor:8000
+export CASSINI_API_KEY=cassini_abc123...
+```
+
+### Resource Commands
+
+```bash
+# Plants & hierarchy
+cassini plants list
+cassini plants get 1
+
+# Characteristics & SPC
+cassini characteristics list --plant-id 1
+cassini capability get 5
+cassini violations list --char-id 5 --active
+
+# Samples & data
+cassini samples list --char-id 5 --limit 100
+cassini samples submit --char-id 5 --values 1.2,1.3,1.4
+
+# Admin
+cassini users list
+cassini audit search --after 2026-03-01
+cassini license status
+cassini api-keys list
+
+# Operations
+cassini health
+cassini status
+cassini cluster status    # Enterprise only
+```
+
+### Output Modes
+
+```bash
+cassini plants list                    # Human-readable table (TTY default)
+cassini plants list --json             # JSON (pipe default)
+cassini plants list --csv              # CSV export
+cassini plants list --json | jq .      # Pipe-friendly
+```
+
+---
+
+## MCP Server (AI Agent Integration)
+
+Cassini includes a built-in MCP (Model Context Protocol) server, allowing Claude Code, Claude Desktop, Cursor, and other MCP clients to interact with Cassini natively.
+
+```bash
+cassini mcp-server                                     # stdio transport (default)
+cassini mcp-server --transport sse --port 3001         # SSE for remote clients
+cassini mcp-server --allow-writes                      # Enable write tools
+```
+
+**Read-only by default.** Write tools require the `--allow-writes` flag.
+
+### Claude Code Configuration
+
+```json
+// ~/.claude/mcp_servers.json
+{
+  "cassini": {
+    "command": "cassini",
+    "args": ["mcp-server", "--allow-writes"],
+    "env": {
+      "CASSINI_SERVER_URL": "https://factory-floor:8000",
+      "CASSINI_API_KEY": "cassini_abc123..."
+    }
+  }
+}
+```
+
+### Available Tools
+
+**Read tools** (always available): `cassini_plants_list`, `cassini_characteristics_list`, `cassini_capability_get`, `cassini_violations_list`, `cassini_health`, `cassini_samples_query`, `cassini_audit_search`, `cassini_license_status`
+
+**Write tools** (require `--allow-writes`): `cassini_samples_submit`, `cassini_plants_create`, `cassini_users_create`, `cassini_characteristics_create`
+
+**Resources**: `cassini://plants`, `cassini://health`
 
 ---
 
@@ -199,6 +294,8 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 - **Windows Installer**: Download-and-run `.exe` with Windows Service, system tray, and auto-start
 - **Docker**: Production-ready multi-stage Dockerfile + docker-compose with PostgreSQL
 - **CLI**: `cassini serve`, `cassini check`, `cassini migrate`, and more — from any terminal
+- **CLI as HTTP client**: `cassini plants list`, `cassini samples submit` — structured output for operators and scripts
+- **MCP server**: `cassini mcp-server` — AI agent integration for Claude Code, Cursor, Claude Desktop
 - **REST API**: 300+ endpoints for full programmatic access
 - **Batch import**: Up to 10,000 samples per request, three processing modes (skip rules, sync SPC, async SPC)
 - **Throughput**: Up to 200K samples/min bulk ingestion (benchmarked on PostgreSQL, 4 uvicorn workers)
@@ -244,7 +341,7 @@ Standardize rule configuration across your plant with four built-in presets (Nel
 - **Ishikawa Diagrams**: Interactive fishbone (cause-and-effect) diagrams for root cause analysis
 - **Correlation**: Multi-variate correlation heatmap across characteristics
 - **Scheduled Reports**: Cron-based report scheduling with email delivery
-- **API Keys**: Machine-to-machine authentication for automated ingestion
+- **Scoped API Keys**: Machine-to-machine authentication with read-only/read-write scope and plant restrictions
 - **Push Notifications**: Email, HMAC-signed webhooks, and PWA push notifications
 
 ---
@@ -309,6 +406,72 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 
 ---
 
+## Cluster-Ready Architecture (Enterprise)
+
+Enterprise deployments can run Cassini across multiple nodes with a Valkey (Redis-compatible) broker for distributed task queues, event streaming, and WebSocket fan-out.
+
+### Single-Node Mode (Default)
+
+No configuration needed. All subsystems run in-process with `asyncio.Queue` and in-memory pub/sub.
+
+### Cluster Mode
+
+```bash
+# Set broker URL (enables cluster mode)
+export CASSINI_BROKER_URL=valkey://valkey-host:6379
+
+# API nodes (behind load balancer)
+cassini serve --roles api
+
+# SPC processing node
+cassini serve --roles spc
+
+# Background services node
+cassini serve --roles reports,erp,purge
+
+# All roles (small HA deployment)
+cassini serve --roles all
+```
+
+### Available Roles
+
+| Role | Description | Scaling |
+|------|------------|---------|
+| `api` | HTTP endpoints, auth, WebSocket | Horizontal (stateless) |
+| `spc` | SPC queue consumer -- Nelson rules, CUSUM, EWMA | Horizontal (competing consumers) |
+| `ingestion` | MQTT + OPC-UA connections | Per-broker singleton |
+| `reports` | Scheduled PDF generation | Singleton (leader election) |
+| `erp` | ERP sync connectors | Per-connector singleton |
+| `purge` | Data retention enforcement | Singleton (leader election) |
+
+### Health & Drain Mode
+
+```bash
+# Health check (includes broker, roles, queue depth)
+curl http://localhost:8000/api/v1/health
+
+# Readiness probe for load balancers (returns 503 when draining)
+curl http://localhost:8000/api/v1/health/ready
+
+# Cluster status (all nodes, roles, leaders)
+cassini cluster status
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CASSINI_BROKER_URL` | Valkey/Redis URL for cluster mode | (empty = local mode) |
+| `CASSINI_ROLES` | Comma-separated node roles | `all` |
+| `CASSINI_SERVER_URL` | Server URL for CLI/MCP client | `http://localhost:8000` |
+| `CASSINI_API_KEY` | API key for CLI/MCP authentication | (none) |
+
+> See [Configuration](docs/configuration.md) for the full list of environment variables and TOML settings.
+
+---
+
 ## Feature Comparison
 
 | Feature | Open | Pro | Enterprise |
@@ -349,7 +512,7 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 | **Administration** | | | |
 | User management & RBAC | Yes | Yes | Yes |
 | Audit trail | Yes | Yes | Yes |
-| API keys | -- | Yes | Yes |
+| API keys (scoped, plant-restricted) | -- | Yes | Yes |
 | Push notifications | -- | Yes | Yes |
 | SSO / OIDC | -- | -- | Yes |
 | Data retention policies | -- | -- | Yes |
@@ -357,10 +520,16 @@ The response returns immediately with `"status": "processing"` and a list of `sa
 | **Infrastructure** | | | |
 | Windows installer + service | Yes | Yes | Yes |
 | CLI (`cassini serve`, etc.) | Yes | Yes | Yes |
+| CLI as HTTP client (`cassini plants list`, etc.) | Yes | Yes | Yes |
+| MCP server for AI agents (`cassini mcp-server`) | Yes | Yes | Yes |
 | Database | SQLite | + PostgreSQL, MySQL, MSSQL | + PostgreSQL, MySQL, MSSQL |
 | REST API (300+) | Yes | Yes | Yes |
 | Batch import API | Yes | Yes | Yes |
 | Async SPC pipeline (175K samples/min) | -- | -- | Yes |
+| Cluster deployment (`--roles`, Valkey broker) | -- | -- | Yes |
+| Distributed leader election | -- | -- | Yes |
+| WebSocket cross-node fan-out | -- | -- | Yes |
+| Drain mode (`/health/ready`) | -- | -- | Yes |
 | Source code access | Yes | Yes | Yes |
 | Modification rights | AGPL (share-alike) | Proprietary | Proprietary |
 | Support | Community (GitHub) | Community (GitHub) | Dedicated with SLA |
