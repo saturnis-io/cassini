@@ -10,13 +10,19 @@ src/cassini/
   __main__.py          # python -m cassini entrypoint
   cli/
     main.py            # Click CLI (serve, migrate, create-admin, check, version, service, tray)
+    client.py          # CassiniClient HTTP client for CLI/MCP
+    credentials.py     # Credential storage (~/.cassini/credentials.toml)
+    mcp_server.py      # MCP server (Model Context Protocol)
+    output.py          # Output formatters (table, JSON, CSV)
+    commands/          # Resource-verb CLI commands (plants, characteristics, samples, etc.)
   api/
     deps.py            # Shared dependencies (auth, DB session, rate limiter)
     schemas/           # Pydantic request/response models
-    v1/                # 46 route modules (~300+ endpoints)
+    v1/                # 48 route modules (~300+ endpoints)
       ai_analysis.py       annotations.py       anomaly.py
       api_keys.py          audit.py             auth.py
       brokers.py           capability.py        characteristic_config.py
+      cli_auth.py          cluster.py
       characteristics.py   data_entry.py        database_admin.py
       devtools.py          distributions.py     doe.py
       erp_connectors.py    explain.py           fai.py
@@ -37,8 +43,17 @@ src/cassini/
     publish.py         # MQTT outbound publisher (violations, stats, Nelson)
     rate_limit.py      # SlowAPI rate limiting
     logging.py         # Structured logging (structlog, console/JSON)
+    correlation_id.py  # Distributed tracing (correlation ID middleware)
     auth/              # JWT + Argon2, admin bootstrap, RBAC helpers
+    broker/            # Broker abstraction for multi-node coordination
+      interfaces.py    #   Abstract broker protocol
+      local.py         #   In-process broker (single-node default)
+      valkey.py        #   Valkey/Redis broker (cluster mode)
+      leader.py        #   Leader election
+      event_adapter.py #   Event bus ↔ broker bridge
     engine/            # SPC engine: control limits, Nelson rules, rolling window
+      spc_consumer.py  #   SPC consumer service (processes samples from broker)
+      spc_recovery.py  #   Startup recovery (replays unprocessed samples)
     events/            # In-process async event bus
     alerts/            # Alert management
     providers/         # Data ingestion layer
@@ -120,6 +135,18 @@ For desktop distribution extras (pystray, pywin32, Pillow):
 pip install -e ".[desktop]"
 ```
 
+For cluster mode (Valkey/Redis broker, multi-node coordination):
+
+```bash
+pip install -e ".[cluster]"
+```
+
+For MCP server support (Model Context Protocol for AI agents):
+
+```bash
+pip install -e ".[mcp]"
+```
+
 ## CLI
 
 The `cassini` command is registered as a console script entry point.
@@ -135,6 +162,15 @@ cassini check                  # validate config, DB, license
 cassini tray                   # launch system tray (requires [desktop] extra)
 cassini service install        # install Windows Service
 cassini service start/stop     # control Windows Service
+
+# Remote CLI commands (talk to a running server)
+cassini login --server URL     # authenticate and store credentials
+cassini plants list            # list plants
+cassini characteristics list   # list characteristics
+cassini samples submit         # submit samples (JSON or CSV)
+cassini health                 # server health check
+cassini cluster status         # cluster info (Enterprise)
+cassini mcp-server             # start MCP server (requires [mcp] extra)
 ```
 
 Host and port default to values in `cassini.toml`, falling back to `127.0.0.1:8000`. The TOML config file is searched at: `CASSINI_CONFIG` env var, then current directory, then system path (`C:\ProgramData\Cassini\` on Windows, `/etc/cassini/` on Linux).
@@ -176,6 +212,10 @@ All variables use the `CASSINI_` prefix and can be set in a `.env` file.
 | `CASSINI_LICENSE_FILE` | `""` | Path to license file (commercial edition) |
 | `CASSINI_LICENSE_PUBLIC_KEY_FILE` | `""` | Path to Ed25519 public key PEM for license verification |
 | `CASSINI_DEV_TIER` | `false` | Simulate commercial license in development |
+| `CASSINI_BROKER_URL` | *(none)* | Valkey/Redis connection string for cluster mode (e.g., `redis://localhost:6379`). Requires Enterprise license and `[cluster]` extra. |
+| `CASSINI_ROLES` | `api,engine` | Comma-separated node roles for cluster mode (`api`, `engine`, `ingest`) |
+| `CASSINI_SERVER_URL` | `http://127.0.0.1:8000` | Server URL used by CLI commands and MCP server |
+| `CASSINI_API_KEY` | *(none)* | API key for CLI/MCP authentication (alternative to `cassini login`) |
 
 ## Database Support
 
