@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { graphic } from '@/lib/echarts'
 // ECharts tree-shaken imports are registered in @/lib/echarts
 import { useECharts } from '@/hooks/useECharts'
-import type { EChartsMouseEvent, EChartsDataZoomEvent } from '@/hooks/useECharts'
-import { useChartDragSelect, type DragSelection } from '@/hooks/useChartDragSelect'
+import { useChartDragSelect } from '@/hooks/useChartDragSelect'
 import type { RegionSelection } from '@/components/RegionActionModal'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useLicense } from '@/hooks/useLicense'
@@ -27,10 +26,12 @@ import {
   computeYDomain,
   buildAnnotationMarkerRenderer,
   buildXAxisConfig,
+  buildMarkLines,
 } from '@/components/charts/buildChartDecorations'
 import { buildDataPointRenderer } from '@/components/charts/buildDataPointRenderer'
 import { buildControlLimitSeries } from '@/components/charts/buildControlLimitSeries'
 import { buildTooltipFormatter } from '@/components/charts/buildChartTooltipFormatter'
+import { buildChartEventHandlers, buildDragSelectHandler } from '@/components/charts/controlChartHandlers'
 import { StatNote } from './StatNote'
 
 interface ControlChartProps {
@@ -65,7 +66,6 @@ interface ControlChartProps {
   /** Pre-fetched chart data — when provided, skips internal useChartData fetch */
   chartData?: ChartData
 }
-
 
 /** Renders the drag-selection rectangle as an absolute overlay within the chart wrapper. */
 function DragOverlay({ dragRect }: { dragRect: { left: number; width: number } }) {
@@ -340,9 +340,6 @@ export function ControlChart({
       forecastPoints: forecastOverlay?.points ?? null,
     })
 
-    // X-axis data
-    const isTimestamp = xAxisMode === 'timestamp'
-
     // --- Build markArea for zone shading ---
     const markAreaData = buildZoneMarkAreas({
       isModeA,
@@ -369,100 +366,19 @@ export function ControlChart({
     // Store annotation IDs for click handler lookup (ref mutation is safe here — side-effect of render)
     annotationMarkerIdsRef.current = annotationMarkerData.map((entry) => entry[1])
 
-    // --- Build markLine for control limits and zone boundaries ---
-    const markLineData: Record<string, unknown>[] = []
-
-    if (isModeA) {
-      markLineData.push(
-        {
-          yAxis: 3,
-          lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
-          label: {
-            formatter: 'UCL: +3.0',
-            position: 'end',
-            color: chartColors.uclLine,
-            fontSize: 11,
-            fontWeight: 500,
-          },
-        },
-        {
-          yAxis: 0,
-          lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 },
-          label: {
-            formatter: 'CL: 0.0',
-            position: 'end',
-            color: chartColors.centerLine,
-            fontSize: 11,
-            fontWeight: 600,
-          },
-        },
-        {
-          yAxis: -3,
-          lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
-          label: {
-            formatter: 'LCL: -3.0',
-            position: 'end',
-            color: chartColors.lclLine,
-            fontSize: 11,
-            fontWeight: 500,
-          },
-        },
-      )
-    } else {
-      // Control limit lines rendered as separate series (see controlLimitSeries)
-      // to bypass ECharts markLine yAxis rendering bug
-    }
-
-    if (showSpecLimits && spec_limits.usl != null) {
-      markLineData.push({
-        yAxis: spec_limits.usl,
-        lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
-        label: {
-          formatter: `USL: ${formatVal(spec_limits.usl)}`,
-          position: 'end',
-          color: 'hsl(357, 80%, 45%)',
-          fontSize: 10,
-          fontWeight: 500,
-        },
-      })
-    }
-    if (showSpecLimits && spec_limits.lsl != null) {
-      markLineData.push({
-        yAxis: spec_limits.lsl,
-        lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
-        label: {
-          formatter: `LSL: ${formatVal(spec_limits.lsl)}`,
-          position: 'end',
-          color: 'hsl(357, 80%, 45%)',
-          fontSize: 10,
-          fontWeight: 500,
-        },
-      })
-    }
-
-    markLineData.push(...annotationMarkLines)
-
-    // Vertical indicator line for the inspected/highlighted sample
-    if (highlightSampleId != null) {
-      const highlightIdx = data.findIndex((p) => p.sample_id === highlightSampleId)
-      if (highlightIdx >= 0) {
-        const xVal = useTimeCoords ? data[highlightIdx].timestampMs : highlightIdx
-        markLineData.push({
-          xAxis: xVal,
-          lineStyle: { color: 'hsl(180, 100%, 50%)', type: 'solid', width: 2, opacity: 0.6 },
-          label: {
-            formatter: 'Violation',
-            position: 'insideEndTop',
-            color: 'hsl(180, 100%, 50%)',
-            fontSize: 10,
-            fontWeight: 600,
-            backgroundColor: isDark ? 'hsl(220, 25%, 13%)' : 'hsl(0, 0%, 100%)',
-            padding: [2, 6],
-            borderRadius: 3,
-          },
-        })
-      }
-    }
+    // --- Build markLine for control limits, spec limits, and highlight indicator ---
+    const markLineData = buildMarkLines({
+      isModeA,
+      showSpecLimits,
+      spec_limits,
+      formatVal,
+      chartColors,
+      annotationMarkLines,
+      highlightSampleId,
+      data,
+      useTimeCoords,
+      isDark,
+    })
 
     const allMarkAreas = [...markAreaData, ...annotationMarkAreas]
 
@@ -651,73 +567,29 @@ export function ControlChart({
               },
             ]
           : []),
-        // Anomaly overlay series — interactive marks with tooltips
-        ...(anomalyOverlay
-          ? [
-              {
-                type: 'line' as const,
-                // Invisible line on the same axis so marks position correctly
-                data: useTimeCoords
-                  ? data.map((p) => [p.timestampMs, p.mean])
-                  : data.map((p) => p.mean),
-                lineStyle: { width: 0, opacity: 0 },
-                symbol: 'none',
-                showSymbol: false,
-                silent: true,
-                tooltip: { show: false },
-                markPoint:
-                  anomalyOverlay.markPoints.length > 0
-                    ? {
-                        silent: false,
-                        animation: false,
-                        data: anomalyOverlay.markPoints as never[],
-                        tooltip: {
-                          show: true,
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          formatter: (params: Record<string, any>) =>
-                            params.data?._tooltipHtml ?? '',
-                        },
-                      }
-                    : undefined,
-                markArea:
-                  anomalyOverlay.markAreas.length > 0
-                    ? {
-                        silent: false,
-                        data: anomalyOverlay.markAreas as never[],
-                        tooltip: {
-                          show: true,
-                          formatter: (params: Record<string, unknown>) => {
-                            // markArea formatter receives {data} which is the pair array
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const item = params.data as any
-                            return (
-                              item?.[0]?._tooltipHtml ??
-                              item?._tooltipHtml ??
-                              ''
-                            )
-                          },
-                        },
-                      }
-                    : undefined,
-                markLine:
-                  anomalyOverlay.markLines.length > 0
-                    ? {
-                        symbol: 'none',
-                        silent: false,
-                        precision: 10,
-                        data: anomalyOverlay.markLines as never[],
-                        tooltip: {
-                          show: true,
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          formatter: (params: Record<string, any>) =>
-                            params.data?._tooltipHtml ?? '',
-                        },
-                      }
-                    : undefined,
-                z: 7,
-              },
-            ]
-          : []),
+        // Anomaly overlay series — invisible line carrier for interactive marks
+        ...(anomalyOverlay ? [{
+          type: 'line' as const,
+          data: useTimeCoords ? data.map((p) => [p.timestampMs, p.mean]) : data.map((p) => p.mean),
+          lineStyle: { width: 0, opacity: 0 }, symbol: 'none', showSymbol: false, silent: true,
+          tooltip: { show: false },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          markPoint: anomalyOverlay.markPoints.length > 0 ? {
+            silent: false, animation: false, data: anomalyOverlay.markPoints as never[],
+            tooltip: { show: true, formatter: (p: any) => p.data?._tooltipHtml ?? '' },
+          } : undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          markArea: anomalyOverlay.markAreas.length > 0 ? {
+            silent: false, data: anomalyOverlay.markAreas as never[],
+            tooltip: { show: true, formatter: (p: any) => p.data?.[0]?._tooltipHtml ?? p.data?._tooltipHtml ?? '' },
+          } : undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          markLine: anomalyOverlay.markLines.length > 0 ? {
+            symbol: 'none', silent: false, precision: 10, data: anomalyOverlay.markLines as never[],
+            tooltip: { show: true, formatter: (p: any) => p.data?._tooltipHtml ?? '' },
+          } : undefined,
+          z: 7,
+        }] : []),
         // Forecast overlay series — appended AFTER all existing series
         ...forecastSeries,
       ],
@@ -748,86 +620,29 @@ export function ControlChart({
     sampleAnomalyMap,
   ])
 
-  // Mouse event handlers bridging ECharts -> ChartHoverContext
-  const handleMouseMove = useCallback(
-    (params: EChartsMouseEvent) => {
-      // Only trigger hover for data point series — ignore line, limit, and annotation series
-      if (params.seriesIndex != null && params.seriesIndex !== dataPointSeriesIndexRef.current) return
-      const idx = params.dataIndex
-      const point = dataRef.current[idx]
-      if (point) {
-        onHoverSample(point.sample_id)
-        onHoverValue?.(point.displayValue ?? point.mean)
-      }
-    },
-    [onHoverSample, onHoverValue],
-  )
+  // Stable ref for the ECharts instance — assigned after useECharts, read at event-time
+  const echartsInstanceRef = useRef<import('echarts/core').EChartsType | null>(null)
 
-  const handleMouseOut = useCallback(() => {
-    onLeaveSample()
-    onHoverValue?.(null)
-  }, [onLeaveSample, onHoverValue])
-
-  const handleClick = useCallback(
-    (params: EChartsMouseEvent) => {
-      // Annotation marker click
-      if (params.seriesIndex === annotationSeriesIndexRef.current && annotationsRef.current) {
-        const annId = annotationMarkerIdsRef.current[params.dataIndex]
-        if (annId != null) {
-          const ann = (annotationsRef.current as Annotation[]).find((a) => a.id === annId)
-          if (ann && chartWrapperRef.current) {
-            const rect = chartWrapperRef.current.getBoundingClientRect()
-            setAnnotationPopoverPos({
-              x: rect.left + (params.event?.offsetX ?? 0),
-              y: rect.top + (params.event?.offsetY ?? 0),
-            })
-            setActiveAnnotation(ann)
-            return
-          }
-        }
-      }
-      // Data point click — show pinned tooltip with Explainable values
-      const pointData = params.data as unknown as number[]
-      const dataIndex = pointData?.[2]
-      const chartPoint = dataRef.current[dataIndex]
-      if (chartPoint && chartWrapperRef.current) {
-        const rect = chartWrapperRef.current.getBoundingClientRect()
-        setPinnedPoint({
-          point: chartPoint,
-          screenX: rect.left + (params.event?.offsetX ?? 0),
-          screenY: rect.top + (params.event?.offsetY ?? 0),
-        })
-        // Hide native ECharts tooltip when pinned tooltip opens
-        chartRef.current?.dispatchAction({ type: 'hideTip' })
-      }
-    },
-    [],
-  )
-
-  // DataZoom handler: maps zoom percentages back to rangeWindow indices
-  const handleDataZoom = useCallback(
-    (params: EChartsDataZoomEvent) => {
-      const totalPoints = dataRef.current.length
-      if (totalPoints <= 1) return
-
-      const newStart = Math.round((params.start / 100) * (totalPoints - 1))
-      const newEnd = Math.round((params.end / 100) * (totalPoints - 1))
-
-      // Zoomed all the way out → clear range
-      if (newStart <= 0 && newEnd >= totalPoints - 1) {
-        setRangeWindow(null)
-        return
-      }
-
-      // Auto-enable showBrush + set range atomically
-      const store = useDashboardStore.getState()
-      if (!store.showBrush) {
-        useDashboardStore.setState({ showBrush: true, rangeWindow: [newStart, newEnd] })
-      } else {
-        setRangeWindow([newStart, newEnd])
-      }
-    },
-    [setRangeWindow],
+  // Mouse + zoom event handlers (extracted to controlChartHandlers.ts)
+  const { handleMouseMove, handleMouseOut, handleClick, handleDataZoom } = useMemo(
+    () =>
+      buildChartEventHandlers({
+        dataRef,
+        dataPointSeriesIndexRef,
+        annotationSeriesIndexRef,
+        annotationMarkerIdsRef,
+        annotationsRef,
+        chartWrapperRef,
+        chartRef: echartsInstanceRef,
+        onHoverSample,
+        onLeaveSample,
+        onHoverValue,
+        setActiveAnnotation,
+        setAnnotationPopoverPos,
+        setPinnedPoint,
+        setRangeWindow,
+      }),
+    [onHoverSample, onLeaveSample, onHoverValue, setRangeWindow],
   )
 
   const { containerRef, chartRef, refresh } = useECharts({
@@ -839,15 +654,17 @@ export function ControlChart({
     onDataZoom: handleDataZoom,
   })
 
+  // Sync the stable ref so extracted event handlers can dispatch ECharts actions
+  useEffect(() => {
+    echartsInstanceRef.current = chartRef.current
+  })
+
   // Report actual rendered grid positions to parent for histogram alignment.
-  // Uses convertToPixel to get the ACTUAL pixel coordinates ECharts rendered,
-  // which may differ from the configured grid values due to internal adjustments.
   useEffect(() => {
     if (!onGridTop && !onGridBottom) return
     const chart = chartRef.current
     const wrapper = chartWrapperRef.current
     if (!chart || !wrapper || !echartsOption) return
-    // convertToPixel is only valid after setOption; schedule after current frame
     const raf = requestAnimationFrame(() => {
       try {
         const topPx = chart.convertToPixel({ yAxisIndex: 0 }, yMaxRef.current)
@@ -865,31 +682,16 @@ export function ControlChart({
     return () => cancelAnimationFrame(raf)
   }, [echartsOption, onGridTop, onGridBottom, chartRef])
 
-  // Dismiss stale tooltip when underlying data changes — prevents the tooltip
-  // from showing one sample while a click would resolve to a different one
-  // (happens when new samples arrive and old ones drop off due to the limit)
+  // Dismiss stale tooltip when underlying data changes
   useEffect(() => {
     chartRef.current?.dispatchAction({ type: 'hideTip' })
     setPinnedPoint(null)
   }, [data, chartRef])
 
-  // Drag-to-select region overlay — callback is called directly by the hook (no intermediate state)
-  const handleDragSelect = useCallback(
-    (sel: DragSelection) => {
-      if (!onRegionSelect || !data.length) return
-      const slice = data.slice(sel.startIndex, sel.endIndex + 1)
-      if (!slice.length) return
-
-      onRegionSelect({
-        startTime: new Date(slice[0].timestampMs).toISOString(),
-        endTime: new Date(slice[slice.length - 1].timestampMs).toISOString(),
-        startDisplayKey: slice[0].displayKey,
-        endDisplayKey: slice[slice.length - 1].displayKey,
-        sampleCount: slice.length,
-        violationIds: slice.flatMap((p) => p.unacknowledgedViolationIds),
-      })
-    },
-    [onRegionSelect, data],
+  // Drag-to-select region overlay (handler extracted to controlChartHandlers.ts)
+  const handleDragSelect = useMemo(
+    () => buildDragSelectHandler({ data, onRegionSelect }),
+    [data, onRegionSelect],
   )
 
   const { dragRect } = useChartDragSelect(

@@ -500,3 +500,145 @@ export function buildXAxisConfig(params: BuildXAxisConfigParams): Record<string,
     splitLine: { show: false },
   }
 }
+
+// ---------------------------------------------------------------------------
+// Mark lines for control limits, spec limits, and highlight indicators
+// ---------------------------------------------------------------------------
+
+export interface BuildMarkLinesParams {
+  isModeA: boolean | undefined
+  showSpecLimits: boolean
+  spec_limits: { usl: number | null; lsl: number | null }
+  formatVal: (value: number | null | undefined) => string
+  chartColors: {
+    uclLine: string
+    centerLine: string
+    lclLine: string
+    annotationColor: string
+  }
+  /** Pre-built annotation mark lines from buildAnnotationDecorations */
+  annotationMarkLines: Record<string, unknown>[]
+  /** Sample ID to highlight with a vertical indicator line */
+  highlightSampleId?: number
+  /** Data array for resolving sample ID to x coordinate */
+  data: { sample_id: number; timestampMs: number }[]
+  useTimeCoords: boolean
+  isDark: boolean
+}
+
+/**
+ * Build the combined markLine data array for the main line series.
+ *
+ * Includes:
+ * - Mode A Z-score control limit lines (UCL +3, CL 0, LCL -3)
+ * - Spec limit lines (USL / LSL) when enabled
+ * - Annotation vertical dashed lines
+ * - Highlighted sample vertical indicator line
+ */
+export function buildMarkLines(params: BuildMarkLinesParams): Record<string, unknown>[] {
+  const {
+    isModeA,
+    showSpecLimits,
+    spec_limits,
+    formatVal,
+    chartColors,
+    annotationMarkLines,
+    highlightSampleId,
+    data,
+    useTimeCoords,
+    isDark,
+  } = params
+
+  const markLineData: Record<string, unknown>[] = []
+
+  if (isModeA) {
+    markLineData.push(
+      {
+        yAxis: 3,
+        lineStyle: { color: chartColors.uclLine, type: 'dashed', width: 1.5 },
+        label: {
+          formatter: 'UCL: +3.0',
+          position: 'end',
+          color: chartColors.uclLine,
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      },
+      {
+        yAxis: 0,
+        lineStyle: { color: chartColors.centerLine, type: 'solid', width: 2.5 },
+        label: {
+          formatter: 'CL: 0.0',
+          position: 'end',
+          color: chartColors.centerLine,
+          fontSize: 11,
+          fontWeight: 600,
+        },
+      },
+      {
+        yAxis: -3,
+        lineStyle: { color: chartColors.lclLine, type: 'dashed', width: 1.5 },
+        label: {
+          formatter: 'LCL: -3.0',
+          position: 'end',
+          color: chartColors.lclLine,
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      },
+    )
+  }
+
+  if (showSpecLimits && spec_limits.usl != null) {
+    markLineData.push({
+      yAxis: spec_limits.usl,
+      lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
+      label: {
+        formatter: `USL: ${formatVal(spec_limits.usl)}`,
+        position: 'end',
+        color: 'hsl(357, 80%, 45%)',
+        fontSize: 10,
+        fontWeight: 500,
+      },
+    })
+  }
+  if (showSpecLimits && spec_limits.lsl != null) {
+    markLineData.push({
+      yAxis: spec_limits.lsl,
+      lineStyle: { color: 'hsl(357, 80%, 52%)', type: [8, 4] as unknown as string, width: 2 },
+      label: {
+        formatter: `LSL: ${formatVal(spec_limits.lsl)}`,
+        position: 'end',
+        color: 'hsl(357, 80%, 45%)',
+        fontSize: 10,
+        fontWeight: 500,
+      },
+    })
+  }
+
+  markLineData.push(...annotationMarkLines)
+
+  // Vertical indicator line for the inspected/highlighted sample
+  if (highlightSampleId != null) {
+    const highlightIdx = data.findIndex((p) => p.sample_id === highlightSampleId)
+    if (highlightIdx >= 0) {
+      const xVal = useTimeCoords ? data[highlightIdx].timestampMs : highlightIdx
+      markLineData.push({
+        xAxis: xVal,
+        lineStyle: { color: 'hsl(180, 100%, 50%)', type: 'solid', width: 2, opacity: 0.6 },
+        label: {
+          formatter: 'Violation',
+          position: 'insideEndTop',
+          color: 'hsl(180, 100%, 50%)',
+          fontSize: 10,
+          fontWeight: 600,
+          backgroundColor: isDark ? 'hsl(220, 25%, 13%)' : 'hsl(0, 0%, 100%)',
+          padding: [2, 6],
+          borderRadius: 3,
+        },
+      })
+    }
+  }
+
+  return markLineData
+}
