@@ -292,6 +292,7 @@ class ChartSample(BaseModel):
         effective_lcl: Per-point LCL for Mode B (variable limits)
         z_score: Z-score for Mode A (standardized)
         display_value: Value to plot (z_score for Mode A, mean for others)
+        measurements: Individual measurement values within this subgroup
     """
 
     sample_id: int
@@ -311,6 +312,7 @@ class ChartSample(BaseModel):
     z_score: float | None = None
     display_value: float | None = None
     display_key: str = ""
+    measurements: list[float] = []
 
 
 class AttributeChartSample(BaseModel):

@@ -924,6 +924,7 @@ async def _get_cusum_chart_data(
             violation_rules=v_rules,
             display_key=_display_keys.get(sample.id, ""),
             excluded=sample.is_excluded,
+            measurements=values,
         ))
 
     # Shewhart control limits (material-resolved)
@@ -1128,6 +1129,7 @@ async def _get_ewma_chart_data(
             violation_rules=v_rules,
             display_key=_display_keys.get(sample.id, ""),
             excluded=sample.is_excluded,
+            measurements=values,
         ))
 
     # Shewhart control limits (material-resolved)
@@ -1482,6 +1484,7 @@ async def get_chart_data(
             z_score=sample.z_score,
             display_value=display_val,
             display_key=_display_keys.get(sample.id, ""),
+            measurements=values,
         ))
 
     # Build control limits with short-run transformation
