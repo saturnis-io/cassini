@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useCapability } from '@/api/hooks'
 import { useStaticChart } from '@/hooks/useStaticChart'
-import { normalQuantile, blomQuantiles } from '@/lib/statistics-utils'
+import { blomQuantiles } from '@/lib/statistics-utils'
 import { getChartMeasurements } from '@/lib/report-utils'
 import type { ChartData } from '@/types'
 

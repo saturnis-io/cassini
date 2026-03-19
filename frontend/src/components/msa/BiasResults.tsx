@@ -65,7 +65,7 @@ export function BiasResults({ result, studyId }: BiasResultsProps) {
       bins[binIdx]++
     }
 
-    const categories = binEdges.slice(0, -1).map((edge, i) => {
+    const categories = binEdges.slice(0, -1).map((edge, _i) => {
       const center = edge + binWidth / 2
       return center.toFixed(4)
     })

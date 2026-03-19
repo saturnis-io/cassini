@@ -7,9 +7,7 @@ import { useTheme } from '@/providers/ThemeProvider'
 import { VISUAL_STYLE_OPTIONS, type VisualStyle } from '@/lib/visual-styles'
 import {
   type BrandConfig,
-  type BrandColorSeed,
   autoAdjustForMode,
-  contrastRatio,
   deriveLogoColors,
   DEFAULT_LIGHT_BG,
   DEFAULT_DARK_BG,

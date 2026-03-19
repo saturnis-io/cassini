@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  ArrowRight,
   Loader2,
   FlaskConical,
   Beaker,
@@ -10,13 +9,9 @@ import {
   ClipboardList,
   Shuffle,
   CheckCircle2,
-  AlertTriangle,
-  XCircle,
   ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ContextualHint } from '@/components/ContextualHint'
-import { hints } from '@/lib/guidance'
 import {
   useDOEStudy,
   useGenerateDesign,

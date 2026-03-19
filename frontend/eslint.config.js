@@ -20,6 +20,15 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      // Allow unused variables/args prefixed with _ (standard convention)
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
       // React Compiler rules - these patterns are used intentionally for
       // initializing state from props/fetched data in controlled components
       'react-hooks/set-state-in-effect': 'off',

@@ -17,9 +17,8 @@ export function buildDataPointRenderer({
   highlightedRange,
   hoveredSampleIds,
   highlightSampleId,
-  sampleAnomalyMap: _sampleAnomalyMap,
 }: DataPointRendererParams): (params: RenderItemParams, api: RenderItemAPI) => unknown {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   return (_params: RenderItemParams, api: RenderItemAPI) => {
     const arrIndex = api.value(2) as number
     if (arrIndex < 0 || arrIndex >= data.length) return { type: 'group', children: [] } as unknown

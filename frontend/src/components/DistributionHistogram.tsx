@@ -398,7 +398,7 @@ export function DistributionHistogram({
       // Match ControlChart grid margins for pixel-perfect Y-axis alignment
       const matchedGridTop = gridTop ?? 20
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const histogramRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
         const binIndex = api.value(3) as number
         const count = api.value(0) as number

@@ -53,7 +53,7 @@ export function DevToolsPage() {
         window.dispatchEvent(new CustomEvent('auth:logout'))
         navigate('/login', { replace: true })
       }, 2000)
-    } catch (err) {
+    } catch {
       // Error toast handled by the mutation hook
     }
   }

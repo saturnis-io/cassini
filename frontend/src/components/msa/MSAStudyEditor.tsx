@@ -17,9 +17,6 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   useMSAStudy,
-  useCreateMSAStudy,
-  useSetMSAOperators,
-  useSetMSAParts,
   useSubmitMSAMeasurements,
   useSubmitMSAAttributeMeasurements,
   useCalculateMSA,
@@ -29,11 +26,9 @@ import {
   useCalculateBias,
   useMSAResults,
   useMSAMeasurements,
-  useCharacteristics,
   useWorkflows,
 } from '@/api/hooks'
 import type {
-  MSAStudyCreate,
   MSAStudyDetail,
   MSAMeasurement,
   MSAMeasurementInput,
@@ -44,7 +39,6 @@ import type {
   StabilityResult,
   BiasResult,
 } from '@/api/client'
-import { usePlantContext } from '@/providers/PlantProvider'
 import { SignatureDialog } from '@/components/signatures/SignatureDialog'
 import { StudySteps } from '@/components/studies/StudySteps'
 import { MSADataGrid } from './MSADataGrid'
@@ -53,20 +47,9 @@ import { AttributeMSAResults } from './AttributeMSAResults'
 import { LinearityResults } from './LinearityResults'
 import { StabilityResults } from './StabilityResults'
 import { BiasResults } from './BiasResults'
-import { CharacteristicPicker } from './CharacteristicPicker'
 import { MSANewStudyForm } from './MSANewStudyForm'
 
 // ── Constants ──
-
-const STUDY_TYPES = [
-  { value: 'crossed_anova', label: 'Crossed ANOVA (standard Gage R&R)' },
-  { value: 'range_method', label: 'Range Method (quick study)' },
-  { value: 'nested_anova', label: 'Nested ANOVA (destructive testing)' },
-  { value: 'attribute_agreement', label: 'Attribute Agreement Analysis' },
-  { value: 'linearity', label: 'Linearity Study (bias vs range)' },
-  { value: 'stability', label: 'Stability Study (I-MR over time)' },
-  { value: 'bias', label: 'Bias Study (independent sample method)' },
-]
 
 const STUDY_TYPE_LABELS: Record<string, string> = {
   crossed_anova: 'Crossed ANOVA',
