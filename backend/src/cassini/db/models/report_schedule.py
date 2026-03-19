@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,7 +43,7 @@ class ReportSchedule(Base):
     day_of_month: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     recipients: Mapped[str] = mapped_column(Text, nullable=False)
     window_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="7")
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa.True_())
     last_run_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

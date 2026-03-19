@@ -56,7 +56,7 @@ class ERPConnector(Base):
         Text, nullable=False, default="{}", server_default="{}"
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="disconnected", server_default="disconnected"
@@ -126,7 +126,7 @@ class ERPFieldMapping(Base):
     openspc_field: Mapped[str] = mapped_column(String(100), nullable=False)
     transform: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
 
     # Relationships
@@ -165,7 +165,7 @@ class ERPSyncSchedule(Base):
     direction: Mapped[str] = mapped_column(String(20), nullable=False)
     cron_expression: Mapped[str] = mapped_column(String(100), nullable=False)
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
     last_run_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

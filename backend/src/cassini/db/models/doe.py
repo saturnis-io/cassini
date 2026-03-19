@@ -66,7 +66,7 @@ class DOEStudy(Base):
         "{name, direction, lower, target, upper, weight, shape, shape_upper}",
     )
     is_confirmation: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0"),
+        Boolean, nullable=False, default=False, server_default=sa.False_(),
         doc="True if this study is a confirmation run study.",
     )
     parent_study_id: Mapped[Optional[int]] = mapped_column(
@@ -191,7 +191,7 @@ class DOERun(Base):
         doc="Block assignment (1-based). None if design is unblocked.",
     )
     is_center_point: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
     replicate: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=sa.text("1")

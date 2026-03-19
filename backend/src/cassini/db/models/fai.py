@@ -129,7 +129,7 @@ class FAIItem(Base):
     unit: Mapped[str] = mapped_column(String(50), nullable=False, default="mm")
     tools_used: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     designed_char: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
     result: Mapped[str] = mapped_column(String(20), nullable=False, default="pass")
     deviation_reason: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
@@ -140,7 +140,7 @@ class FAIItem(Base):
 
     # Delta FAI: marks items copied from the parent report
     carried_forward: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
 
     report: Mapped["FAIReport"] = relationship("FAIReport", back_populates="items")

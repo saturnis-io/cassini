@@ -216,10 +216,13 @@ class CassiniClient:
             data["plant_ids"] = plant_ids
         return await self._post("/api-keys/", json=data)
 
-    # ── Health ────────────────────────────────────────────────────────
+    # ── Health / Cluster ──────────────────────────────────────────────
 
     async def health(self) -> dict[str, Any]:
         return await self._get("/health")
+
+    async def cluster_status(self) -> dict[str, Any]:
+        return await self._get("/cluster/status")
 
     # ── MSA ───────────────────────────────────────────────────────────
 

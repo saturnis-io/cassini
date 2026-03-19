@@ -73,7 +73,7 @@ class GagePort(Base):
     characteristic_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("characteristic.id", ondelete="SET NULL"), nullable=True
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=sa.text("1"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=sa.True_())
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utc_now, server_default=sa.func.now(), nullable=False
     )

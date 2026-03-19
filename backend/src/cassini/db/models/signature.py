@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,7 +51,7 @@ class ElectronicSignature(Base):
     )
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_valid: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     invalidated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -90,10 +91,10 @@ class SignatureMeaning(Base):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     requires_comment: Mapped[bool] = mapped_column(
-        Boolean, server_default="0", nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     sort_order: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
 
@@ -125,10 +126,10 @@ class SignatureWorkflow(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
     is_active: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     is_required: Mapped[bool] = mapped_column(
-        Boolean, server_default="0", nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -180,10 +181,10 @@ class SignatureWorkflowStep(Base):
     min_role: Mapped[str] = mapped_column(String(20), nullable=False)
     meaning_code: Mapped[str] = mapped_column(String(50), nullable=False)
     is_required: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     allow_self_sign: Mapped[bool] = mapped_column(
-        Boolean, server_default="0", nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     timeout_hours: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
@@ -277,16 +278,16 @@ class PasswordPolicy(Base):
         Integer, server_default="8", nullable=False
     )
     require_uppercase: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     require_lowercase: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     require_digit: Mapped[bool] = mapped_column(
-        Boolean, server_default="1", nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     require_special: Mapped[bool] = mapped_column(
-        Boolean, server_default="0", nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     password_history_count: Mapped[int] = mapped_column(
         Integer, server_default="5", nullable=False

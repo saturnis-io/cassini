@@ -50,11 +50,17 @@ def create_broker(broker_url: str = "", connect: bool = True) -> Broker:
             ValkeyBroadcast,
         )
 
+        # Normalize valkey:// to redis:// — the redis-py library only
+        # accepts redis:// / rediss:// schemes, but the protocol is identical.
+        redis_url = broker_url
+        if scheme == "valkey":
+            redis_url = "redis://" + broker_url.split("://", 1)[1]
+
         return Broker(
             backend="valkey",
-            task_queue=ValkeyTaskQueue(broker_url, connect=connect),
-            event_bus=ValkeyEventBus(broker_url, connect=connect),
-            broadcast=ValkeyBroadcast(broker_url, connect=connect),
+            task_queue=ValkeyTaskQueue(redis_url, connect=connect),
+            event_bus=ValkeyEventBus(redis_url, connect=connect),
+            broadcast=ValkeyBroadcast(redis_url, connect=connect),
         )
 
     raise ValueError(

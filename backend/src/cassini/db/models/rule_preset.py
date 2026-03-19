@@ -33,7 +33,7 @@ class RulePreset(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_builtin: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=sa.text("0")
+        Boolean, nullable=False, server_default=sa.False_()
     )
     rules_config: Mapped[str] = mapped_column(sa.Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

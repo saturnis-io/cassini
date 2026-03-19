@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -50,12 +51,12 @@ class AnomalyDetectorConfig(Base):
 
     # Global toggle
     is_enabled: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("1"), nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
 
     # PELT configuration
     pelt_enabled: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("1"), nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     pelt_model: Mapped[str] = mapped_column(
         String(20), server_default="l2", nullable=False
@@ -69,7 +70,7 @@ class AnomalyDetectorConfig(Base):
 
     # Isolation Forest configuration
     iforest_enabled: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("0"), nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     iforest_contamination: Mapped[float] = mapped_column(
         Float, server_default=text("0.05"), nullable=False
@@ -86,7 +87,7 @@ class AnomalyDetectorConfig(Base):
 
     # K-S distribution shift configuration
     ks_enabled: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("1"), nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     ks_reference_window: Mapped[int] = mapped_column(
         Integer, server_default=text("200"), nullable=False
@@ -100,13 +101,13 @@ class AnomalyDetectorConfig(Base):
 
     # Notification integration
     notify_on_changepoint: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("1"), nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     notify_on_anomaly_score: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("0"), nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     notify_on_distribution_shift: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("1"), nullable=False
+        Boolean, server_default=sa.True_(), nullable=False
     )
     anomaly_score_threshold: Mapped[float] = mapped_column(
         Float, server_default=text("-0.5"), nullable=False
@@ -173,7 +174,7 @@ class AnomalyEvent(Base):
 
     # Human review
     is_acknowledged: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("0"), nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     acknowledged_by: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True
@@ -182,7 +183,7 @@ class AnomalyEvent(Base):
         DateTime(timezone=True), nullable=True
     )
     is_dismissed: Mapped[bool] = mapped_column(
-        Boolean, server_default=text("0"), nullable=False
+        Boolean, server_default=sa.False_(), nullable=False
     )
     dismissed_by: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True

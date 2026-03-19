@@ -44,7 +44,7 @@ class CollectionPlan(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL"), nullable=True
@@ -101,7 +101,7 @@ class CollectionPlanItem(Base):
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     required: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
 
     # Relationships

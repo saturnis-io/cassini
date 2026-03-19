@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from typing import Optional
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,7 +40,7 @@ class OIDCConfig(Base):
         nullable=False,
     )
     auto_provision: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default="1", nullable=False
+        Boolean, default=True, server_default=sa.True_(), nullable=False
     )
     default_role: Mapped[str] = mapped_column(
         String(20), default="operator", server_default="operator", nullable=False
@@ -56,10 +57,10 @@ class OIDCConfig(Base):
         Text, default="[]", server_default="[]", nullable=False
     )
     sso_only: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="0", nullable=False
+        Boolean, default=False, server_default=sa.False_(), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default="1", nullable=False
+        Boolean, default=True, server_default=sa.True_(), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

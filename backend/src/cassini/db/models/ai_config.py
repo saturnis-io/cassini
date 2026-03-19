@@ -67,7 +67,7 @@ class AIProviderConfig(Base):
         String(20), nullable=True
     )
     is_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

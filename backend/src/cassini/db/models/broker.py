@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,7 +50,7 @@ class MQTTBroker(Base):
         String(20), default="json", nullable=False, server_default="json"
     )
     outbound_enabled: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False, server_default="0"
+        Boolean, default=False, nullable=False, server_default=sa.False_()
     )
     outbound_topic_prefix: Mapped[str] = mapped_column(
         String(200), default="openspc", nullable=False, server_default="openspc"

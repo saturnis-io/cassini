@@ -60,7 +60,7 @@ class MultivariateGroup(Base):
         Integer, nullable=False, default=100, server_default=sa.text("100")
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

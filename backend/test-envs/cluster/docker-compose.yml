@@ -1,0 +1,41 @@
+# Cluster test infrastructure: Valkey broker + PostgreSQL
+# Cassini nodes run natively (not in Docker) — see start-cluster.ps1/.sh
+#
+# Usage:
+#   docker compose up -d --wait    # Start and wait for healthy
+#   docker compose down             # Stop (preserve data)
+#   docker compose down -v          # Stop and wipe volumes
+
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: cassini
+      POSTGRES_PASSWORD: cassini
+      POSTGRES_DB: cassini_cluster
+    volumes:
+      - cassini_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cassini -d cassini_cluster"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  cassini_pg_data:

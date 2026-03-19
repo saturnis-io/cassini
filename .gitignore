@@ -71,7 +71,8 @@ backend/=*
 frontend/*.png
 
 # Test environment scripts (phase-specific start.bat files)
-backend/test-envs/
+backend/test-envs/*
+!backend/test-envs/cluster/
 frontend/test-envs/
 
 # Windows artifacts

@@ -39,7 +39,7 @@ class PredictionConfig(Base):
         ForeignKey("characteristic.id", ondelete="CASCADE"), nullable=False
     )
     is_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
     model_type: Mapped[str] = mapped_column(
         String(30), nullable=False, default="auto", server_default="auto"
@@ -106,7 +106,7 @@ class PredictionModel(Base):
         nullable=False,
     )
     is_current: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default=sa.text("1")
+        Boolean, nullable=False, default=True, server_default=sa.True_()
     )
 
     # Relationships
@@ -155,7 +155,7 @@ class Forecast(Base):
     lower_95: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     upper_95: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     predicted_ooc: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default=sa.text("0")
+        Boolean, nullable=False, default=False, server_default=sa.False_()
     )
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

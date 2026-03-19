@@ -269,7 +269,7 @@ from cassini.cli.commands.auth import login  # noqa: E402
 from cassini.cli.commands.plants import plants  # noqa: E402
 from cassini.cli.commands.data import chars, samples, capability, violations  # noqa: E402
 from cassini.cli.commands.admin import users, audit, license, api_keys  # noqa: E402
-from cassini.cli.commands.ops import health, status  # noqa: E402
+from cassini.cli.commands.ops import cluster, health, status  # noqa: E402
 
 cli.add_command(login)
 cli.add_command(plants)
@@ -283,6 +283,7 @@ cli.add_command(license)
 cli.add_command(api_keys)
 cli.add_command(health)
 cli.add_command(status)
+cli.add_command(cluster)
 
 
 @cli.command()

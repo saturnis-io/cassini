@@ -5,12 +5,12 @@ import os
 import socket
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
-from cassini.api.deps import get_current_admin
+from cassini.core.auth.api_key import verify_api_key
 from cassini.core.config import get_settings
-from cassini.db.models.user import User
+from cassini.db.models.user import User, UserRole
 
 logger = structlog.get_logger(__name__)
 
@@ -40,16 +40,53 @@ def _get_node_id(namespace: str) -> str:
     return f"{namespace}:{socket.gethostname()}:{os.getpid()}"
 
 
+async def _get_admin_or_api_key(request: Request) -> object:
+    """Authenticate via JWT (admin required) or API key."""
+    from cassini.api.deps import _get_user_from_jwt
+    from cassini.db.database import get_database
+
+    # Try JWT first
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        db = get_database()
+        async with db.session() as session:
+            try:
+                user = await _get_user_from_jwt(auth, session)
+                if any(pr.role == UserRole.admin for pr in user.plant_roles):
+                    return user
+            except HTTPException:
+                pass
+
+    # Fall back to API key (uses FastAPI's own dependency injection)
+    api_key_header = request.headers.get("x-api-key", "")
+    if api_key_header:
+        from sqlalchemy.ext.asyncio import AsyncSession
+        db = get_database()
+        async with db.session() as session:
+            try:
+                return await verify_api_key(request=request, x_api_key=api_key_header, session=session)
+            except HTTPException:
+                pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+    )
+
+
 @router.get("/status", response_model=ClusterStatus)
 async def cluster_status(
     request: Request,
-    _user: User = Depends(get_current_admin),
 ) -> ClusterStatus:
     """Get cluster status including all registered nodes.
 
     In standalone mode, returns information about the single node.
     In cluster mode, aggregates information from all registered nodes in Valkey.
+
+    Accepts JWT (admin) or API key authentication.
     """
+    await _get_admin_or_api_key(request)
+
     settings = get_settings()
     broker = getattr(request.app.state, "broker", None)
 

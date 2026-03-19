@@ -89,7 +89,7 @@ class Characteristic(Base):
 
     # Laney correction (Sprint 5 - A3)
     use_laney_correction: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=sa.text("0"), nullable=False
+        Boolean, default=False, server_default=sa.False_(), nullable=False
     )
 
     # Short-run charts (Sprint 6 - B2)
@@ -105,7 +105,7 @@ class Characteristic(Base):
 
     # Phase I/II mode: frozen limits indicate Phase II monitoring
     limits_frozen: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=sa.text("0"), nullable=False
+        Boolean, default=False, server_default=sa.False_(), nullable=False
     )
     limits_frozen_at: Mapped[Optional[datetime]] = mapped_column(sa.DateTime, nullable=True)
     limits_frozen_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
