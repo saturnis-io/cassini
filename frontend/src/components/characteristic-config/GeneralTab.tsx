@@ -10,7 +10,7 @@ import {
   ExternalLink,
   PenLine,
   Archive,
-  Infinity,
+  Infinity as InfinityIcon,
   Hash,
   Calendar,
   Loader2,
@@ -299,7 +299,7 @@ function policyIcon(type: string) {
     case 'time_delta':
       return Calendar
     default:
-      return Infinity
+      return InfinityIcon
   }
 }
 
@@ -434,7 +434,7 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
     )
   }
 
-  const Icon = effective ? policyIcon(effective.retention_type) : Infinity
+  const Icon = effective ? policyIcon(effective.retention_type) : InfinityIcon
 
   return (
     <div className="space-y-4">
@@ -464,7 +464,7 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
           {(
             [
               { value: 'inherit', label: 'Use Default', icon: Archive },
-              { value: 'forever', label: 'Forever', icon: Infinity },
+              { value: 'forever', label: 'Forever', icon: InfinityIcon },
               { value: 'sample_count', label: 'By Count', icon: Hash },
               { value: 'time_delta', label: 'By Age', icon: Calendar },
             ] as const

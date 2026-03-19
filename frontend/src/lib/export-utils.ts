@@ -1,6 +1,11 @@
 import { applyFormat } from '@/lib/date-format'
 import { NELSON_RULES } from '@/components/ViolationLegend'
 
+/** jsPDF document extended by jspdf-autotable plugin */
+interface JsPDFWithAutoTable {
+  lastAutoTable: { finalY: number }
+}
+
 /**
  * Data accepted by the native PDF report builder.
  * Uses minimal inline types to avoid coupling to full API type definitions.
@@ -199,7 +204,7 @@ export async function exportReportToPdf(
         columnStyles: { 0: { cellWidth: 12 }, 3: { cellWidth: 15 } },
         theme: 'striped',
       })
-      y = (doc as any).lastAutoTable.finalY + 6
+      y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
     }
   }
 
@@ -241,7 +246,7 @@ export async function exportReportToPdf(
         headStyles: { fillColor: [41, 128, 185] },
         theme: 'striped',
       })
-      y = (doc as any).lastAutoTable.finalY + 6
+      y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
     }
   }
 
@@ -264,7 +269,7 @@ export async function exportReportToPdf(
       headStyles: { fillColor: [39, 174, 96] },
       theme: 'striped',
     })
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
   }
 
   // ── Violations ──────────────────────────────────────────────────────
@@ -284,7 +289,7 @@ export async function exportReportToPdf(
       headStyles: { fillColor: [192, 57, 43] },
       theme: 'striped',
     })
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
   }
 
   // ── Annotations ─────────────────────────────────────────────────────
@@ -337,7 +342,7 @@ export async function exportReportToPdf(
       headStyles: { fillColor: [41, 128, 185] },
       theme: 'striped',
     })
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
 
     if (doe.effects.length > 0) {
       autoTable(doc, {
@@ -349,7 +354,7 @@ export async function exportReportToPdf(
         headStyles: { fillColor: [52, 152, 219] },
         theme: 'striped',
       })
-      y = (doc as any).lastAutoTable.finalY + 6
+      y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
     }
   }
 
@@ -384,7 +389,7 @@ export async function exportReportToPdf(
         headStyles: { fillColor: [155, 89, 182] },
         theme: 'striped',
       })
-      y = (doc as any).lastAutoTable.finalY + 6
+      y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
     }
 
     if (msa.fleissKappa !== undefined) {
@@ -417,7 +422,7 @@ export async function exportReportToPdf(
       headStyles: { fillColor: [46, 204, 113] },
       theme: 'striped',
     })
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
   }
 
   // ── Page numbers + header/footer on every page ─────────────────────
@@ -621,7 +626,7 @@ async function generateReportPdfBytes(
         headStyles: { fillColor: [41, 128, 185] },
         theme: 'striped',
       })
-      y = (doc as any).lastAutoTable.finalY + 6
+      y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
     }
   }
 
@@ -644,7 +649,7 @@ async function generateReportPdfBytes(
       headStyles: { fillColor: [39, 174, 96] },
       theme: 'striped',
     })
-    y = (doc as any).lastAutoTable.finalY + 6
+    y = (doc as unknown as JsPDFWithAutoTable).lastAutoTable.finalY + 6
   }
 
   // ── Violations ──────────────────────────────────────────────────────

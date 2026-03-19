@@ -133,6 +133,8 @@ export interface Characteristic {
   created_at?: string
   updated_at?: string
   sample_count?: number
+  // Hierarchy breadcrumb path (returned by list and detail endpoints)
+  hierarchy_path?: string
   // Optional computed fields (may be included by backend)
   in_control?: boolean
   unacknowledged_violations?: number

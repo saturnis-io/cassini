@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Infinity, Hash, Calendar, Check } from 'lucide-react'
+import { Infinity as InfinityIcon, Hash, Calendar, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RetentionPolicySet } from '@/types'
 import { retentionPolicySchema } from '@/schemas/admin'
@@ -18,8 +18,8 @@ interface RetentionPolicyFormProps {
   isSubmitting?: boolean
 }
 
-const TYPE_OPTIONS: { value: RetentionType; label: string; icon: typeof Infinity }[] = [
-  { value: 'forever', label: 'Forever', icon: Infinity },
+const TYPE_OPTIONS: { value: RetentionType; label: string; icon: typeof InfinityIcon }[] = [
+  { value: 'forever', label: 'Forever', icon: InfinityIcon },
   { value: 'sample_count', label: 'By Count', icon: Hash },
   { value: 'time_delta', label: 'By Age', icon: Calendar },
 ]

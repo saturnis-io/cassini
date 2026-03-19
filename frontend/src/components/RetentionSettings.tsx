@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   Archive,
-  Infinity,
+  Infinity as InfinityIcon,
   Hash,
   Calendar,
   Info,
@@ -53,7 +53,7 @@ function getPolicyIcon(retentionType: string | undefined) {
     case 'time_delta':
       return Calendar
     default:
-      return Infinity
+      return InfinityIcon
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ArrowLeft, Infinity, Hash, Calendar } from 'lucide-react'
+import { ArrowLeft, Infinity as InfinityIcon, Hash, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHierarchyPath } from '@/api/hooks'
 import { RetentionPolicyForm } from './RetentionPolicyForm'
@@ -24,7 +24,7 @@ function getPolicyIcon(retentionType: string) {
     case 'time_delta':
       return Calendar
     default:
-      return Infinity
+      return InfinityIcon
   }
 }
 

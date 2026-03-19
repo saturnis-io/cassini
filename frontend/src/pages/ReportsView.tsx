@@ -125,7 +125,7 @@ export function ReportsView() {
   }, [selectedTemplate?.id, plantId])
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit selectedTemplate to avoid re-running on template change
+   
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
@@ -189,7 +189,7 @@ export function ReportsView() {
           ])
           return {
             characteristicName: charDetail.name,
-            hierarchyPath: (charDetail as any).hierarchy_path as string | undefined,
+            hierarchyPath: charDetail.hierarchy_path,
             chartData: charChartData ?? undefined,
             capability: charCapability
               ? {
@@ -245,7 +245,7 @@ export function ReportsView() {
       chartData: chartData ?? undefined,
       violations: violations?.items ?? [],
       characteristicName: characteristic?.name,
-      hierarchyPath: (characteristic as any)?.hierarchy_path as string | undefined,
+      hierarchyPath: characteristic?.hierarchy_path,
       templateName: selectedTemplate?.name,
       annotations: annotations ?? [],
       capability: capability ?? undefined,
@@ -481,9 +481,9 @@ export function ReportsView() {
                   className="accent-primary h-4 w-4 rounded"
                 />
                 <span className="text-foreground font-medium">{char.name}</span>
-                {(char as any).hierarchy_path && (
+                {char.hierarchy_path && (
                   <span className="text-muted-foreground truncate text-xs">
-                    {(char as any).hierarchy_path}
+                    {char.hierarchy_path}
                   </span>
                 )}
               </label>

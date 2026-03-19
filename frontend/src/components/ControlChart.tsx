@@ -573,20 +573,20 @@ export function ControlChart({
           data: useTimeCoords ? data.map((p) => [p.timestampMs, p.mean]) : data.map((p) => p.mean),
           lineStyle: { width: 0, opacity: 0 }, symbol: 'none', showSymbol: false, silent: true,
           tooltip: { show: false },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           markPoint: anomalyOverlay.markPoints.length > 0 ? {
             silent: false, animation: false, data: anomalyOverlay.markPoints as never[],
-            tooltip: { show: true, formatter: (p: any) => p.data?._tooltipHtml ?? '' },
+            tooltip: { show: true, formatter: (p: Record<string, unknown>) => ((p.data as Record<string, unknown> | undefined)?._tooltipHtml as string) ?? '' },
           } : undefined,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           markArea: anomalyOverlay.markAreas.length > 0 ? {
             silent: false, data: anomalyOverlay.markAreas as never[],
-            tooltip: { show: true, formatter: (p: any) => p.data?.[0]?._tooltipHtml ?? p.data?._tooltipHtml ?? '' },
+            tooltip: { show: true, formatter: (p: Record<string, unknown>) => { const d = p.data as Record<string, unknown> | undefined; const arr = d as unknown as Record<string, unknown>[] | undefined; return (arr?.[0]?._tooltipHtml as string) ?? (d?._tooltipHtml as string) ?? '' } },
           } : undefined,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           markLine: anomalyOverlay.markLines.length > 0 ? {
             symbol: 'none', silent: false, precision: 10, data: anomalyOverlay.markLines as never[],
-            tooltip: { show: true, formatter: (p: any) => p.data?._tooltipHtml ?? '' },
+            tooltip: { show: true, formatter: (p: Record<string, unknown>) => ((p.data as Record<string, unknown> | undefined)?._tooltipHtml as string) ?? '' },
           } : undefined,
           z: 7,
         }] : []),
