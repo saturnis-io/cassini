@@ -13,7 +13,6 @@ import { useDateFormat } from '@/hooks/useDateFormat'
 import type { SubgroupMode } from '@/types'
 
 type LimitSource = 'calculate' | 'manual'
-
 interface FormData {
   target_value: string
   usl: string
@@ -29,7 +28,6 @@ interface FormData {
   short_run_mode?: '' | 'deviation' | 'standardized'
   sigma_method?: '' | 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled'
 }
-
 interface Characteristic {
   ucl: number | null
   lcl: number | null
@@ -42,7 +40,6 @@ interface Characteristic {
   limits_frozen_at?: string | null
   limits_frozen_by?: string | null
 }
-
 interface LimitsTabProps {
   formData: FormData
   characteristic: Characteristic
@@ -67,7 +64,6 @@ interface LimitsTabProps {
   isSettingManual?: boolean
   isFreezing?: boolean
 }
-
 export function LimitsTab({
   formData,
   characteristic,
@@ -98,11 +94,9 @@ export function LimitsTab({
   const [manualCenterLine, setManualCenterLine] = useState('')
   const [manualSigma, setManualSigma] = useState('')
   const [changeReasonOpen, setChangeReasonOpen] = useState(false)
-
   const target = isNaN(parseFloat(formData.target_value)) ? null : parseFloat(formData.target_value)
   const usl = isNaN(parseFloat(formData.usl)) ? null : parseFloat(formData.usl)
   const lsl = isNaN(parseFloat(formData.lsl)) ? null : parseFloat(formData.lsl)
-
   // Calculate positions for visual indicator
   const hasSpecLimits = usl !== null && lsl !== null
   const range = hasSpecLimits ? usl - lsl : 0
