@@ -22,6 +22,7 @@ import { PinnedChartTooltip, type ChartPoint } from '@/components/PinnedChartToo
 import type { Annotation } from '@/types'
 import { buildAnomalyMarks } from '@/components/anomaly/AnomalyOverlay'
 import { buildForecastSeries } from '@/components/charts/buildForecastSeries'
+import { buildZoneMarkAreas, buildAnnotationDecorations } from '@/components/charts/buildChartDecorations'
 import { buildDataPointRenderer } from '@/components/charts/buildDataPointRenderer'
 import {
   EVENT_TYPE_LABELS as ANOMALY_TYPE_LABELS,
@@ -62,13 +63,6 @@ interface ControlChartProps {
   /** Pre-fetched chart data — when provided, skips internal useChartData fetch */
   chartData?: ChartData
 }
-
-/** Parse a timestamp string as UTC even when the backend omits the Z suffix. */
-function parseUtc(ts: string): number {
-  if (ts.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(ts)) return new Date(ts).getTime()
-  return new Date(ts + 'Z').getTime()
-}
-
 
 
 /** Renders the drag-selection rectangle as an absolute overlay within the chart wrapper. */
@@ -389,186 +383,26 @@ export function ControlChart({
     const isTimestamp = xAxisMode === 'timestamp'
 
     // --- Build markArea for zone shading ---
-    type MarkAreaPair = [Record<string, unknown>, Record<string, unknown>]
-    const markAreaData: MarkAreaPair[] = []
-
-    if (isModeA) {
-      markAreaData.push(
-        [{ yAxis: -1, itemStyle: { color: chartColors.zoneC, opacity: 0.08 } }, { yAxis: 1 }],
-        [{ yAxis: 1, itemStyle: { color: chartColors.zoneB, opacity: 0.1 } }, { yAxis: 2 }],
-        [{ yAxis: -2, itemStyle: { color: chartColors.zoneB, opacity: 0.1 } }, { yAxis: -1 }],
-        [{ yAxis: 2, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: 3 }],
-        [{ yAxis: -3, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } }, { yAxis: -2 }],
-        [
-          { yAxis: 3, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
-          { yAxis: yMax },
-        ],
-        [
-          { yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
-          { yAxis: -3 },
-        ],
-      )
-    } else {
-      if (zone_boundaries.minus_1_sigma != null && zone_boundaries.plus_1_sigma != null) {
-        markAreaData.push([
-          {
-            yAxis: zone_boundaries.minus_1_sigma,
-            itemStyle: { color: chartColors.zoneC, opacity: 0.08 },
-          },
-          { yAxis: zone_boundaries.plus_1_sigma },
-        ])
-      }
-      if (zone_boundaries.plus_1_sigma != null && zone_boundaries.plus_2_sigma != null) {
-        markAreaData.push([
-          {
-            yAxis: zone_boundaries.plus_1_sigma,
-            itemStyle: { color: chartColors.zoneB, opacity: 0.1 },
-          },
-          { yAxis: zone_boundaries.plus_2_sigma },
-        ])
-      }
-      if (zone_boundaries.minus_2_sigma != null && zone_boundaries.minus_1_sigma != null) {
-        markAreaData.push([
-          {
-            yAxis: zone_boundaries.minus_2_sigma,
-            itemStyle: { color: chartColors.zoneB, opacity: 0.1 },
-          },
-          { yAxis: zone_boundaries.minus_1_sigma },
-        ])
-      }
-      if (zone_boundaries.plus_2_sigma != null && control_limits.ucl != null) {
-        markAreaData.push([
-          {
-            yAxis: zone_boundaries.plus_2_sigma,
-            itemStyle: { color: chartColors.zoneA, opacity: 0.12 },
-          },
-          { yAxis: control_limits.ucl },
-        ])
-      }
-      if (control_limits.lcl != null && zone_boundaries.minus_2_sigma != null) {
-        markAreaData.push([
-          { yAxis: control_limits.lcl, itemStyle: { color: chartColors.zoneA, opacity: 0.12 } },
-          { yAxis: zone_boundaries.minus_2_sigma },
-        ])
-      }
-      if (control_limits.ucl != null) {
-        markAreaData.push([
-          {
-            yAxis: control_limits.ucl,
-            itemStyle: { color: chartColors.outOfControl, opacity: 0.15 },
-          },
-          { yAxis: yMax },
-        ])
-      }
-      if (control_limits.lcl != null) {
-        markAreaData.push([
-          { yAxis: yMin, itemStyle: { color: chartColors.outOfControl, opacity: 0.15 } },
-          { yAxis: control_limits.lcl },
-        ])
-      }
-    }
+    const markAreaData = buildZoneMarkAreas({
+      isModeA,
+      zone_boundaries,
+      control_limits,
+      chartColors,
+      yMin,
+      yMax,
+    })
 
     // --- Annotations ---
-    // Annotation markers rendered as amber * at the top of the chart.
-    // Point annotations keep the dashed vertical line; period annotations keep the shaded area.
-    // Text labels are removed — users click the * to see annotation details.
-    type AnnotationMarkArea = [Record<string, unknown>, Record<string, unknown>]
-    const annotationMarkLines: Record<string, unknown>[] = []
-    const annotationMarkAreas: AnnotationMarkArea[] = []
-    // Each entry: [xVal, annotationId, annotationIndex, x2OrNaN]
-    // For point annotations x2OrNaN is NaN; for period annotations it's the end x value
-    const annotationMarkerData: [number, number, number, number][] = []
-
-    if (annotations && annotations.length > 0) {
-      // Map sample_id → { catIndex (0-based position in data), timestampMs }
-      // For category axis, xAxis must be the 0-based index into the category array (NOT point.index)
-      const sampleMap = new Map<number, { catIndex: number; timestampMs: number }>()
-      for (let vi = 0; vi < data.length; vi++) {
-        const point = data[vi]
-        sampleMap.set(point.sample_id, { catIndex: vi, timestampMs: point.timestampMs })
-      }
-
-      let annIdx = 0
-      for (const ann of annotations as Annotation[]) {
-        const color = ann.color || chartColors.annotationColor
-
-        if (ann.annotation_type === 'point' && ann.sample_id != null) {
-          const pt = sampleMap.get(ann.sample_id)
-          if (!pt) continue
-          const xVal = useTimeCoords ? pt.timestampMs : pt.catIndex
-          annotationMarkLines.push({
-            xAxis: xVal,
-            lineStyle: { color, type: 'dashed' as const, width: 1.5, opacity: 0.7 },
-            label: { show: false },
-          })
-          annotationMarkerData.push([xVal, ann.id, annIdx, NaN])
-        } else if (ann.annotation_type === 'period') {
-          let x1: number | null = null
-          let x2: number | null = null
-
-          if (ann.start_time && ann.end_time) {
-            // Time-based period annotation
-            // Backend returns UTC timestamps that may lack the Z suffix
-            // (e.g., "2026-02-22T05:11:03.235000" instead of "...Z").
-            // Without Z, JS parses as local time — force UTC to match chart data.
-            const startMs = parseUtc(ann.start_time)
-            const endMs = parseUtc(ann.end_time)
-            if (useTimeCoords) {
-              x1 = startMs
-              x2 = endMs
-            } else {
-              // Index mode: find nearest data points by timestamp
-              let bestStartIdx = 0
-              let bestEndIdx = data.length - 1
-              for (let i = 0; i < data.length; i++) {
-                if (data[i].timestampMs >= startMs) {
-                  bestStartIdx = i
-                  break
-                }
-              }
-              for (let i = data.length - 1; i >= 0; i--) {
-                if (data[i].timestampMs <= endMs) {
-                  bestEndIdx = i
-                  break
-                }
-              }
-              if (bestStartIdx <= bestEndIdx) {
-                x1 = bestStartIdx
-                x2 = bestEndIdx
-              }
-            }
-
-          } else if (ann.start_sample_id != null && ann.end_sample_id != null) {
-            // Legacy sample-based period annotation
-            const startPt = sampleMap.get(ann.start_sample_id)
-            const endPt = sampleMap.get(ann.end_sample_id)
-            if (startPt && endPt) {
-              x1 = useTimeCoords ? startPt.timestampMs : startPt.catIndex
-              x2 = useTimeCoords ? endPt.timestampMs : endPt.catIndex
-            }
-          }
-
-          if (x1 != null && x2 != null) {
-            annotationMarkAreas.push([
-              {
-                xAxis: x1,
-                itemStyle: {
-                  color,
-                  opacity: 0.18,
-                  borderColor: color,
-                  borderWidth: 1,
-                  borderType: 'dashed' as const,
-                },
-                label: { show: false },
-              },
-              { xAxis: x2 },
-            ])
-            annotationMarkerData.push([x1, ann.id, annIdx, x2])
-          }
-        }
-        annIdx++
-      }
-    }
+    const {
+      markLines: annotationMarkLines,
+      markAreas: annotationMarkAreas,
+      markerData: annotationMarkerData,
+    } = buildAnnotationDecorations({
+      annotations: (annotations ?? []) as Annotation[],
+      data,
+      useTimeCoords,
+      annotationColor: chartColors.annotationColor,
+    })
 
     const hasAnnotationMarkers = annotationMarkerData.length > 0
     // Store annotation IDs for click handler lookup (ref mutation is safe here — side-effect of render)
