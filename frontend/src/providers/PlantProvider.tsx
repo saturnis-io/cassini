@@ -103,6 +103,7 @@ export function PlantProvider({ children }: PlantProviderProps) {
  * @example
  * const { selectedPlant, setSelectedPlant, isLoading, error } = usePlantContext()
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePlantContext() {
   const context = useContext(PlantContext)
   if (!context) {
@@ -112,4 +113,5 @@ export function usePlantContext() {
 }
 
 // Keep the old name for backward compatibility
+// eslint-disable-next-line react-refresh/only-export-components
 export const usePlant = usePlantContext

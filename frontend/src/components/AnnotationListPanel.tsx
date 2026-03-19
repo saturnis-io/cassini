@@ -34,6 +34,7 @@ function timeRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
   return aStart <= bEnd && bStart <= aEnd
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function isAnnotationVisible(
   ann: Annotation,
   visibleIds: Set<number> | null | undefined,

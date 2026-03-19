@@ -21,6 +21,7 @@ export type AttributeChartType = 'p' | 'np' | 'c' | 'u'
 export type CountingWhat = 'defectives' | 'defects'
 
 /** Derive attribute chart type from two process-level questions. */
+// eslint-disable-next-line react-refresh/only-export-components
 export function deriveChartType(counting: CountingWhat, sizeVaries: boolean): AttributeChartType {
   if (counting === 'defectives') return sizeVaries ? 'p' : 'np'
   return sizeVaries ? 'u' : 'c'

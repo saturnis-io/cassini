@@ -403,6 +403,7 @@ export function Rule8Sparkline({ className }: SparklineProps) {
 }
 
 // Map of rule ID to sparkline component
+// eslint-disable-next-line react-refresh/only-export-components
 export const NELSON_SPARKLINES: Record<number, React.FC<SparklineProps>> = {
   1: Rule1Sparkline,
   2: Rule2Sparkline,

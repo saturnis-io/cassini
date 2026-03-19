@@ -25,6 +25,7 @@ import type { BrandConfigDTO } from '@/types'
 // Helper: camelCase BrandConfig -> snake_case BrandConfigDTO
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function toDTO(config: BrandConfig): BrandConfigDTO {
   return {
     app_name: config.appName,
@@ -337,6 +338,7 @@ export function LogoColorPicker({
 
 export type SectionId = 'presets' | 'identity' | 'colors' | 'typography' | 'login' | 'style'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const SECTIONS: { id: SectionId; label: string; icon: typeof Palette }[] = [
   { id: 'presets', label: 'Presets', icon: Palette },
   { id: 'identity', label: 'Identity', icon: Image },

@@ -191,6 +191,7 @@ export function SeverityBadge({ severity }: { severity: NelsonSeverity | string 
 
 // ─── Zone color helper ────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getZoneColor(zone: string | undefined): { bg: string; text: string; label: string } {
   switch (zone) {
     case 'A+':
@@ -217,6 +218,7 @@ import type { Sample } from '@/types'
  * The API returns `measurements` as `number[]` (flat) but the TS type
  * declares `Measurement[]` (objects). Handle both shapes at runtime.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getMeasurementValues(sample: Sample): number[] {
   if (!sample.measurements || sample.measurements.length === 0) return []
   const first = sample.measurements[0]

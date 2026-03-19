@@ -84,6 +84,7 @@ function findTopLevelAncestorId(
 /**
  * Build the breadcrumb path from root to a given node id.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function buildBreadcrumb(
   nodeId: number,
   tree: HierarchyNode[],

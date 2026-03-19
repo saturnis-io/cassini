@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 
 // Nelson rule definitions
 // Nelson Rules 1-8 (Shewhart pattern detection) + CUSUM 9-10 + EWMA 11-12
+// eslint-disable-next-line react-refresh/only-export-components
 export const NELSON_RULES: Record<number, { name: string; description: string }> = {
   1: {
     name: 'Beyond 3σ',
@@ -124,12 +125,14 @@ export function ViolationLegend({
 }
 
 /** Get the primary rule to display on a chart marker (lowest numbered) */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getPrimaryViolationRule(rules: number[]): number | null {
   if (!rules || rules.length === 0) return null
   return Math.min(...rules)
 }
 
 /** Format violation rules as a compact string for tooltips */
+// eslint-disable-next-line react-refresh/only-export-components
 export function formatViolationRules(rules: number[]): string {
   if (!rules || rules.length === 0) return ''
   const sorted = [...rules].sort((a, b) => a - b)

@@ -262,7 +262,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       reconnectDelayRef.current = WS_RECONNECT_DELAY_BASE
       wsRef.current?.close()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/unmount only; reconnection uses connectRef
+     
   }, [])
 
   return (
@@ -272,6 +272,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useWebSocketContext() {
   const context = useContext(WebSocketContext)
   if (!context) {
