@@ -487,6 +487,9 @@ class TestGetChartData:
         assert "zone" in sample
         assert "excluded" in sample
         assert "violation_ids" in sample
+        assert "measurements" in sample
+        assert isinstance(sample["measurements"], list)
+        assert len(sample["measurements"]) > 0
 
     @pytest.mark.asyncio
     async def test_chart_data_with_limit(self, client, test_characteristic_with_samples):
