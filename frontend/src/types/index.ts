@@ -307,6 +307,7 @@ export interface ChartDataPoint {
   display_value: number | null
   display_key: string
   unacknowledged_violation_ids: number[]
+  measurements: number[]
 }
 
 export interface AttributeChartSample {

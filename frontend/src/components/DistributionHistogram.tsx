@@ -114,10 +114,18 @@ export function DistributionHistogram({
     const dp: DataPointWithId[] = dataPoints
       .filter((p) => !p.excluded)
       .filter((p) => !isModeA || p.z_score != null)
-      .map((p) => ({
-        value: p.display_value ?? (isModeA ? p.z_score! : p.mean),
-        sample_id: p.sample_id,
-      }))
+      .flatMap((p) => {
+        if (isZScale) {
+          // Mode A / short-run standardized: z-scores are per-subgroup, use as-is
+          return [{ value: p.display_value ?? p.z_score!, sample_id: p.sample_id }]
+        }
+        // Normal mode: flatten individual measurements for true process distribution
+        if (p.measurements && p.measurements.length > 0) {
+          return p.measurements.map((m) => ({ value: m, sample_id: p.sample_id }))
+        }
+        // Fallback for data without measurements field
+        return [{ value: p.mean, sample_id: p.sample_id }]
+      })
 
     const vals = dp.map((p) => p.value)
     const s = calculateStatistics(vals)
@@ -561,6 +569,7 @@ export function DistributionHistogram({
     values,
     stats,
     isModeA,
+    isZScale,
     yAxisDomain,
     isVertical,
     colors,
