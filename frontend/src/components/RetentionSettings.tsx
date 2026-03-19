@@ -46,14 +46,14 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'activity', label: 'Activity' },
 ]
 
-function getPolicyIcon(retentionType: string | undefined) {
+function PolicyIcon({ retentionType, className }: { retentionType: string | undefined; className?: string }) {
   switch (retentionType) {
     case 'sample_count':
-      return Hash
+      return <Hash className={className} />
     case 'time_delta':
-      return Calendar
+      return <Calendar className={className} />
     default:
-      return InfinityIcon
+      return <InfinityIcon className={className} />
   }
 }
 
@@ -79,8 +79,6 @@ export function RetentionSettings() {
   const effectiveType = globalDefault?.retention_type ?? 'forever'
   const effectiveValue = globalDefault?.retention_value ?? null
   const effectiveUnit = globalDefault?.retention_unit ?? null
-  const PolicyIcon = getPolicyIcon(effectiveType)
-
   // Override summary
   const hierarchyOverrides = overrides.filter((o) => o.scope === 'hierarchy')
   const charOverrides = overrides.filter((o) => o.scope === 'characteristic')
@@ -180,7 +178,7 @@ export function RetentionSettings() {
                     <p className="text-muted-foreground mb-3 text-sm">Current policy:</p>
                     <div className="bg-card border-border mb-4 rounded-lg border p-4">
                       <div className="mb-1 flex items-center gap-2">
-                        <PolicyIcon className="text-muted-foreground h-4 w-4" />
+                        <PolicyIcon retentionType={effectiveType} className="text-muted-foreground h-4 w-4" />
                         <span className="text-sm font-medium">
                           {formatRetentionPolicy(effectiveType, effectiveValue, effectiveUnit)}
                         </span>
@@ -424,15 +422,6 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
 
   const isAdmin = user?.plant_roles?.some((pr) => pr.plant_id === plantId && pr.role === 'admin')
 
-  const handleTrigger = useCallback(() => {
-    if (signatureRequired) {
-      setShowConfirm(false)
-      setShowSignatureDialog(true)
-      return
-    }
-    executePurge()
-  }, [plantId, signatureRequired]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const executePurge = useCallback(() => {
     triggerMutation.mutate(plantId, {
       onSuccess: (result) => {
@@ -446,6 +435,15 @@ function PurgeActivityPanel({ plantId }: { plantId: number }) {
       onError: () => setShowConfirm(false),
     })
   }, [plantId, triggerMutation])
+
+  const handleTrigger = useCallback(() => {
+    if (signatureRequired) {
+      setShowConfirm(false)
+      setShowSignatureDialog(true)
+      return
+    }
+    executePurge()
+  }, [signatureRequired, executePurge])
 
   const handleSignatureComplete = useCallback(() => {
     setShowSignatureDialog(false)

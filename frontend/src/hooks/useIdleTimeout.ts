@@ -24,6 +24,7 @@ export function useIdleTimeout() {
   const [timeoutMs, setTimeoutMs] = useState<number | null>(null)
   const [showWarning, setShowWarning] = useState(false)
   const [remainingSeconds, setRemainingSeconds] = useState(0)
+  // eslint-disable-next-line react-hooks/purity -- Date.now() in useRef initializer is safe; only evaluated once
   const lastActivityRef = useRef(Date.now())
   const lastWriteRef = useRef(0)
 

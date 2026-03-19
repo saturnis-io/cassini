@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ArrowLeft, Infinity as InfinityIcon, Hash, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHierarchyPath } from '@/api/hooks'
@@ -17,14 +17,14 @@ interface RetentionOverridePanelProps {
   isSaving: boolean
 }
 
-function getPolicyIcon(retentionType: string) {
+function PolicyIcon({ retentionType, className }: { retentionType: string; className?: string }) {
   switch (retentionType) {
     case 'sample_count':
-      return Hash
+      return <Hash className={className} />
     case 'time_delta':
-      return Calendar
+      return <Calendar className={className} />
     default:
-      return InfinityIcon
+      return <InfinityIcon className={className} />
   }
 }
 
@@ -134,10 +134,10 @@ export function RetentionOverridePanel({
 
   // Reset editing state when node changes
   const nodeKey = selectedNode ? `${selectedNode.type}-${selectedNode.id}` : ''
-  useState(() => {
+  useEffect(() => {
     setIsEditing(false)
     setShowClearConfirm(false)
-  })
+  }, [nodeKey])
 
   if (!selectedNode) {
     return (
@@ -155,8 +155,6 @@ export function RetentionOverridePanel({
     selectedNode.type === 'characteristic'
       ? `${breadcrumb} > ${selectedNode.name}`
       : breadcrumb || selectedNode.name
-
-  const PolicyIcon = getPolicyIcon(effectiveType)
 
   const handleSaveOverride = (policy: RetentionPolicySet) => {
     onSetOverride(selectedNode, policy)
@@ -186,7 +184,7 @@ export function RetentionOverridePanel({
           </h4>
           <div className="bg-muted border-border rounded-lg border p-4">
             <div className="mb-1 flex items-center gap-2">
-              <PolicyIcon className="text-muted-foreground h-4 w-4" />
+              <PolicyIcon retentionType={effectiveType} className="text-muted-foreground h-4 w-4" />
               <span className="text-sm font-medium">
                 {formatRetentionPolicy(effectiveType, effectiveValue, effectiveUnit)}
               </span>

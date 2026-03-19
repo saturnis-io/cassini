@@ -368,11 +368,6 @@ function SelectorNode({
   const isExpanded = expandedNodes.has(node.id)
   const hasChildren = node.children && node.children.length > 0
 
-  // During search, hide nodes that aren't in the visible set
-  if (isSearching && !searchResults.visibleNodeIds.has(node.id)) {
-    return null
-  }
-
   // Load characteristics when expanded (only in non-search mode)
   const shouldLoadChars = !isSearching && isExpanded
   const { data: characteristics, isLoading: isLoadingChars } = useHierarchyCharacteristics(
@@ -380,9 +375,10 @@ function SelectorNode({
   )
 
   // In search mode, use pre-filtered characteristics from search results
-  const displayChars = isSearching
-    ? searchResults.charsByNode.get(node.id) ?? []
-    : characteristics ?? []
+  const displayChars = useMemo(
+    () => isSearching ? searchResults?.charsByNode.get(node.id) ?? [] : characteristics ?? [],
+    [isSearching, searchResults?.charsByNode, node.id, characteristics],
+  )
 
   const canExpand = hasChildren || (node.characteristic_count ?? 0) > 0
 
@@ -408,7 +404,12 @@ function SelectorNode({
     }
   }
 
-  const nodeNameMatches = isSearching && searchResults.matchingNodeIds.has(node.id)
+  const nodeNameMatches = isSearching && searchResults?.matchingNodeIds.has(node.id)
+
+  // During search, hide nodes that aren't in the visible set
+  if (isSearching && !searchResults?.visibleNodeIds.has(node.id)) {
+    return null
+  }
 
   return (
     <div>

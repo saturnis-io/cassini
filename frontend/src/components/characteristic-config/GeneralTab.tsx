@@ -292,14 +292,14 @@ function DataSourceSummary({ dataSource }: { dataSource: DataSourceResponse | nu
 type RetentionMode = 'inherit' | 'forever' | 'sample_count' | 'time_delta'
 type TimeUnit = 'days' | 'months' | 'years'
 
-function policyIcon(type: string) {
-  switch (type) {
+function RetentionIcon({ retentionType, className }: { retentionType: string; className?: string }) {
+  switch (retentionType) {
     case 'sample_count':
-      return Hash
+      return <Hash className={className} />
     case 'time_delta':
-      return Calendar
+      return <Calendar className={className} />
     default:
-      return InfinityIcon
+      return <InfinityIcon className={className} />
   }
 }
 
@@ -434,15 +434,13 @@ function RetentionPolicySelector({ characteristicId }: { characteristicId: numbe
     )
   }
 
-  const Icon = effective ? policyIcon(effective.retention_type) : InfinityIcon
-
   return (
     <div className="space-y-4">
       {/* Current effective policy display */}
       {effective && (
         <div className="border-border bg-muted/30 rounded-lg border p-3">
           <div className="mb-1 flex items-center gap-2">
-            <Icon className="text-muted-foreground h-4 w-4" />
+            <RetentionIcon retentionType={effective.retention_type} className="text-muted-foreground h-4 w-4" />
             <span className="text-sm font-medium">
               {formatRetentionPolicy(
                 effective.retention_type,

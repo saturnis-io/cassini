@@ -734,6 +734,8 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
     }
   }, [result, displayFit, isDark])
 
+  const { containerRef } = useECharts({ option, notMerge: true })
+
   // No Q-Q data available — show guidance
   const qqSource = displayFit?.qq_points ?? result.qq_points
   if (!qqSource) {
@@ -744,7 +746,6 @@ function QQPlot({ result, bestFit, selectedFamily, fits }: QQPlotProps) {
     )
   }
 
-  const { containerRef } = useECharts({ option, notMerge: true })
   return <div ref={containerRef} className="w-full" style={{ height: 300, visibility: option ? 'visible' : 'hidden' }} />
 }
 

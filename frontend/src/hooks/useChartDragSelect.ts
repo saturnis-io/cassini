@@ -41,10 +41,13 @@ export function useChartDragSelect(
 
   // Keep mutable refs so the window event listeners always see latest values
   const dataRef = useRef(data)
+  // eslint-disable-next-line react-hooks/refs -- intentional: sync ref for use in window event listeners
   dataRef.current = data
   const isTimestampRef = useRef(isTimestamp)
+  // eslint-disable-next-line react-hooks/refs -- intentional: sync ref for use in window event listeners
   isTimestampRef.current = isTimestamp
   const onSelectRef = useRef(onSelect)
+  // eslint-disable-next-line react-hooks/refs -- intentional: sync ref for use in window event listeners
   onSelectRef.current = onSelect
 
   useEffect(() => {

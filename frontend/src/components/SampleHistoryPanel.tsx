@@ -74,14 +74,14 @@ export function SampleHistoryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
   const { data: selectedChar } = useCharacteristic(globalCharId ?? 0)
 
-  // Reset page when characteristic changes to avoid stale pagination
-  useEffect(() => { setPage(1) }, [globalCharId])
-
   const [timeRange, setTimeRange] = useState<TimeRangeState>(defaultTimeRange)
   const [includeExcluded, setIncludeExcluded] = useState(false)
   const [page, setPage] = useState(1)
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const perPage = SAMPLES_PER_PAGE
+
+  // Reset page when characteristic changes to avoid stale pagination
+  useEffect(() => { setPage(1) }, [globalCharId])
 
   // Sort state
   type SortField = 'timestamp' | 'mean'

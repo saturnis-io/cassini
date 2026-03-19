@@ -172,6 +172,19 @@ function ClassNode({
   const [showMenu, setShowMenu] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Close menu when clicking outside (must be before early return — Rules of Hooks)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMenu])
+
   // Filter: hide if search is active and no match
   if (search && !treeMatches(node, search)) return null
 
@@ -229,19 +242,6 @@ function ClassNode({
     e.stopPropagation()
     setConfirmDelete(false)
   }
-
-  // Close menu when clicking outside
-  const menuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!showMenu) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showMenu])
 
   return (
     <div>

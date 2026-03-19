@@ -1,7 +1,33 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Copy, Check, ExternalLink } from 'lucide-react'
 import type { ERPConnector } from '@/api/erp.api'
 import { API_BASE } from '@/api/client'
+
+function CopyButton({
+  text,
+  field,
+  copiedField,
+  onCopy,
+}: {
+  text: string
+  field: string
+  copiedField: string | null
+  onCopy: (text: string, field: string) => void
+}) {
+  return (
+    <button
+      onClick={() => onCopy(text, field)}
+      className="text-muted-foreground hover:text-foreground shrink-0"
+      title="Copy to clipboard"
+    >
+      {copiedField === field ? (
+        <Check className="h-3 w-3 text-green-500" />
+      ) : (
+        <Copy className="h-3 w-3" />
+      )}
+    </button>
+  )
+}
 
 /**
  * WebhookConfig - Display webhook URL and HMAC info for webhook-type connectors.
@@ -17,26 +43,12 @@ export function WebhookConfig({ connector }: { connector: ERPConnector }) {
   -H "X-Webhook-Signature: sha256=<hmac_hex>" \\
   -d '{"event": "inspection_result", "data": {...}}'`
 
-  const copyToClipboard = (text: string, field: string) => {
+  const copyToClipboard = useCallback((text: string, field: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedField(field)
       setTimeout(() => setCopiedField(null), 2000)
     })
-  }
-
-  const CopyButton = ({ text, field }: { text: string; field: string }) => (
-    <button
-      onClick={() => copyToClipboard(text, field)}
-      className="text-muted-foreground hover:text-foreground shrink-0"
-      title="Copy to clipboard"
-    >
-      {copiedField === field ? (
-        <Check className="h-3 w-3 text-green-500" />
-      ) : (
-        <Copy className="h-3 w-3" />
-      )}
-    </button>
-  )
+  }, [])
 
   return (
     <div className="space-y-3">
@@ -56,7 +68,7 @@ export function WebhookConfig({ connector }: { connector: ERPConnector }) {
           <code className="bg-muted flex-1 truncate rounded px-2 py-1.5 font-mono text-xs">
             {webhookUrl}
           </code>
-          <CopyButton text={webhookUrl} field="url" />
+          <CopyButton text={webhookUrl} field="url" copiedField={copiedField} onCopy={copyToClipboard} />
         </div>
       </div>
 
@@ -101,7 +113,7 @@ export function WebhookConfig({ connector }: { connector: ERPConnector }) {
           <label className="text-muted-foreground text-[10px] font-medium uppercase">
             Example Request
           </label>
-          <CopyButton text={curlExample} field="curl" />
+          <CopyButton text={curlExample} field="curl" copiedField={copiedField} onCopy={copyToClipboard} />
         </div>
         <pre className="bg-muted mt-1 max-h-32 overflow-auto rounded p-2 font-mono text-[10px] leading-relaxed">
           {curlExample}

@@ -363,7 +363,7 @@ export function ControlChart({
     })
 
     const hasAnnotationMarkers = annotationMarkerData.length > 0
-    // Store annotation IDs for click handler lookup (ref mutation is safe here — side-effect of render)
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: passes data from useMemo to event handlers
     annotationMarkerIdsRef.current = annotationMarkerData.map((entry) => entry[1])
 
     // --- Build markLine for control limits, spec limits, and highlight indicator ---
@@ -398,7 +398,9 @@ export function ControlChart({
     // 0 = main line, 1..N = control limits, N+1 = data points, N+2 = annotation markers
     const dataPointSeriesIndex = 1 + controlLimitSeries.length
     const annotationSeriesIndex = 1 + controlLimitSeries.length + 1
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: passes computed series indices to event handlers
     dataPointSeriesIndexRef.current = dataPointSeriesIndex
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: passes computed series indices to event handlers
     annotationSeriesIndexRef.current = annotationSeriesIndex
 
     // --- Custom series renderItem for data point symbols ---
@@ -440,6 +442,7 @@ export function ControlChart({
 
     const hasAnomalyLabels = (anomalyOverlay?.markLines?.length ?? 0) > 0
     const gridTop = hasAnomalyLabels ? 48 : hasAnnotationMarkers ? 32 : 20
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: caches gridTop for convertToPixel fallback
     gridTopRef.current = gridTop
 
     // --- Forecast overlay series ---
@@ -456,7 +459,9 @@ export function ControlChart({
       : []
 
     // Store for convertToPixel grid alignment
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: caches Y domain for convertToPixel in effect
     yMinRef.current = yMin
+    // eslint-disable-next-line react-hooks/refs -- intentional ref mutation: caches Y domain for convertToPixel in effect
     yMaxRef.current = yMax
 
     const option = {
@@ -618,6 +623,7 @@ export function ControlChart({
     isDark,
     axisFormats,
     sampleAnomalyMap,
+    dataTimeRangeMs,
   ])
 
   // Stable ref for the ECharts instance — assigned after useECharts, read at event-time
@@ -626,6 +632,7 @@ export function ControlChart({
   // Mouse + zoom event handlers (extracted to controlChartHandlers.ts)
   const { handleMouseMove, handleMouseOut, handleClick, handleDataZoom } = useMemo(
     () =>
+      // eslint-disable-next-line react-hooks/refs -- refs are passed as objects for deferred access in event handlers, not read during render
       buildChartEventHandlers({
         dataRef,
         dataPointSeriesIndexRef,
