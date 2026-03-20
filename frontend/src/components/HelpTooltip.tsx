@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -82,7 +82,7 @@ export function HelpTooltip({
   const content = getHelpContent(helpKey)
 
   // Calculate tooltip position based on trigger element and placement
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return
 
     const triggerRect = triggerRef.current.getBoundingClientRect()
@@ -131,7 +131,7 @@ export function HelpTooltip({
     }
 
     setPosition({ top, left })
-  }
+  }, [placement])
 
   // Update position when tooltip becomes visible
   useEffect(() => {
@@ -139,7 +139,7 @@ export function HelpTooltip({
       // Small delay to ensure tooltip is rendered before measuring
       requestAnimationFrame(updatePosition)
     }
-  }, [isVisible, placement])
+  }, [isVisible, updatePosition])
 
   // Cleanup timeouts on unmount
   useEffect(() => {

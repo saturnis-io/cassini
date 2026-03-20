@@ -81,7 +81,7 @@ export function AIInsightsTab() {
     queryFn: () => characteristicApi.list({ per_page: 5000, plant_id: plantId }),
     enabled: plantId > 0,
   })
-  const allChars = allCharData?.items ?? []
+  const allChars = useMemo(() => allCharData?.items ?? [], [allCharData?.items])
 
   // ── Derived ──
 

@@ -144,7 +144,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setMustChangePassword(false)
       setOidcProviderId(null)
     }
-  }, [oidcProviderId])
+  }, [oidcProviderId, setOidcProviderId])
 
   const clearMustChangePassword = useCallback(() => setMustChangePassword(false), [])
 

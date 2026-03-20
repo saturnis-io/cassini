@@ -614,7 +614,6 @@ function DisplayRow({
 
 /** Inline edit row for a material override */
 function EditRow({
-  override: _override,
   isClass,
   name,
   path,

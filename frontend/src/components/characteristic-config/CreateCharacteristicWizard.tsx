@@ -12,7 +12,6 @@ import {
 import {
   type DataType,
   type VariableChartType,
-  type AttributeChartType,
   type CountingWhat,
   deriveChartType,
   StepIndicator,

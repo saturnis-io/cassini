@@ -551,6 +551,10 @@ export function GalaxyScene({
     })
     resizeObserver.observe(container)
 
+    // Capture ref values for cleanup (refs may change by the time cleanup runs)
+    const galaxyInfoCards = galaxyInfoCardsRef.current
+    const constellationCards = constellationCardsRef.current
+
     // Cleanup
     return () => {
       resizeObserver.disconnect()
@@ -581,8 +585,8 @@ export function GalaxyScene({
 
       // Dispose active labels and info cards
       dismissLabels()
-      disposeCardMap(galaxyInfoCardsRef.current)
-      disposeCardMap(constellationCardsRef.current)
+      disposeCardMap(galaxyInfoCards)
+      disposeCardMap(constellationCards)
       moonLinesRef.current = disposeMoonLinesFromSystem(moonLinesRef.current, focusedSystemRef.current)
       sigmaBandsRef.current = disposeSigmaBandsFromSystem(sigmaBandsRef.current, focusedSystemRef.current)
       violationSparksRef.current = disposeViolationSparksFromSystem(violationSparksRef.current, focusedSystemRef.current)

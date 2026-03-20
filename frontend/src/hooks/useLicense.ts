@@ -15,17 +15,18 @@ const COMMUNITY_DEFAULTS = {
 
 export function useLicense() {
   const store = useLicenseStore()
+  const { loaded, setFromApi } = store
 
   useEffect(() => {
-    if (!store.loaded) {
+    if (!loaded) {
       getLicenseStatus()
-        .then((status) => store.setFromApi(status))
+        .then((status) => setFromApi(status))
         .catch(() => {
           // On error, finalize as community so the app doesn't hang in limbo
-          store.setFromApi(COMMUNITY_DEFAULTS)
+          setFromApi(COMMUNITY_DEFAULTS)
         })
     }
-  }, [store.loaded])
+  }, [loaded, setFromApi])
 
   return {
     isCommercial: store.edition === 'commercial',

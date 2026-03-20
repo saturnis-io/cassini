@@ -39,7 +39,7 @@ export function useSampleLabel(characteristicId: number | null) {
     // queryClient is stable; re-derive when characteristicId changes.
     // Cache data updates trigger re-renders via useQuery consumers, which
     // causes this memo to re-run via the new render cycle.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [characteristicId, queryClient])
 
   return useCallback(

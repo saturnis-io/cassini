@@ -389,9 +389,10 @@ function TodoTreeNode({
   const hasChildren = node.children && node.children.length > 0
 
   // Use pre-built map from bulk fetch instead of per-node API call
-  const characteristics = isExpanded
-    ? characteristicsByHierarchy.get(node.id) ?? []
-    : []
+  const characteristics = useMemo(
+    () => isExpanded ? characteristicsByHierarchy.get(node.id) ?? [] : [],
+    [isExpanded, characteristicsByHierarchy, node.id],
+  )
   const isLoadingChars = false
 
   // Calculate status counts for this folder

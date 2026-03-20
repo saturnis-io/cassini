@@ -125,7 +125,7 @@ export function ReportsView() {
   }, [selectedTemplate?.id, plantId])
 
   // Initialize from URL params (from SelectionToolbar navigation) - intentional sync
-   
+
   useEffect(() => {
     const characteristicsParam = searchParams.get('characteristics')
     if (characteristicsParam) {
@@ -141,6 +141,7 @@ export function ReportsView() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only run on URL param changes; including availableTemplates/selectedTemplate would re-trigger on every template selection
   }, [searchParams, setSelectedCharId])
 
   // Build chart options from time range - memoize to avoid query key changes on every render

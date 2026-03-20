@@ -305,7 +305,7 @@ export function RangeChart({
     const localHoveredSampleIds = hoveredSampleIds
     const localHighlightedIndex = highlightedIndex
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localData.length) return { type: 'group', children: [] }

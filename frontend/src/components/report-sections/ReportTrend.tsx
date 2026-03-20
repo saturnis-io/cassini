@@ -142,7 +142,7 @@ export function ReportTrendSection({ chartData }: ReportTrendSectionProps) {
         },
       ],
     }
-  }, [trendPoints, chartData, isDark])
+  }, [trendPoints, chartData, isDark, dateFormat, datetimeFormat])
 
   const { containerRef, dataURL, lightDataURL } = useStaticChart({ option, notMerge: true })
 

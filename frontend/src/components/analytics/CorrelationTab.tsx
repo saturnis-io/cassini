@@ -84,7 +84,7 @@ export function CorrelationTab() {
 		queryFn: () => characteristicApi.list({ per_page: 500, plant_id: plantId }),
 		enabled: plantId > 0,
 	})
-	const characteristics = charData?.items ?? []
+	const characteristics = useMemo(() => charData?.items ?? [], [charData?.items])
 
 	// Mutations
 	const matrixMutation = useComputeCorrelationMatrix()

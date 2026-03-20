@@ -54,7 +54,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
   const isDark = resolvedTheme === 'dark'
 
   const attrType = chartData?.attribute_chart_type ?? ''
-  const attrPoints = chartData?.attribute_data_points ?? []
+  const attrPoints = useMemo(() => chartData?.attribute_data_points ?? [], [chartData?.attribute_data_points])
   const hasVariableLimits = attrType === 'p' || attrType === 'u'
 
   // Collect all violated rules for the legend
@@ -115,7 +115,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     const localHighlightSampleId = highlightSampleId
     const localAttrType = attrType
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localPoints.length)
@@ -459,7 +459,7 @@ export function AttributeChart({ characteristicId, chartOptions, onPointAnnotati
     }
 
     return option
-  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors, highlightSampleId, isDark])
+  }, [chartData, attrPoints, attrType, hasVariableLimits, chartColors, highlightSampleId, isDark, datetimeFormat])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

@@ -33,7 +33,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
   const chartColors = useChartColors()
   const { datetimeFormat } = useDateFormat()
 
-  const ewmaPoints = chartData?.ewma_data_points ?? []
+  const ewmaPoints = useMemo(() => chartData?.ewma_data_points ?? [], [chartData?.ewma_data_points])
   const controlLimits = chartData?.control_limits
 
   // Collect all violated rules for the legend
@@ -80,7 +80,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
     const localColors = chartColors
     const localHighlightSampleId = highlightSampleId
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localPoints.length)
@@ -364,7 +364,7 @@ export function EWMAChart({ characteristicId, chartOptions, onPointAnnotation, h
     }
 
     return option
-  }, [chartData, ewmaPoints, controlLimits, chartColors, highlightSampleId])
+  }, [chartData, ewmaPoints, controlLimits, chartColors, highlightSampleId, datetimeFormat])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

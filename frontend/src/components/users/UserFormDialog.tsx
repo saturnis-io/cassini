@@ -80,7 +80,7 @@ export function UserFormDialog({
       }
       clearErrors()
     }
-  }, [open, mode, user])
+  }, [open, mode, user, clearErrors])
 
   function buildSubmitData() {
     const data: {

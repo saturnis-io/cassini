@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react'
 import { useNelsonRules, useUpdateNelsonRules, useRulePresets, useApplyPreset } from '@/api/hooks'
 import { Accordion, AccordionSection } from './Accordion'
 import { NELSON_SPARKLINES } from './NelsonSparklines'
@@ -359,14 +359,14 @@ export const RulesTab = forwardRef<RulesTabRef, RulesTabProps>(function RulesTab
     onDirty?.()
   }
 
-  const save = async () => {
+  const save = useCallback(async () => {
     if (!isDirty) return
     const configs = Array.from(ruleConfigs.values())
     await updateRules.mutateAsync({ id: characteristicId, ruleConfigs: configs })
     setIsDirty(false)
-  }
+  }, [isDirty, ruleConfigs, characteristicId, updateRules])
 
-  useImperativeHandle(ref, () => ({ save, isDirty }), [isDirty, ruleConfigs, characteristicId])
+  useImperativeHandle(ref, () => ({ save, isDirty }), [save, isDirty])
 
   if (isLoading) {
     return (

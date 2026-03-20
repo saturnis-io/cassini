@@ -453,7 +453,6 @@ export function LicenseSettings() {
 function EditionBadge({
   isProOrAbove,
   tier,
-  isExpired: _isExpired,
   wasCommercial,
 }: {
   isProOrAbove: boolean

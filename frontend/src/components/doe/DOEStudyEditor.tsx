@@ -625,8 +625,9 @@ function DefineOverview({ study }: { study: NonNullable<ReturnType<typeof useDOE
 
 // ── Taguchi ANOM Results Panel ──
 
+const TAGUCHI_LEVEL_ORDER = ['-1', '0', '+1']
+
 function TaguchiANOMPanel({ anom }: { anom: TaguchiANOM }) {
-  const levelOrder = ['-1', '0', '+1']
 
   // Collect all levels that appear in the response table
   const allLevels = useMemo(() => {
@@ -636,7 +637,7 @@ function TaguchiANOMPanel({ anom }: { anom: TaguchiANOM }) {
         levels.add(key)
       }
     }
-    return levelOrder.filter((l) => levels.has(l))
+    return TAGUCHI_LEVEL_ORDER.filter((l) => levels.has(l))
   }, [anom.response_table])
 
   return (

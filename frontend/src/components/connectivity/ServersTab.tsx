@@ -56,10 +56,10 @@ export function ServersTab() {
     refetchInterval: 5000,
   })
 
-  const brokers = brokersResponse?.items ?? []
-  const opcuaServers = opcuaServersData?.items ?? []
-  const mqttStates = mqttStatus?.states ?? []
-  const opcuaStates = opcuaStatusData?.states ?? []
+  const brokers = useMemo(() => brokersResponse?.items ?? [], [brokersResponse?.items])
+  const opcuaServers = useMemo(() => opcuaServersData?.items ?? [], [opcuaServersData?.items])
+  const mqttStates = useMemo(() => mqttStatus?.states ?? [], [mqttStatus?.states])
+  const opcuaStates = useMemo(() => opcuaStatusData?.states ?? [], [opcuaStatusData?.states])
 
   // Build unified server list
   type UnifiedServer = {

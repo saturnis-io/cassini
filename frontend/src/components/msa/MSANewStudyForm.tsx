@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -67,7 +67,7 @@ export function MSANewStudyForm() {
   const { data: charData } = useCharacteristics(
     plantId > 0 ? { plant_id: plantId, per_page: 500 } : undefined,
   )
-  const characteristics = charData?.items ?? []
+  const characteristics = useMemo(() => charData?.items ?? [], [charData?.items])
 
   const createStudy = useCreateMSAStudy()
   const setOperatorsMut = useSetMSAOperators()

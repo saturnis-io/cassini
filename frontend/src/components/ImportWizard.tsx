@@ -100,7 +100,7 @@ export function ImportWizard({ onClose }: ImportWizardProps) {
   const { data: charData } = useCharacteristics(
     selectedPlant ? { plant_id: selectedPlant.id, per_page: 500 } : undefined,
   )
-  const characteristics = charData?.items ?? []
+  const characteristics = useMemo(() => charData?.items ?? [], [charData?.items])
 
   const selectedChar = useMemo<Characteristic | undefined>(
     () => characteristics.find((c) => c.id === selectedCharId),

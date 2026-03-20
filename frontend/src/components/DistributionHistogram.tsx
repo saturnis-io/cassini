@@ -135,7 +135,7 @@ export function DistributionHistogram({
     b = addNormalCurve(b, s.mean, s.stdDev, vals.length, bw)
 
     return { values: vals, stats: s, bins: b }
-  }, [chartData, isModeA, rangeWindow, showBrush])
+  }, [chartData, isModeA, isZScale, rangeWindow, showBrush])
 
   // Memoize highlighted bin index
   const highlightedBinIndex = useMemo(() => {

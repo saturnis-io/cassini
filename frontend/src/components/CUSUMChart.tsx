@@ -61,7 +61,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
     }
   }
 
-  const cusumPoints = chartData?.cusum_data_points ?? []
+  const cusumPoints = useMemo(() => chartData?.cusum_data_points ?? [], [chartData?.cusum_data_points])
   const h = chartData?.control_limits?.ucl ?? chartData?.cusum_h ?? 5
   // Collect all violated rules for the legend
   const allViolatedRules = useMemo(() => {
@@ -106,7 +106,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
     const localColors = chartColors
     const localHighlightSampleId = highlightSampleId
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const customRenderItem = (_params: RenderItemParams, api: RenderItemAPI) => {
       const arrIndex = api.value(2) as number
       if (arrIndex < 0 || arrIndex >= localPoints.length)
@@ -414,7 +414,7 @@ export function CUSUMChart({ characteristicId, chartOptions, onPointAnnotation, 
     }
 
     return option
-  }, [chartData, cusumPoints, h, chartColors, highlightSampleId])
+  }, [chartData, cusumPoints, h, chartColors, highlightSampleId, datetimeFormat])
 
   const handleClick = useCallback(
     (params: EChartsMouseEvent) => {

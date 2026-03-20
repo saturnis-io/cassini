@@ -62,7 +62,7 @@ export function CharacteristicPicker({
     queryFn: () =>
       characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
   })
-  const allCharacteristics = charData?.items ?? []
+  const allCharacteristics = useMemo(() => charData?.items ?? [], [charData?.items])
 
   // Build hierarchy path lookup for search results
   const charPathMap = useMemo(() => {

@@ -39,7 +39,7 @@ export function MappingTab() {
       characteristicApi.list({ per_page: 1000, plant_id: selectedPlantId ?? undefined }),
   })
 
-  const characteristics = charData?.items ?? []
+  const characteristics = useMemo(() => charData?.items ?? [], [charData?.items])
 
   // Fetch hierarchy tree for building paths
   const { data: hierarchyTree } = useHierarchyTree()
