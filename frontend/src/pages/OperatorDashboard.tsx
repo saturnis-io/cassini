@@ -22,6 +22,7 @@ import { BulkAcknowledgeDialog } from '@/components/BulkAcknowledgeDialog'
 import { CapabilityCard } from '@/components/capability/CapabilityCard'
 import { RegionActionModal, type RegionSelection } from '@/components/RegionActionModal'
 import { exportApi } from '@/api/export.api'
+import { downloadChartAsPng } from '@/lib/export-utils'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { useAuth } from '@/providers/AuthProvider'
@@ -309,6 +310,8 @@ export function OperatorDashboard() {
     [selectedId, queryClient],
   )
 
+  const chartAreaRef = useRef<HTMLDivElement>(null)
+
   const handleExportExcel = async () => {
     if (!selectedCharacteristic) return
     try {
@@ -322,6 +325,37 @@ export function OperatorDashboard() {
       toast.error('Failed to export Excel file')
     }
   }
+
+  const handleExportChartPng = useCallback(() => {
+    if (!chartAreaRef.current) {
+      toast.error('No chart found to export')
+      return
+    }
+    const canvases = Array.from(chartAreaRef.current.querySelectorAll('canvas'))
+    const chartCanvas = canvases.sort((a, b) => b.width * b.height - a.width * a.height)[0]
+    if (!chartCanvas) {
+      toast.error('No chart found to export')
+      return
+    }
+    // Composite onto a background-filled canvas to avoid transparent PNG
+    const out = document.createElement('canvas')
+    out.width = chartCanvas.width
+    out.height = chartCanvas.height
+    const ctx = out.getContext('2d')
+    if (!ctx) {
+      toast.error('Failed to export chart')
+      return
+    }
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--color-card').trim() || '#ffffff'
+    ctx.fillStyle = bgColor
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(chartCanvas, 0, 0)
+    const dataURL = out.toDataURL('image/png')
+    const safeName = (selectedCharacteristic?.name ?? 'chart').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    downloadChartAsPng(dataURL, `${safeName}-${timestamp}`)
+    toast.success('Chart image saved')
+  }, [selectedCharacteristic])
 
   // Compute quick stats for the selected characteristic
   const quickStats = useMemo(() => {
@@ -509,6 +543,7 @@ export function OperatorDashboard() {
                 onAttributeChartTypeChange={handleAttributeChartTypeChange}
                 onChangeSecondary={() => setShowComparisonSelector(true)}
                 onExportExcel={selectedCharacteristic ? handleExportExcel : undefined}
+                onExportChartPng={selectedCharacteristic ? handleExportChartPng : undefined}
               />
 
               {/* ── Range Slider ── */}
@@ -521,7 +556,7 @@ export function OperatorDashboard() {
               )}
 
               {/* ── Primary Chart ── */}
-              <div data-ui="dashboard-chart" className="min-h-0 flex-1">
+              <div ref={chartAreaRef} data-ui="dashboard-chart" className="min-h-0 flex-1">
                 {isBoxWhisker ? (
                   histogramPosition === 'right' ? (
                     <div className="flex h-full gap-2">

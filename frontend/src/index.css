@@ -320,6 +320,41 @@ button.bg-primary:disabled {
   filter: drop-shadow(0 0 4px hsl(357 80% 52% / 0.6));
 }
 
+/* Violation escalation badge animations */
+@keyframes badge-pulse-gentle {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(357 80% 52% / 0);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 3px hsl(357 80% 52% / 0.25);
+  }
+}
+
+@keyframes badge-pulse-critical {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(357 80% 52% / 0);
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 5px hsl(357 80% 52% / 0.35);
+    transform: scale(1.1);
+  }
+}
+
+.escalation-warning {
+  animation: badge-pulse-gentle 2s ease-in-out infinite;
+}
+
+.escalation-critical {
+  animation: badge-pulse-critical 1.2s ease-in-out infinite;
+}
+
 /* Chart entry animation for new points */
 @keyframes point-enter {
   0% {

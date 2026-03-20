@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import {
   Columns2,
   Download,
+  ImageDown,
   Eye,
   EyeOff,
   ArrowLeftRight,
@@ -48,6 +49,7 @@ interface ChartToolbarProps {
   onComparisonToggle?: () => void
   onChangeSecondary?: () => void
   onExportExcel?: () => void
+  onExportChartPng?: () => void
 }
 
 /**
@@ -246,6 +248,7 @@ export function ChartToolbar({
   onComparisonToggle,
   onChangeSecondary,
   onExportExcel,
+  onExportChartPng,
 }: ChartToolbarProps) {
   const { isEnterprise } = useLicense()
   const {
@@ -471,17 +474,23 @@ export function ChartToolbar({
           </ToolbarBtn>
         )}
 
-        {onExportExcel && (
+        {(onExportExcel || onExportChartPng) && (
           <>
-            <ToolbarBtn onClick={onExportExcel} title="Export data to Excel">
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Export</span>
-            </ToolbarBtn>
+            {onExportExcel && (
+              <ToolbarBtn onClick={onExportExcel} title="Export data to Excel">
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
+              </ToolbarBtn>
+            )}
+            {onExportChartPng && (
+              <ToolbarBtn onClick={onExportChartPng} title="Save chart as PNG">
+                <ImageDown className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">PNG</span>
+              </ToolbarBtn>
+            )}
             <div className="bg-border/40 mx-0.5 h-4 w-px" />
           </>
         )}
-
-        <div className="bg-border/40 mx-0.5 h-4 w-px" />
 
         <ToolbarBtn
           active={comparisonMode}

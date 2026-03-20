@@ -14,6 +14,9 @@ import { useState, useMemo, useRef, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { StatNote } from '@/components/StatNote'
 import { usePlantContext } from '@/providers/PlantProvider'
+import { useChartData } from '@/api/hooks'
+import { getChartMeasurements } from '@/lib/report-utils'
+import { CapabilityQQPlot } from './CapabilityQQPlot'
 
 const DistributionAnalysis = lazy(() =>
   import('./DistributionAnalysis').then((m) => ({ default: m.DistributionAnalysis })),
@@ -247,6 +250,11 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
   const { data: nnCapability } = useNonNormalCapability(characteristicId, storedMethod)
   const saveSnapshot = useSaveCapabilitySnapshot()
   const [showDistAnalysis, setShowDistAnalysis] = useState(false)
+  const { data: chartData } = useChartData(characteristicId)
+  const qqMeasurements = useMemo(() => {
+    if (!chartData) return []
+    return getChartMeasurements(chartData)
+  }, [chartData])
 
   const { isProOrAbove } = useLicense()
 
@@ -318,6 +326,31 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
           )}
         </div>
       </div>
+
+      {/* Stability Warning Banner (C4) */}
+      {capability.stability_warning != null && (
+        <div
+          className={cn(
+            'border-b px-4 py-2',
+            capability.recent_violation_count >= 4
+              ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+          )}
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-xs">{capability.stability_warning}</span>
+            <span
+              className={cn(
+                'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                capability.recent_violation_count >= 4 ? 'bg-red-500/20' : 'bg-amber-500/20',
+              )}
+            >
+              {capability.recent_violation_count} violation{capability.recent_violation_count !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Index Cards — only show indices that have values */}
       <div className="space-y-3 px-4 py-3">
@@ -478,6 +511,28 @@ export function CapabilityCard({ characteristicId }: CapabilityCardProps) {
             <CpkTrendChart history={history} />
           </div>
         )}
+
+        {/* Expected PPM (ISO 3534) — I9 */}
+        {(capability.ppm_within_expected != null || capability.ppm_overall_expected != null) && (
+          <div className="bg-muted/30 rounded-lg p-3">
+            <div className="text-muted-foreground mb-1 text-xs font-medium">Expected PPM (ISO 3534)</div>
+            <div className="text-muted-foreground flex flex-wrap gap-4 text-sm">
+              {capability.ppm_within_expected != null && (
+                <Explainable metric="cpk" resourceId={characteristicId}>
+                  <span>Within: {capability.ppm_within_expected.toFixed(1)} PPM</span>
+                </Explainable>
+              )}
+              {capability.ppm_overall_expected != null && (
+                <Explainable metric="ppk" resourceId={characteristicId}>
+                  <span>Overall: {capability.ppm_overall_expected.toFixed(1)} PPM</span>
+                </Explainable>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Normal Probability Plot — C5 */}
+        <CapabilityQQPlot measurements={qqMeasurements} />
       </div>
 
       {/* Distribution Analysis Modal */}

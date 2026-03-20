@@ -12,6 +12,8 @@ import {
   Sigma,
   Bell,
   Globe,
+  ShieldAlert,
+  CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/providers/ThemeProvider'
@@ -19,7 +21,7 @@ import { useAuth } from '@/providers/AuthProvider'
 import { ROLE_LABELS } from '@/lib/roles'
 import { useUIStore } from '@/stores/uiStore'
 import { useShowYourWorkStore } from '@/stores/showYourWorkStore'
-import { usePendingApprovals } from '@/api/hooks'
+import { usePendingApprovals, useViolations, useViolationStats } from '@/api/hooks'
 import { usePlant } from '@/providers/PlantProvider'
 import { PendingApprovalsDashboard } from '@/components/signatures/PendingApprovalsDashboard'
 import { CassiniLogo } from '@/components/login/CassiniLogo'
@@ -29,6 +31,31 @@ interface HeaderProps {
   className?: string
   /** Slot for PlantSelector component */
   plantSelector?: React.ReactNode
+}
+
+/** Thresholds (minutes) for violation age escalation tiers */
+const ESCALATION_WARNING_MIN = 15
+const ESCALATION_CRITICAL_MIN = 30
+
+type EscalationTier = 'normal' | 'warning' | 'critical'
+
+function getEscalationTier(createdAt: string | null | undefined): EscalationTier {
+  if (!createdAt) return 'normal'
+  const ageMinutes = (Date.now() - new Date(createdAt).getTime()) / 60_000
+  if (ageMinutes >= ESCALATION_CRITICAL_MIN) return 'critical'
+  if (ageMinutes >= ESCALATION_WARNING_MIN) return 'warning'
+  return 'normal'
+}
+
+function formatAge(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const minutes = Math.floor(diff / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
 }
 
 /**
@@ -50,14 +77,33 @@ export function Header({ className, plantSelector }: HeaderProps) {
   const derivedLogoColors = useMemo(() => deriveLogoColors(fullBrandConfig), [fullBrandConfig])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [pendingMenuOpen, setPendingMenuOpen] = useState(false)
+  const [violationMenuOpen, setViolationMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
   const pendingMenuRef = useRef<HTMLDivElement>(null)
+  const violationMenuRef = useRef<HTMLDivElement>(null)
   const toggleMobileSidebar = useUIStore((s) => s.toggleMobileSidebar)
   const showYourWorkEnabled = useShowYourWorkStore((s) => s.enabled)
   const toggleShowYourWork = useShowYourWorkStore((s) => s.toggle)
   const { selectedPlant } = usePlant()
   const { data: pendingData } = usePendingApprovals(selectedPlant?.id)
   const pendingCount = pendingData?.items?.length ?? 0
+
+  // Violation escalation data
+  const { data: violationStats } = useViolationStats({ plant_id: selectedPlant?.id })
+  const unacknowledgedCount = violationStats?.unacknowledged ?? 0
+  const { data: criticalData } = useViolations(
+    unacknowledgedCount > 0
+      ? { acknowledged: false, requires_acknowledgement: true, severity: 'CRITICAL', plant_id: selectedPlant?.id, per_page: 10 }
+      : undefined,
+  )
+  const criticalViolations = criticalData?.items ?? []
+
+  const oldestCreatedAt = criticalViolations.reduce<string | null>((oldest, v) => {
+    if (!v.created_at) return oldest
+    if (!oldest) return v.created_at
+    return new Date(v.created_at) < new Date(oldest) ? v.created_at : oldest
+  }, null)
+  const escalationTier = getEscalationTier(oldestCreatedAt)
 
   const cycleTheme = () => {
     const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -80,26 +126,21 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    if (!userMenuOpen && !pendingMenuOpen) return
+    if (!userMenuOpen && !pendingMenuOpen && !violationMenuOpen) return
     function handleClickOutside(e: MouseEvent) {
-      if (
-        userMenuOpen &&
-        userMenuRef.current &&
-        !userMenuRef.current.contains(e.target as Node)
-      ) {
+      if (userMenuOpen && userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false)
       }
-      if (
-        pendingMenuOpen &&
-        pendingMenuRef.current &&
-        !pendingMenuRef.current.contains(e.target as Node)
-      ) {
+      if (pendingMenuOpen && pendingMenuRef.current && !pendingMenuRef.current.contains(e.target as Node)) {
         setPendingMenuOpen(false)
+      }
+      if (violationMenuOpen && violationMenuRef.current && !violationMenuRef.current.contains(e.target as Node)) {
+        setViolationMenuOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [userMenuOpen, pendingMenuOpen])
+  }, [userMenuOpen, pendingMenuOpen, violationMenuOpen])
 
   const handleLogout = useCallback(() => {
     setUserMenuOpen(false)
@@ -147,6 +188,106 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
         {/* Divider */}
         <div className="bg-border h-6 w-px" />
+
+        {/* Violation escalation bell */}
+        {user && (
+          <div data-ui="violation-escalation" className="relative" ref={violationMenuRef}>
+            <button
+              onClick={() => setViolationMenuOpen((o) => !o)}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent relative flex items-center justify-center rounded-md p-1.5 transition-colors"
+              title={
+                criticalViolations.length > 0
+                  ? `${criticalViolations.length} critical violation${criticalViolations.length !== 1 ? 's' : ''} require action`
+                  : 'No critical violations pending'
+              }
+            >
+              <ShieldAlert
+                className={cn(
+                  'h-4 w-4',
+                  criticalViolations.length > 0
+                    ? escalationTier === 'critical'
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                    : 'text-muted-foreground',
+                )}
+              />
+              {criticalViolations.length > 0 && (
+                <span
+                  className={cn(
+                    'absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white',
+                    escalationTier === 'warning' && 'escalation-warning',
+                    escalationTier === 'critical' && 'escalation-critical',
+                  )}
+                >
+                  {criticalViolations.length > 99 ? '99+' : criticalViolations.length}
+                </span>
+              )}
+            </button>
+
+            {violationMenuOpen && (
+              <div className="bg-popover absolute top-full right-0 z-50 mt-1 w-80 overflow-hidden rounded-md border shadow-md">
+                <div className="border-b px-3 py-2">
+                  <p className="text-foreground text-sm font-semibold">
+                    Critical Violations Requiring Action
+                  </p>
+                </div>
+
+                {criticalViolations.length === 0 ? (
+                  <div className="flex flex-col items-center gap-1.5 px-3 py-5 text-center">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                    <p className="text-muted-foreground text-sm">No critical violations pending</p>
+                  </div>
+                ) : (
+                  <ul className="max-h-72 divide-y overflow-y-auto">
+                    {criticalViolations.map((v) => {
+                      const age = formatAge(v.created_at)
+                      const tier = getEscalationTier(v.created_at)
+                      return (
+                        <li key={v.id} className="hover:bg-accent px-3 py-2.5 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-foreground truncate text-xs font-medium">
+                                {v.characteristic_name ?? '—'}
+                              </p>
+                              {v.hierarchy_path && (
+                                <p className="text-muted-foreground truncate text-[10px]">
+                                  {v.hierarchy_path}
+                                </p>
+                              )}
+                              <p className="text-muted-foreground mt-0.5 text-[10px]">
+                                {v.rule_name}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                'shrink-0 text-[10px] font-medium tabular-nums',
+                                tier === 'critical' && 'font-bold text-red-600 dark:text-red-400',
+                                tier === 'warning' && 'text-amber-600 dark:text-amber-400',
+                                tier === 'normal' && 'text-muted-foreground',
+                              )}
+                            >
+                              {age}
+                            </span>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                <div className="border-t px-3 py-2">
+                  <Link
+                    to="/violations"
+                    onClick={() => setViolationMenuOpen(false)}
+                    className="text-primary hover:text-primary/80 text-xs font-medium transition-colors"
+                  >
+                    View all violations
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Pending approvals bell */}
         {user && (
