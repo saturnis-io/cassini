@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -96,6 +96,9 @@ class MQTTDataSource(DataSource):
     product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     product_json_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    # Custom metadata extraction: maps field names to JSONPath expressions
+    metadata_json_paths: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
     broker: Mapped[Optional["MQTTBroker"]] = relationship("MQTTBroker")
 
     __mapper_args__ = {
@@ -141,6 +144,9 @@ class OPCUADataSource(DataSource):
     # Per-product-code support
     product_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     product_json_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Custom metadata extraction: maps field names to OPC-UA NodeId strings
+    metadata_node_ids: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     server: Mapped["OPCUAServer"] = relationship("OPCUAServer")
 

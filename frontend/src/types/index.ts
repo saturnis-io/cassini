@@ -120,6 +120,8 @@ export interface Characteristic {
   sigma_method?: 'r_bar_d2' | 's_bar_c4' | 'moving_range' | 'pooled' | null
   // Manual entry policy for automated characteristics
   manual_entry_policy?: 'open' | 'supplemental' | 'restricted' | 'locked'
+  // Custom metadata field definitions (I8)
+  custom_fields_schema?: CustomFieldDefinition[] | null
   // Phase I/II mode
   limits_frozen?: boolean
   limits_frozen_at?: string | null
@@ -227,6 +229,15 @@ export interface ResolvedLimits {
   lsl: ResolvedLimitField
 }
 
+// Custom metadata field definition (I8)
+export interface CustomFieldDefinition {
+  name: string
+  label: string
+  field_type: 'string' | 'number' | 'boolean'
+  required: boolean
+  default_value: string | number | boolean | null
+}
+
 // Sample types
 export interface Sample {
   id: number
@@ -249,6 +260,8 @@ export interface Sample {
   defect_count?: number | null
   sample_size?: number | null
   units_inspected?: number | null
+  // Custom metadata (I8)
+  metadata?: Record<string, unknown> | null
 }
 
 export interface SampleEditHistory {
@@ -308,6 +321,7 @@ export interface ChartDataPoint {
   display_key: string
   unacknowledged_violation_ids: number[]
   measurements: number[]
+  metadata?: Record<string, unknown> | null
 }
 
 export interface AttributeChartSample {
@@ -595,6 +609,7 @@ export interface TagMappingCreate {
   broker_id: number
   metric_name: string | null
   json_path: string | null
+  metadata_json_paths?: Record<string, string> | null
 }
 
 export interface TagMappingResponse {
@@ -607,6 +622,7 @@ export interface TagMappingResponse {
   broker_name: string | null
   metric_name: string | null
   json_path: string | null
+  metadata_json_paths?: Record<string, string> | null
   data_source_id: number
   is_active: boolean
 }

@@ -26,6 +26,7 @@ export interface ChartPoint {
   effective_ucl: number | null
   effective_lcl: number | null
   z_score: number | null
+  metadata?: Record<string, unknown> | null
 }
 
 /** Persistent click-to-stay tooltip with Explainable metric values. */

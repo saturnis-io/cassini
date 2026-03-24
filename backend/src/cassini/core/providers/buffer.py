@@ -31,9 +31,12 @@ class TagConfig:
     json_path: str | None = None
     product_code: str | None = None
     product_json_path: str | None = None
+    metadata_json_paths: dict[str, str] | None = None
+    custom_fields_schema: list[dict] | None = None
     buffer_timeout_seconds: float = 60.0
     _json_path_expr: object = field(default=None, repr=False, compare=False)
     _product_json_path_expr: object = field(default=None, repr=False, compare=False)
+    _metadata_json_path_exprs: dict = field(default_factory=dict, repr=False, compare=False)
 
     def __post_init__(self):
         if self.json_path:
@@ -48,6 +51,16 @@ class TagConfig:
                 self._product_json_path_expr = jsonpath_parse(self.product_json_path)
             except Exception:
                 self._product_json_path_expr = None
+        if self.metadata_json_paths:
+            try:
+                from jsonpath_ng import parse as jsonpath_parse
+                for name, jp in self.metadata_json_paths.items():
+                    try:
+                        self._metadata_json_path_exprs[name] = jsonpath_parse(jp)
+                    except Exception:
+                        pass  # Skip invalid expressions; logged at config time
+            except ImportError:
+                pass  # jsonpath_ng not installed; metadata extraction disabled
 
 
 @dataclass
@@ -68,6 +81,7 @@ class SubgroupBuffer:
     values: list[float] = field(default_factory=list)
     first_reading_time: datetime | None = None
     last_product_code: str | None = None
+    last_metadata: dict | None = None
 
     def add(self, value: float) -> bool:
         """Add a value to the buffer.
@@ -108,15 +122,17 @@ class SubgroupBuffer:
         elapsed = (datetime.now(timezone.utc) - self.first_reading_time).total_seconds()
         return elapsed >= timeout_seconds
 
-    def flush(self) -> tuple[list[float], str | None]:
+    def flush(self) -> tuple[list[float], str | None, dict | None]:
         """Get all values and clear the buffer.
 
         Returns:
-            Tuple of (buffered values, last product code captured during buffering)
+            Tuple of (buffered values, last product code, last metadata dict)
         """
         values = self.values.copy()
         product_code = self.last_product_code
+        metadata = self.last_metadata.copy() if self.last_metadata else None
         self.values.clear()
         self.first_reading_time = None
         self.last_product_code = None
-        return values, product_code
+        self.last_metadata = None
+        return values, product_code, metadata

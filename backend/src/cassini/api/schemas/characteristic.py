@@ -87,6 +87,9 @@ class CharacteristicCreate(BaseModel):
         None, pattern=r"^(open|supplemental|restricted|locked)$",
         description="Manual entry policy when characteristic has automated data source"
     )
+    custom_fields_schema: list[dict] | None = Field(
+        None, description="Custom metadata field definitions (max 10)"
+    )
 
     @model_validator(mode="after")
     def validate_subgroup_config(self) -> Self:
@@ -160,6 +163,9 @@ class CharacteristicUpdate(BaseModel):
         None, pattern=r"^(open|supplemental|restricted|locked)$",
         description="Manual entry policy when characteristic has automated data source"
     )
+    custom_fields_schema: list[dict] | None = Field(
+        None, description="Custom metadata field definitions (max 10)"
+    )
     change_reason: str | None = Field(None, max_length=500, description="Reason for this change (21 CFR Part 11 audit trail)")
 
 
@@ -197,6 +203,7 @@ class CharacteristicResponse(BaseModel):
     distribution_method: str | None = None
     sigma_method: str | None = None
     manual_entry_policy: str = "open"
+    custom_fields_schema: list[dict] | None = None
     # Phase I/II mode
     limits_frozen: bool = False
     limits_frozen_at: str | None = None
@@ -313,6 +320,7 @@ class ChartSample(BaseModel):
     display_value: float | None = None
     display_key: str = ""
     measurements: list[float] = []
+    metadata: dict | None = None
 
 
 class AttributeChartSample(BaseModel):

@@ -85,6 +85,13 @@ export function buildTooltipFormatter({
     }
 
     html += `<div style="opacity:0.7">${point.timestamp}</div>`
+    if (point.metadata && typeof point.metadata === 'object') {
+      for (const [key, val] of Object.entries(point.metadata)) {
+        if (val != null) {
+          html += `<div style="opacity:0.7">${escapeHtml(key)}: ${escapeHtml(String(val))}</div>`
+        }
+      }
+    }
     if (point.is_undersized)
       html += `<div style="color:hsl(32,63%,51%);font-weight:500">Undersized sample</div>`
 

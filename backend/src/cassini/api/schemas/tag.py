@@ -23,6 +23,9 @@ class TagMappingCreate(BaseModel):
     broker_id: int
     metric_name: str | None = Field(None, max_length=255)
     json_path: str | None = Field(None, max_length=500)
+    metadata_json_paths: dict[str, str] | None = Field(
+        None, description="Maps custom field names to JSONPath expressions for metadata extraction"
+    )
 
 
 class TagMappingResponse(BaseModel):
@@ -38,6 +41,7 @@ class TagMappingResponse(BaseModel):
     broker_name: str | None = None
     metric_name: str | None = None
     json_path: str | None = None
+    metadata_json_paths: dict[str, str] | None = None
     is_active: bool = True
 
 

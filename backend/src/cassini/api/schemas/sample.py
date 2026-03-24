@@ -28,6 +28,7 @@ class SampleCreate(BaseModel):
     batch_number: str | None = None
     operator_id: str | None = None
     material_id: int | None = None
+    metadata: dict | None = None
 
 
 class SampleResponse(BaseModel):
@@ -74,6 +75,7 @@ class SampleResponse(BaseModel):
     source: str = "MANUAL"
     edit_count: int = 0
     display_key: str = ""
+    metadata: dict | None = None
     # Attribute data fields (populated for attribute-type characteristics)
     defect_count: int | None = None
     sample_size: int | None = None

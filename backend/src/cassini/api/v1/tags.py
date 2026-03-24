@@ -147,6 +147,25 @@ async def create_mapping(
     ds_repo = DataSourceRepository(session)
     await ds_repo.delete_for_characteristic(data.characteristic_id)
 
+    # Validate metadata_json_paths syntax if provided
+    if data.metadata_json_paths:
+        from cassini.api.schemas.custom_fields import MAX_CUSTOM_FIELDS
+        if len(data.metadata_json_paths) > MAX_CUSTOM_FIELDS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Maximum {MAX_CUSTOM_FIELDS} metadata extraction paths",
+            )
+        from jsonpath_ng import parse as jsonpath_parse
+        for field_name, jp in data.metadata_json_paths.items():
+            try:
+                jsonpath_parse(jp)
+            except Exception:
+                logger.warning("invalid_metadata_json_path", field_name=field_name, json_path=jp)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Invalid JSONPath expression for metadata field",
+                )
+
     # Create new MQTT data source
     source = await ds_repo.create_mqtt_source(
         characteristic_id=data.characteristic_id,
@@ -156,6 +175,7 @@ async def create_mapping(
         trigger_tag=data.trigger_tag,
         trigger_strategy=data.trigger_strategy,
         json_path=data.json_path,
+        metadata_json_paths=data.metadata_json_paths,
     )
 
     # Auto-set manual entry policy if currently "open"
@@ -198,6 +218,7 @@ async def create_mapping(
         broker_name=broker.name,
         metric_name=source.metric_name,
         json_path=source.json_path,
+        metadata_json_paths=source.metadata_json_paths,
         is_active=source.is_active,
     )
 

@@ -176,6 +176,8 @@ class TagProvider(DataProvider):
                 json_path=src.json_path,
                 product_code=getattr(src, "product_code", None),
                 product_json_path=getattr(src, "product_json_path", None),
+                metadata_json_paths=getattr(src, "metadata_json_paths", None),
+                custom_fields_schema=getattr(char, "custom_fields_schema", None),
             )
 
             self._configs[char.id] = config
@@ -185,6 +187,15 @@ class TagProvider(DataProvider):
             hierarchy = getattr(char, "hierarchy", None)
             if hierarchy is not None and getattr(hierarchy, "plant_id", None) is not None:
                 self._char_to_plant[char.id] = hierarchy.plant_id
+
+            # Warn if metadata_json_paths configured on SparkplugB topic (unsupported)
+            if config.metadata_json_paths and src.topic.startswith("spBv1.0/"):
+                logger.warning(
+                    "metadata_json_paths_on_sparkplug_topic",
+                    characteristic_id=char.id,
+                    topic=src.topic,
+                    msg="metadata_json_paths requires JSON payloads; SparkplugB uses protobuf. Metadata will not be extracted.",
+                )
 
             if src.topic not in self._topic_to_chars:
                 self._topic_to_chars[src.topic] = []
@@ -415,6 +426,22 @@ class TagProvider(DataProvider):
                             error=str(e),
                         )
 
+                # Extract custom metadata fields from JSON payload (I8)
+                if config._metadata_json_path_exprs and parsed_json is not None:
+                    extracted: dict = {}
+                    for field_name, expr in config._metadata_json_path_exprs.items():
+                        try:
+                            md_matches = expr.find(parsed_json)
+                            if md_matches:
+                                extracted[field_name] = md_matches[0].value
+                        except Exception:
+                            pass  # Skip failed extractions silently
+                    if extracted:
+                        # Last-write-wins merge (same as product_code)
+                        if buffer.last_metadata is None:
+                            buffer.last_metadata = {}
+                        buffer.last_metadata.update(extracted)
+
                 logger.debug(
                     "received_value",
                     value=value,
@@ -499,7 +526,7 @@ class TagProvider(DataProvider):
             return
 
         buffer = self._buffers[char_id]
-        values, buf_product_code = buffer.flush()
+        values, buf_product_code, buf_metadata = buffer.flush()
 
         if not values:
             logger.debug("buffer_empty", characteristic_id=char_id)
@@ -508,6 +535,21 @@ class TagProvider(DataProvider):
         # Resolve product_code: buffer-captured (dynamic) > config (static) > None
         config = self._configs.get(char_id)
         product_code = buf_product_code or (config.product_code if config else None)
+
+        # Validate metadata against characteristic schema
+        validated_metadata = buf_metadata
+        if buf_metadata:
+            try:
+                from cassini.core.metadata_validator import validate_metadata
+                schema = config.custom_fields_schema if config else None
+                validated_metadata = validate_metadata(buf_metadata, schema) or None
+            except Exception as e:
+                logger.warning(
+                    "metadata_validation_failed",
+                    characteristic_id=char_id,
+                    error=str(e),
+                )
+                validated_metadata = buf_metadata  # Don't drop sample on validation failure
 
         logger.info(
             "flushing_buffer",
@@ -521,7 +563,7 @@ class TagProvider(DataProvider):
             characteristic_id=char_id,
             measurements=values,
             timestamp=datetime.now(timezone.utc),
-            context=SampleContext(source="TAG", product_code=product_code),
+            context=SampleContext(source="TAG", product_code=product_code, metadata=validated_metadata),
         )
 
         # Invoke callback

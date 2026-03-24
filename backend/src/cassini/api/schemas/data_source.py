@@ -27,3 +27,4 @@ class MQTTDataSourceResponse(DataSourceResponse):
     metric_name: str | None = None
     trigger_tag: str | None = None
     broker_name: str | None = None
+    metadata_json_paths: dict[str, str] | None = None

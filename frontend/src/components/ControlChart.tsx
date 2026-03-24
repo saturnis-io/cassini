@@ -213,6 +213,7 @@ export function ControlChart({
       effective_ucl: point.effective_ucl,
       effective_lcl: point.effective_lcl,
       z_score: point.z_score,
+      metadata: point.metadata,
     }))
   }, [chartData?.data_points, isModeA, nominalN, datetimeFormat])
 

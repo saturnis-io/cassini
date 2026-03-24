@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -102,6 +102,9 @@ class Characteristic(Base):
     manual_entry_policy: Mapped[str] = mapped_column(
         String(20), default="open", server_default="open", nullable=False
     )
+
+    # Custom metadata field definitions (I8: array of {name, label, field_type, required, default_value})
+    custom_fields_schema: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
     # Phase I/II mode: frozen limits indicate Phase II monitoring
     limits_frozen: Mapped[bool] = mapped_column(

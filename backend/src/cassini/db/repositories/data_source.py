@@ -75,6 +75,7 @@ class DataSourceRepository(BaseRepository[DataSource]):
         json_path: str | None = None,
         trigger_tag: str | None = None,
         trigger_strategy: str = "on_change",
+        metadata_json_paths: dict | None = None,
     ) -> MQTTDataSource:
         source = MQTTDataSource(
             type="mqtt",
@@ -86,6 +87,7 @@ class DataSourceRepository(BaseRepository[DataSource]):
             metric_name=metric_name,
             json_path=json_path,
             trigger_tag=trigger_tag,
+            metadata_json_paths=metadata_json_paths,
         )
         self.session.add(source)
         await self.session.flush()

@@ -77,6 +77,10 @@ class Sample(Base):
         String(20), default="complete", server_default="complete", nullable=False
     )
 
+    # Custom metadata (I8: user-defined fields per characteristic schema)
+    # "metadata" is reserved by SQLAlchemy Declarative — use custom_metadata as attr name
+    custom_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
+
     # Relationships
     characteristic: Mapped["Characteristic"] = relationship(
         "Characteristic", back_populates="samples",

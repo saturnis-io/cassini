@@ -224,6 +224,15 @@ export function SampleInspectorModal({
   const precision = characteristic?.decimal_precision ?? 4
   const isAttribute = characteristic?.data_type === 'attribute'
 
+  // Shared metadata items for both attribute and variable sections
+  const customMetadataItems = sample?.metadata
+    ? Object.entries(sample.metadata).map(([key, value]) => {
+        const fieldDef = characteristic?.custom_fields_schema?.find((f) => f.name === key)
+        const label = fieldDef?.label ?? key
+        return <MetaItem key={key} icon={Hash} label={label} value={String(value ?? '')} />
+      })
+    : null
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   const startEditing = useCallback(() => {
     setEditValues([...measurementValues])
@@ -483,6 +492,7 @@ export function SampleInspectorModal({
                     {sample.operator_id && (
                       <MetaItem icon={User} label="Operator" value={sample.operator_id} />
                     )}
+                    {customMetadataItems}
                   </div>
                 </>
               ) : (
@@ -523,6 +533,22 @@ export function SampleInspectorModal({
                     {sample.operator_id && (
                       <MetaItem icon={User} label="Operator" value={sample.operator_id} />
                     )}
+                    {sample.metadata &&
+                      Object.entries(sample.metadata).map(([key, value]) => {
+                        // Resolve label from characteristic schema if available
+                        const fieldDef = characteristic?.custom_fields_schema?.find(
+                          (f) => f.name === key,
+                        )
+                        const label = fieldDef?.label ?? key
+                        return (
+                          <MetaItem
+                            key={key}
+                            icon={Hash}
+                            label={label}
+                            value={String(value ?? '')}
+                          />
+                        )
+                      })}
                   </div>
                 </>
               )}

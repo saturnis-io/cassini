@@ -36,6 +36,7 @@ class OPCUANodeConfig:
         trigger_strategy: How to trigger sample submission
         sampling_interval: Per-node sampling interval override (ms), or None for server default
         buffer_timeout_seconds: Timeout for flushing partial buffers
+        metadata_node_ids: Maps custom field names to OPC-UA NodeId strings
     """
 
     characteristic_id: int
@@ -45,6 +46,7 @@ class OPCUANodeConfig:
     trigger_strategy: str = "on_change"
     sampling_interval: int | None = None
     buffer_timeout_seconds: float = 60.0
+    metadata_node_ids: dict[str, str] | None = None
 
 
 class OPCUAProvider(DataProvider):
@@ -80,6 +82,7 @@ class OPCUAProvider(DataProvider):
         self._configs: dict[int, OPCUANodeConfig] = {}  # char_id -> config
         self._buffers: dict[int, SubgroupBuffer] = {}  # char_id -> buffer
         self._node_to_char: dict[str, int] = {}  # node_id -> char_id
+        self._metadata_node_to_char: dict[str, tuple[int, str]] = {}  # meta_node_id -> (char_id, field_name)
         self._timeout_task: asyncio.Task | None = None
         self._running = False
 
@@ -143,6 +146,7 @@ class OPCUAProvider(DataProvider):
         self._configs.clear()
         self._buffers.clear()
         self._node_to_char.clear()
+        self._metadata_node_to_char.clear()
 
         logger.info("OPCUAProvider stopped")
 
@@ -192,6 +196,7 @@ class OPCUAProvider(DataProvider):
                 subgroup_size=char.subgroup_size,
                 trigger_strategy=src.trigger_strategy,
                 sampling_interval=sampling_interval,
+                metadata_node_ids=getattr(src, "metadata_node_ids", None),
             )
 
             # Create a TagConfig for SubgroupBuffer compatibility
@@ -202,6 +207,7 @@ class OPCUAProvider(DataProvider):
                 trigger_strategy=src.trigger_strategy,
                 product_code=getattr(src, "product_code", None),
                 product_json_path=getattr(src, "product_json_path", None),
+                custom_fields_schema=getattr(char, "custom_fields_schema", None),
             )
 
             self._configs[char.id] = config
@@ -242,6 +248,30 @@ class OPCUAProvider(DataProvider):
                     name=char.name,
                     sampling_interval=sampling_interval,
                 )
+
+                # Subscribe to metadata nodes (I8)
+                if config.metadata_node_ids:
+                    for field_name, meta_node_id in config.metadata_node_ids.items():
+                        try:
+                            await client.subscribe_data_change(
+                                node_id=meta_node_id,
+                                callback=self._on_metadata_change,
+                                sampling_interval=sampling_interval,
+                            )
+                            self._metadata_node_to_char[meta_node_id] = (char.id, field_name)
+                            logger.debug(
+                                "subscribed_to_metadata_node",
+                                node_id=meta_node_id,
+                                field_name=field_name,
+                                characteristic_id=char.id,
+                            )
+                        except Exception as meta_e:
+                            logger.warning(
+                                "metadata_node_subscribe_failed",
+                                node_id=meta_node_id,
+                                field_name=field_name,
+                                error=str(meta_e),
+                            )
             except Exception as e:
                 logger.error(
                     "opcua_subscribe_failed",
@@ -327,6 +357,47 @@ class OPCUAProvider(DataProvider):
 
         await self._dispatch_value(char_id, config, buffer, value)
 
+    async def _on_metadata_change(self, node_id: str, data_value: ua.DataValue) -> None:
+        """Handle data change for a metadata node.
+
+        Buffers the latest value for the corresponding custom field.
+        Last-write-wins at flush time (same pattern as product_code).
+        """
+        mapping = self._metadata_node_to_char.get(node_id)
+        if mapping is None:
+            return
+
+        char_id, field_name = mapping
+        buffer = self._buffers.get(char_id)
+        if not buffer:
+            return
+
+        raw_value = data_value.Value.Value
+        if raw_value is None:
+            return
+
+        # Only store JSON-serializable types; coerce others to string
+        if isinstance(raw_value, bool):
+            store_value = raw_value
+        elif isinstance(raw_value, (int, float)):
+            store_value = raw_value
+        elif isinstance(raw_value, str):
+            store_value = raw_value
+        else:
+            store_value = str(raw_value)
+
+        if buffer.last_metadata is None:
+            buffer.last_metadata = {}
+        buffer.last_metadata[field_name] = store_value
+
+        logger.debug(
+            "received_metadata_value",
+            node_id=node_id,
+            field_name=field_name,
+            value=repr(raw_value),
+            characteristic_id=char_id,
+        )
+
     async def _dispatch_value(
         self, char_id: int, config: OPCUANodeConfig, buffer: SubgroupBuffer, value: float
     ) -> None:
@@ -362,7 +433,7 @@ class OPCUAProvider(DataProvider):
             return
 
         buffer = self._buffers[char_id]
-        values, buf_product_code = buffer.flush()
+        values, buf_product_code, buf_metadata = buffer.flush()
 
         if not values:
             logger.debug("buffer_empty", characteristic_id=char_id)
@@ -371,6 +442,20 @@ class OPCUAProvider(DataProvider):
         # Resolve product_code: buffer-captured (dynamic) > config (static) > None
         config = self._configs.get(char_id)
         product_code = buf_product_code or (config.product_code if config else None)
+
+        # Validate metadata against characteristic schema
+        validated_metadata = buf_metadata
+        if buf_metadata:
+            try:
+                from cassini.core.metadata_validator import validate_metadata
+                # OPCUANodeConfig doesn't have custom_fields_schema directly,
+                # but the buffer's TagConfig does
+                buffer_config = self._buffers[char_id].config if char_id in self._buffers else None
+                schema = buffer_config.custom_fields_schema if buffer_config else None
+                validated_metadata = validate_metadata(buf_metadata, schema) or None
+            except Exception as e:
+                logger.warning("metadata_validation_failed", characteristic_id=char_id, error=str(e))
+                validated_metadata = buf_metadata
 
         logger.info(
             "flushing_opcua_buffer",
@@ -384,7 +469,7 @@ class OPCUAProvider(DataProvider):
             characteristic_id=char_id,
             measurements=values,
             timestamp=datetime.now(timezone.utc),
-            context=SampleContext(source="OPCUA", product_code=product_code),
+            context=SampleContext(source="OPCUA", product_code=product_code, metadata=validated_metadata),
         )
 
         # Invoke callback
@@ -469,6 +554,7 @@ class OPCUAProvider(DataProvider):
         self._configs.clear()
         self._buffers.clear()
         self._node_to_char.clear()
+        self._metadata_node_to_char.clear()
 
         # Reload with new repo
         self._ds_repo = ds_repo

@@ -290,6 +290,7 @@ async def list_samples(
                 units_inspected=sample.units_inspected,
                 material_id=sample.material_id,
                 source=getattr(sample, 'source', 'MANUAL'),
+                metadata=getattr(sample, 'custom_metadata', None),
             )
         )
 
@@ -391,12 +392,20 @@ async def submit_sample(
             if mat_plant_id != plant_id:
                 raise ValueError("Material does not belong to the same plant as the characteristic")
 
+        # Validate custom metadata against characteristic schema if provided
+        validated_metadata = None
+        if data.metadata:
+            from cassini.core.metadata_validator import validate_metadata
+            schema = getattr(characteristic, 'custom_fields_schema', None)
+            validated_metadata = validate_metadata(data.metadata, schema, strict=True) or None
+
         # Always run standard SPC engine first (Nelson Rules, zone classification)
         context = SampleContext(
             batch_number=data.batch_number,
             operator_id=data.operator_id,
             material_id=data.material_id,
             source="MANUAL",
+            metadata=validated_metadata,
         )
 
         result = await engine.process_sample(
@@ -565,6 +574,7 @@ async def get_sample(
         defect_count=sample.defect_count,
         sample_size=sample.sample_size,
         units_inspected=sample.units_inspected,
+        metadata=getattr(sample, 'custom_metadata', None),
     )
 
 
@@ -1163,6 +1173,7 @@ async def batch_import(
                 batch_number = sample_dict.get("batch_number")
                 operator_id = sample_dict.get("operator_id")
                 material_id = sample_dict.get("material_id")
+                raw_metadata = sample_dict.get("metadata")
 
                 sample = await sample_repo.create_with_measurements(
                     char_id=char_id,
@@ -1171,6 +1182,7 @@ async def batch_import(
                     operator_id=operator_id,
                     material_id=material_id,
                     spc_status="pending_spc",
+                    custom_metadata=raw_metadata,
                 )
                 sample_ids.append(sample.id)
             except Exception:
@@ -1260,6 +1272,7 @@ async def batch_import(
             batch_number = sample_dict.get("batch_number")
             operator_id = sample_dict.get("operator_id")
             material_id = sample_dict.get("material_id")
+            raw_metadata = sample_dict.get("metadata")
 
             if skip_rule_evaluation:
                 # Direct database insertion without rule evaluation
@@ -1270,6 +1283,7 @@ async def batch_import(
                     batch_number=batch_number,
                     operator_id=operator_id,
                     material_id=material_id,
+                    custom_metadata=raw_metadata,
                 )
             else:
                 # Full SPC processing with rule evaluation
@@ -1278,6 +1292,7 @@ async def batch_import(
                     operator_id=operator_id,
                     material_id=material_id,
                     source="MANUAL",
+                    metadata=raw_metadata,
                 )
 
                 await engine.process_sample(

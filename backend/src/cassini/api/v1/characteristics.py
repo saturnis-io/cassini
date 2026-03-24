@@ -266,6 +266,38 @@ async def list_characteristics(
     )
 
 
+def _validate_custom_fields_schema(request: Request, fields_list: list[dict]) -> None:
+    """Validate and license-gate custom_fields_schema. Shared by create + update."""
+    license_svc = request.app.state.license_service
+    if not license_svc.has_feature("custom-metadata"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Custom metadata fields require a Pro or Enterprise license",
+        )
+    from cassini.api.schemas.custom_fields import CustomFieldDefinition, MAX_CUSTOM_FIELDS
+    if len(fields_list) > MAX_CUSTOM_FIELDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum {MAX_CUSTOM_FIELDS} custom fields per characteristic",
+        )
+    names_seen: set[str] = set()
+    for field_def in fields_list:
+        try:
+            parsed = CustomFieldDefinition(**field_def)
+        except Exception as e:
+            logger.warning("invalid_custom_field_definition", error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid custom field definition",
+            )
+        if parsed.name in names_seen:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate custom field name",
+            )
+        names_seen.add(parsed.name)
+
+
 @router.post("/", response_model=CharacteristicResponse, status_code=status.HTTP_201_CREATED)
 async def create_characteristic(
     data: CharacteristicCreate,
@@ -291,6 +323,10 @@ async def create_characteristic(
 
     # Plant-scoped authorization: engineer+ at the owning plant
     check_plant_role(_user, hierarchy.plant_id, "engineer")
+
+    # License-gate custom_fields_schema (Pro+ only)
+    if data.custom_fields_schema is not None:
+        _validate_custom_fields_schema(request, data.custom_fields_schema)
 
     # Create characteristic
     characteristic = await repo.create(**data.model_dump())
@@ -433,6 +469,10 @@ async def update_characteristic(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"{update_data['sigma_method']} sigma method requires subgroup_size > 1",
             )
+
+    # License-gate custom_fields_schema (Pro+ only)
+    if "custom_fields_schema" in update_data and update_data["custom_fields_schema"] is not None:
+        _validate_custom_fields_schema(request, update_data["custom_fields_schema"])
 
     # Extract change_reason before applying updates to the model
     change_reason = update_data.pop("change_reason", None)
@@ -1485,6 +1525,7 @@ async def get_chart_data(
             display_value=display_val,
             display_key=_display_keys.get(sample.id, ""),
             measurements=values,
+            metadata=getattr(sample, 'custom_metadata', None),
         ))
 
     # Build control limits with short-run transformation

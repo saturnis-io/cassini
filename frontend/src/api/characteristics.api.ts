@@ -217,6 +217,7 @@ export const sampleApi = {
     material_id?: number
     batch_number?: string
     operator_id?: string
+    metadata?: Record<string, unknown>
   }) =>
     fetchApi<SampleProcessingResult>('/samples/', {
       method: 'POST',

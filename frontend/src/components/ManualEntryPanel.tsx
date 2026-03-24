@@ -19,6 +19,8 @@ import { AlertTriangle, Info, Lock, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/providers/AuthProvider'
 import { hasAccess } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { useLicense } from '@/hooks/useLicense'
+import type { CustomFieldDefinition } from '@/types'
 
 export function ManualEntryPanel() {
   const globalCharId = useDashboardStore((s) => s.selectedCharacteristicId)
@@ -33,12 +35,14 @@ export function ManualEntryPanel() {
   const [operatorId, setOperatorId] = useState('')
   const [showMaterialSuggestions, setShowMaterialSuggestions] = useState(false)
   const [materialSearch, setMaterialSearch] = useState('')
+  const [metadataValues, setMetadataValues] = useState<Record<string, unknown>>({})
   const materialRef = useRef<HTMLDivElement>(null)
 
   const { data: allMaterials } = useMaterials(plantId)
   const { data: overrides } = useMaterialOverrides(globalCharId ?? 0)
   const submitSample = useSubmitSample()
   const { role: userRole } = useAuth()
+  const { isProOrAbove } = useLicense()
 
   // Separate materials into those with overrides vs others
   const { withOverrides, withoutOverrides } = useMemo(() => {
@@ -123,6 +127,7 @@ export function ManualEntryPanel() {
     }
     setMaterialId(null)
     setMaterialSearch('')
+    setMetadataValues({})
     clearErrors()
   }, [inputCount, clearErrors])
 
@@ -165,6 +170,10 @@ export function ManualEntryPanel() {
     })
     if (!validated) return
 
+    // Build metadata payload from custom fields
+    const hasMetadata = Object.keys(metadataValues).length > 0
+    const metadataPayload = hasMetadata ? metadataValues : undefined
+
     submitSample.mutate(
       {
         characteristic_id: selectedChar.id,
@@ -172,6 +181,7 @@ export function ManualEntryPanel() {
         material_id: materialId ?? undefined,
         batch_number: validated.batch_number,
         operator_id: validated.operator_id,
+        metadata: metadataPayload,
       },
       {
         onSuccess: () => {
@@ -181,6 +191,7 @@ export function ManualEntryPanel() {
           setMaterialSearch('')
           setBatchNumber('')
           setOperatorId('')
+          setMetadataValues({})
           clearErrors()
         },
       },
@@ -478,6 +489,72 @@ export function ManualEntryPanel() {
                   />
                 </div>
               </div>
+
+              {/* Custom Metadata Fields (I8 — Pro+ only) */}
+              {isProOrAbove &&
+                selectedChar.custom_fields_schema &&
+                selectedChar.custom_fields_schema.length > 0 && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Custom Fields</label>
+                    <div
+                      className={cn(
+                        'grid grid-cols-2 gap-4',
+                        touchMode && 'grid-cols-1 gap-[var(--touch-gap)]',
+                      )}
+                    >
+                      {selectedChar.custom_fields_schema.map((field: CustomFieldDefinition) => (
+                        <div key={field.name}>
+                          <label className="mb-1 block text-sm font-medium">
+                            {field.label}
+                            {field.required && <span className="text-warning ml-0.5">*</span>}
+                          </label>
+                          {field.field_type === 'boolean' ? (
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!metadataValues[field.name]}
+                                onChange={(e) =>
+                                  setMetadataValues((prev) => ({
+                                    ...prev,
+                                    [field.name]: e.target.checked,
+                                  }))
+                                }
+                                className="h-4 w-4"
+                              />
+                              <span className="text-muted-foreground text-sm">{field.label}</span>
+                            </label>
+                          ) : (
+                            <input
+                              type={field.field_type === 'number' ? 'number' : 'text'}
+                              step={field.field_type === 'number' ? 'any' : undefined}
+                              value={
+                                metadataValues[field.name] != null
+                                  ? String(metadataValues[field.name])
+                                  : ''
+                              }
+                              onChange={(e) => {
+                                const val =
+                                  field.field_type === 'number' && e.target.value
+                                    ? parseFloat(e.target.value)
+                                    : e.target.value || undefined
+                                setMetadataValues((prev) => ({
+                                  ...prev,
+                                  [field.name]: val,
+                                }))
+                              }}
+                              placeholder={field.label}
+                              className={cn(
+                                'bg-background border-input w-full rounded-lg border px-3 py-2',
+                                touchMode &&
+                                  'min-h-[var(--touch-input-height)] text-[length:var(--touch-font-size)]',
+                              )}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               {/* Submit Button */}
               <div className="flex justify-end">
