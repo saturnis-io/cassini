@@ -42,6 +42,9 @@ test.describe('Sprint 13 Reporting', () => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
+    // Ensure we're on the correct plant (navigation can reset plant context)
+    await switchToPlant(page, 'Reports Plant')
+
     const select = page.locator('select[aria-label="Report template"]')
     await expect(select).toBeVisible({ timeout: 5000 })
     await select.selectOption({ label: 'Capability Analysis' })
@@ -56,6 +59,9 @@ test.describe('Sprint 13 Reporting', () => {
   async function selectViolationReport(page: import('@playwright/test').Page) {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
+
+    // Ensure we're on the correct plant (navigation can reset plant context)
+    await switchToPlant(page, 'Reports Plant')
 
     const select = page.locator('select[aria-label="Report template"]')
     await expect(select).toBeVisible({ timeout: 5000 })

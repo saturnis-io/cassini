@@ -100,8 +100,9 @@ def insert_characteristic(cur: sqlite3.Cursor, hierarchy_id: int, name: str, **k
         (hierarchy_id, name, subgroup_size, data_type, subgroup_mode,
          min_measurements, decimal_precision, target_value, usl, lsl, ucl, lcl,
          stored_sigma, stored_center_line, attribute_chart_type, default_sample_size,
-         chart_type, cusum_target, cusum_k, cusum_h, ewma_lambda, ewma_l)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+         chart_type, cusum_target, cusum_k, cusum_h, ewma_lambda, ewma_l,
+         sigma_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             hierarchy_id,
             name,
@@ -125,6 +126,7 @@ def insert_characteristic(cur: sqlite3.Cursor, hierarchy_id: int, name: str, **k
             defaults.get("cusum_h"),
             defaults.get("ewma_lambda"),
             defaults.get("ewma_l"),
+            defaults.get("sigma_method"),
         ),
     )
     return cur.lastrowid

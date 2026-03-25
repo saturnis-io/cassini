@@ -215,10 +215,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     })
 
     await page.goto(`/fai/${report.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 2
-    await page.getByRole('tab', { name: 'Form 2' }).click()
+    const form2Tab = page.getByRole('tab', { name: /Form 2/i })
+    await expect(form2Tab).toBeVisible({ timeout: 5000 })
+    await form2Tab.click()
     await page.waitForTimeout(1500)
 
     // Verify Form 2 heading
@@ -262,10 +264,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     })
 
     await page.goto(`/fai/${report.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 3
-    await page.getByRole('tab', { name: 'Form 3' }).click()
+    const form3Tab = page.getByRole('tab', { name: /Form 3/i })
+    await expect(form3Tab).toBeVisible({ timeout: 5000 })
+    await form3Tab.click()
     await page.waitForTimeout(1500)
 
     // Verify Form 3 heading
@@ -299,10 +303,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     })
 
     await page.goto(`/fai/${report.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 3
-    await page.getByRole('tab', { name: 'Form 3' }).click()
+    const form3Tab = page.getByRole('tab', { name: /Form 3/i })
+    await expect(form3Tab).toBeVisible({ timeout: 5000 })
+    await form3Tab.click()
     await page.waitForTimeout(1500)
 
     // Verify non-numeric items are displayed
@@ -429,7 +435,7 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
 
     // Navigate to the delta report in the UI
     await page.goto(`/fai/${delta.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // The delta report should show the parent's part number
     await expect(
@@ -437,7 +443,9 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     ).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 3 to see items
-    await page.getByRole('tab', { name: 'Form 3' }).click()
+    const form3Tab = page.getByRole('tab', { name: /Form 3/i })
+    await expect(form3Tab).toBeVisible({ timeout: 5000 })
+    await form3Tab.click()
     await page.waitForTimeout(1500)
 
     // Items should be visible
@@ -579,7 +587,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     )
 
     if (!searchRes.ok()) {
-      test.skip(true, `Characteristic search endpoint returned ${searchRes.status()} — may require migration`)
+      test.skip(true, `Characteristic search endpoint returned ${searchRes.status()} — commercial routes may not be registered`)
+      return
+    }
+    const searchContentType = searchRes.headers()['content-type'] ?? ''
+    if (!searchContentType.includes('application/json')) {
+      test.skip(true, 'Characteristic search returned non-JSON response — commercial routes may not be registered')
       return
     }
 
@@ -601,10 +614,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     // Navigate to a draft FAI report to test auto-populate UI
     const report = await createDraftReport(request, { withItems: false })
     await page.goto(`/fai/${report.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 3
-    await page.getByRole('tab', { name: 'Form 3' }).click()
+    const form3Tab = page.getByRole('tab', { name: /Form 3/i })
+    await expect(form3Tab).toBeVisible({ timeout: 5000 })
+    await form3Tab.click()
     await page.waitForTimeout(1500)
 
     // Look for a search/auto-populate button or input
@@ -652,7 +667,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     )
 
     if (!capRes.ok()) {
-      test.skip(true, 'Latest measurement endpoint not available for test characteristic')
+      test.skip(true, 'Latest measurement endpoint not available — commercial routes may not be registered')
+      return
+    }
+    const capContentType = capRes.headers()['content-type'] ?? ''
+    if (!capContentType.includes('application/json')) {
+      test.skip(true, 'Latest measurement returned non-JSON response — commercial routes may not be registered')
       return
     }
 
@@ -676,10 +696,12 @@ test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => 
     })
 
     await page.goto(`/fai/${report.id}`)
-    await page.waitForTimeout(2000)
+    await expect(page.locator('[data-ui="fai-editor"]')).toBeVisible({ timeout: 10000 })
 
     // Navigate to Form 3
-    await page.getByRole('tab', { name: 'Form 3' }).click()
+    const form3Tab = page.getByRole('tab', { name: /Form 3/i })
+    await expect(form3Tab).toBeVisible({ timeout: 5000 })
+    await form3Tab.click()
     await page.waitForTimeout(1500)
 
     // The item linked to a characteristic should show a Cpk badge

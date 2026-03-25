@@ -4,16 +4,26 @@ export const API_BASE = `http://localhost:${process.env.E2E_BACKEND_PORT || '800
 
 /**
  * Get a JWT access token by logging in via the API.
+ * Retries up to 3 times with 1s delay to handle transient SQLite lock
+ * contention during parallel test setup/teardown.
  */
 export async function getAuthToken(request: APIRequestContext): Promise<string> {
-  const res = await request.post(`${API_BASE}/auth/login`, {
-    data: { username: 'admin', password: 'admin', remember_me: false },
-  })
-  if (!res.ok()) {
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await request.post(`${API_BASE}/auth/login`, {
+      data: { username: 'admin', password: 'admin', remember_me: false },
+    })
+    if (res.ok()) {
+      const body = await res.json()
+      return body.access_token
+    }
+    if (res.status() >= 500 && attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 1000))
+      continue
+    }
     throw new Error(`Login failed: ${res.status()} ${await res.text()}`)
   }
-  const body = await res.json()
-  return body.access_token
+  throw new Error('Login failed: exhausted retries')
 }
 
 /**
