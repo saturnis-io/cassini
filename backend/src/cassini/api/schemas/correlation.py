@@ -63,6 +63,45 @@ class PartialCorrelationResponse(BaseModel):
 # ── Variable Importance ─────────────────────────────────────
 
 
+# ── Regression Scatter ─────────────────────────────────────
+
+
+class RegressionScatterRequest(BaseModel):
+    plant_id: int
+    x_characteristic_id: int
+    y_characteristic_id: int
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+
+class RegressionScatterPoint(BaseModel):
+    x: float
+    y: float
+    residual: float
+
+
+class RegressionScatterResponse(BaseModel):
+    x_name: str
+    y_name: str
+    x_hierarchy_path: str | None = None
+    y_hierarchy_path: str | None = None
+    points: list[RegressionScatterPoint]
+    regression_line: list[list[float]]  # [[x_min, y_hat_min], [x_max, y_hat_max]]
+    confidence_band_upper: list[list[float]]  # [[x, y_upper], ...]
+    confidence_band_lower: list[list[float]]  # [[x, y_lower], ...]
+    prediction_band_upper: list[list[float]]
+    prediction_band_lower: list[list[float]]
+    slope: float
+    intercept: float
+    r_squared: float
+    p_value: float
+    std_err: float
+    sample_count: int
+
+
+# ── Variable Importance ─────────────────────────────────────
+
+
 class VariableImportanceItem(BaseModel):
     characteristic_id: int
     characteristic_name: str

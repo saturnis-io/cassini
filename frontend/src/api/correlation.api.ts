@@ -47,6 +47,31 @@ export interface PartialCorrelationResponse {
 	df: number
 }
 
+export interface RegressionScatterPoint {
+	x: number
+	y: number
+	residual: number
+}
+
+export interface RegressionScatterResponse {
+	x_name: string
+	y_name: string
+	x_hierarchy_path: string | null
+	y_hierarchy_path: string | null
+	points: RegressionScatterPoint[]
+	regression_line: [number, number][]
+	confidence_band_upper: [number, number][]
+	confidence_band_lower: [number, number][]
+	prediction_band_upper: [number, number][]
+	prediction_band_lower: [number, number][]
+	slope: number
+	intercept: number
+	r_squared: number
+	p_value: number
+	std_err: number
+	sample_count: number
+}
+
 export interface VariableImportanceItem {
 	characteristic_id: number
 	characteristic_name: string
@@ -79,6 +104,18 @@ export const correlationAnalysisApi = {
 
 	computePartial: (data: PartialCorrelationRequest) =>
 		fetchApi<PartialCorrelationResponse>('/correlation/partial', {
+			method: 'POST',
+			body: JSON.stringify(data),
+		}),
+
+	computeRegression: (data: {
+		plant_id: number
+		x_characteristic_id: number
+		y_characteristic_id: number
+		start_date?: string
+		end_date?: string
+	}): Promise<RegressionScatterResponse> =>
+		fetchApi<RegressionScatterResponse>('/correlation/regression', {
 			method: 'POST',
 			body: JSON.stringify(data),
 		}),

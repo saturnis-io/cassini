@@ -176,6 +176,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "reject"
     if "/decompose" in path:
         return "decompose"
+    if "/regression" in path:
+        return "regression"
     if "calculate" in path or "/compute" in path:
         return "calculate"
     if "/unfreeze" in path:

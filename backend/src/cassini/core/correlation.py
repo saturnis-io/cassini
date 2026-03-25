@@ -353,6 +353,143 @@ def compute_pca(
     )
 
 
+@dataclass
+class RegressionScatterResult:
+    """OLS linear regression with scatter data and confidence/prediction bands.
+
+    Attributes:
+        points: List of dicts with ``x``, ``y``, ``residual`` keys.
+        regression_line: Two-point line ``[[x_min, y_hat_min], [x_max, y_hat_max]]``.
+        confidence_band_upper: Upper 95% confidence band points.
+        confidence_band_lower: Lower 95% confidence band points.
+        prediction_band_upper: Upper 95% prediction band points.
+        prediction_band_lower: Lower 95% prediction band points.
+        slope: OLS slope.
+        intercept: OLS intercept.
+        r_squared: Coefficient of determination.
+        p_value: Two-sided p-value for the slope (H0: slope=0).
+        std_err: Standard error of the slope.
+        sample_count: Number of data points.
+    """
+
+    points: list[dict]  # [{x, y, residual}, ...]
+    regression_line: list[list[float]]
+    confidence_band_upper: list[list[float]]
+    confidence_band_lower: list[list[float]]
+    prediction_band_upper: list[list[float]]
+    prediction_band_lower: list[list[float]]
+    slope: float
+    intercept: float
+    r_squared: float
+    p_value: float
+    std_err: float
+    sample_count: int
+
+
+def compute_regression_scatter(
+    x_values: list[float],
+    y_values: list[float],
+    x_name: str,
+    y_name: str,
+) -> RegressionScatterResult:
+    """OLS linear regression with scatter data, fitted line, R-squared, p-value,
+    and 95% confidence/prediction bands.
+
+    Args:
+        x_values: Independent variable observations.
+        y_values: Dependent variable observations (same length as *x_values*).
+        x_name: Label for the X axis (unused in computation, for context).
+        y_name: Label for the Y axis (unused in computation, for context).
+
+    Returns:
+        :class:`RegressionScatterResult`.
+
+    Raises:
+        ValueError: If fewer than 3 data points are provided (need n-2
+            degrees of freedom for the t-distribution).
+    """
+    n = len(x_values)
+    if n < 3:
+        raise ValueError(
+            f"Regression requires at least 3 data points (have {n})"
+        )
+    if len(y_values) != n:
+        raise ValueError(
+            f"x_values ({n}) and y_values ({len(y_values)}) must have the same length"
+        )
+
+    x = np.asarray(x_values, dtype=np.float64)
+    y = np.asarray(y_values, dtype=np.float64)
+
+    # OLS via scipy
+    result = stats.linregress(x, y)
+    slope = float(result.slope)
+    intercept = float(result.intercept)
+    r_value = float(result.rvalue)
+    p_value = float(result.pvalue)
+    std_err = float(result.stderr)
+    r_squared = r_value ** 2
+
+    # Fitted values and residuals
+    y_hat = intercept + slope * x
+    residuals = y - y_hat
+
+    # Build scatter points
+    points = [
+        {"x": float(x[i]), "y": float(y[i]), "residual": float(residuals[i])}
+        for i in range(n)
+    ]
+
+    # Standard error of regression (root mean square error)
+    s = float(np.sqrt(np.sum(residuals ** 2) / (n - 2)))
+
+    # For bands, evaluate at evenly-spaced x points for smooth curves
+    x_mean = float(np.mean(x))
+    ss_x = float(np.sum((x - x_mean) ** 2))
+
+    # t critical value for 95% confidence (two-tailed, n-2 df)
+    t_crit = float(stats.t.ppf(0.975, n - 2))
+
+    # Generate band evaluation points (sorted x range)
+    x_sorted = np.sort(x)
+    x_band = np.linspace(float(x_sorted[0]), float(x_sorted[-1]), min(n, 200))
+    y_hat_band = intercept + slope * x_band
+
+    # SE_fit for confidence band: s * sqrt(1/n + (x - x_mean)^2 / SSx)
+    se_fit = s * np.sqrt(1.0 / n + (x_band - x_mean) ** 2 / ss_x)
+
+    # SE_pred for prediction band: s * sqrt(1 + 1/n + (x - x_mean)^2 / SSx)
+    se_pred = s * np.sqrt(1.0 + 1.0 / n + (x_band - x_mean) ** 2 / ss_x)
+
+    conf_upper = y_hat_band + t_crit * se_fit
+    conf_lower = y_hat_band - t_crit * se_fit
+    pred_upper = y_hat_band + t_crit * se_pred
+    pred_lower = y_hat_band - t_crit * se_pred
+
+    # Regression line: two endpoints
+    x_min = float(x_band[0])
+    x_max = float(x_band[-1])
+    regression_line = [
+        [x_min, float(intercept + slope * x_min)],
+        [x_max, float(intercept + slope * x_max)],
+    ]
+
+    return RegressionScatterResult(
+        points=points,
+        regression_line=regression_line,
+        confidence_band_upper=[[float(x_band[i]), float(conf_upper[i])] for i in range(len(x_band))],
+        confidence_band_lower=[[float(x_band[i]), float(conf_lower[i])] for i in range(len(x_band))],
+        prediction_band_upper=[[float(x_band[i]), float(pred_upper[i])] for i in range(len(x_band))],
+        prediction_band_lower=[[float(x_band[i]), float(pred_lower[i])] for i in range(len(x_band))],
+        slope=slope,
+        intercept=intercept,
+        r_squared=r_squared,
+        p_value=p_value,
+        std_err=std_err,
+        sample_count=n,
+    )
+
+
 def rank_variable_importance(
     data: dict[str, list[float]],
     target_var: str,

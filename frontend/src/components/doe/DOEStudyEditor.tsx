@@ -33,6 +33,7 @@ import { DOEResidualsPanel } from './DOEResidualsPanel'
 import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 import { NewStudyForm } from './NewStudyForm'
 import { ConfirmationResultsPanel } from './ConfirmationResultsPanel'
+import { ContourPlot } from './ContourPlot'
 
 // ── Constants ──
 
@@ -477,6 +478,20 @@ function ExistingStudyView({ studyId }: { studyId: number }) {
 
                 {/* Residual diagnostics */}
                 <DOEResidualsPanel analysis={analysis} />
+
+                {/* Response Surface contour plot */}
+                {analysis.regression && study.factors.length >= 2 && (
+                  <ContourPlot
+                    coefficients={analysis.regression.coefficients}
+                    factorRanges={study.factors.map((f) => ({
+                      name: f.name,
+                      low: f.low_level,
+                      high: f.high_level,
+                    }))}
+                    optimalSettings={analysis.regression.optimal_settings}
+                    responseName={study.response_name}
+                  />
+                )}
 
                 {/* Effect coefficients summary (skip for Taguchi — shown in ANOM panel) */}
                 {!analysis.taguchi_anom && (

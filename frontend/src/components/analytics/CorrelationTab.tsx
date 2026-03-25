@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Play, Loader2, X, BarChart3, Grid3X3, Trophy, GitFork } from 'lucide-react'
+import { Play, Loader2, X, BarChart3, Grid3X3, Trophy, GitFork, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePlantContext } from '@/providers/PlantProvider'
 import { characteristicApi } from '@/api/client'
@@ -13,24 +13,28 @@ import {
 	useComputeCorrelationMatrix,
 	useComputePCA,
 	useComputePartialCorrelation,
+	useRegressionScatter,
 	useVariableImportance,
 } from '@/api/hooks'
 import type {
 	CorrelationMatrixResponse,
 	PCAResponse,
 	PartialCorrelationResponse,
+	RegressionScatterResponse,
 } from '@/api/correlation.api'
 import { CorrelationHeatmap } from './CorrelationHeatmap'
 import { PCAScreePlot } from './PCAScreePlot'
 import { PCABiplot } from './PCABiplot'
+import { RegressionScatterPlot } from './RegressionScatterPlot'
 
-type SubTab = 'heatmap' | 'pca' | 'rankings' | 'partial'
+type SubTab = 'heatmap' | 'pca' | 'rankings' | 'partial' | 'regression'
 
 const SUB_TABS: { id: SubTab; label: string; icon: typeof Grid3X3 }[] = [
 	{ id: 'heatmap', label: 'Heatmap', icon: Grid3X3 },
 	{ id: 'pca', label: 'PCA', icon: BarChart3 },
 	{ id: 'rankings', label: 'Rankings', icon: Trophy },
 	{ id: 'partial', label: 'Partial', icon: GitFork },
+	{ id: 'regression', label: 'Regression', icon: TrendingUp },
 ]
 
 /**
@@ -52,6 +56,11 @@ export function CorrelationTab() {
 	const [matrixResult, setMatrixResult] = useState<CorrelationMatrixResponse | null>(null)
 	const [pcaResult, setPcaResult] = useState<PCAResponse | null>(null)
 	const [partialResult, setPartialResult] = useState<PartialCorrelationResponse | null>(null)
+
+	// Regression state
+	const [regXCharId, setRegXCharId] = useState<number>(0)
+	const [regYCharId, setRegYCharId] = useState<number>(0)
+	const [regressionResult, setRegressionResult] = useState<RegressionScatterResponse | null>(null)
 
 	// Partial correlation form state
 	const [primaryId, setPrimaryId] = useState<number>(0)
@@ -90,6 +99,7 @@ export function CorrelationTab() {
 	const matrixMutation = useComputeCorrelationMatrix()
 	const pcaMutation = useComputePCA()
 	const partialMutation = useComputePartialCorrelation()
+	const regressionMutation = useRegressionScatter()
 
 	// Variable importance query
 	const { data: importanceResult, isLoading: isLoadingImportance } =
@@ -153,6 +163,22 @@ export function CorrelationTab() {
 			{
 				onSuccess: (data) => {
 					setPartialResult(data)
+				},
+			},
+		)
+	}
+
+	const handleRegression = () => {
+		if (regXCharId <= 0 || regYCharId <= 0 || regXCharId === regYCharId) return
+		regressionMutation.mutate(
+			{
+				plant_id: plantId,
+				x_characteristic_id: regXCharId,
+				y_characteristic_id: regYCharId,
+			},
+			{
+				onSuccess: (data) => {
+					setRegressionResult(data)
 				},
 			},
 		)
@@ -264,7 +290,7 @@ export function CorrelationTab() {
 			</div>
 
 			{/* Results area with sub-tabs */}
-			{(matrixResult || pcaResult) && (
+			{(matrixResult || pcaResult || activeSubTab === 'regression') && (
 				<div className="bg-card border-border rounded-lg border">
 					{/* Sub-tab bar */}
 					<div className="border-border flex gap-1 border-b px-4 pt-3">
@@ -657,6 +683,116 @@ export function CorrelationTab() {
 												</>
 											)}
 										</p>
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Regression sub-tab */}
+						{activeSubTab === 'regression' && (
+							<div>
+								<h3 className="text-foreground flex items-center gap-2 text-sm font-semibold">
+									<TrendingUp className="h-4 w-4" />
+									Regression Scatter Plot
+								</h3>
+								<p className="text-muted-foreground mt-0.5 text-xs">
+									Select two characteristics for OLS linear regression with confidence
+									and prediction bands
+								</p>
+
+								<div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+									<div>
+										<label className="text-foreground mb-1.5 block text-xs font-medium">
+											X (Independent)
+										</label>
+										<select
+											value={regXCharId}
+											onChange={(e) => setRegXCharId(Number(e.target.value))}
+											className="bg-background border-border text-foreground w-full rounded-lg border px-3 py-2 text-sm"
+										>
+											<option value={0}>Select characteristic...</option>
+											{characteristics.map((c) => (
+												<option key={c.id} value={c.id}>
+													{c.hierarchy_path
+														? `${c.hierarchy_path} > ${c.name}`
+														: c.name}
+												</option>
+											))}
+										</select>
+									</div>
+
+									<div>
+										<label className="text-foreground mb-1.5 block text-xs font-medium">
+											Y (Dependent)
+										</label>
+										<select
+											value={regYCharId}
+											onChange={(e) => setRegYCharId(Number(e.target.value))}
+											className="bg-background border-border text-foreground w-full rounded-lg border px-3 py-2 text-sm"
+										>
+											<option value={0}>Select characteristic...</option>
+											{characteristics.map((c) => (
+												<option key={c.id} value={c.id}>
+													{c.hierarchy_path
+														? `${c.hierarchy_path} > ${c.name}`
+														: c.name}
+												</option>
+											))}
+										</select>
+									</div>
+
+									<div className="flex items-end">
+										<button
+											onClick={handleRegression}
+											disabled={
+												regXCharId <= 0 ||
+												regYCharId <= 0 ||
+												regXCharId === regYCharId ||
+												regressionMutation.isPending
+											}
+											className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed"
+										>
+											{regressionMutation.isPending ? (
+												<>
+													<Loader2 className="h-4 w-4 animate-spin" />
+													Computing...
+												</>
+											) : (
+												<>
+													<TrendingUp className="h-4 w-4" />
+													Analyze
+												</>
+											)}
+										</button>
+									</div>
+								</div>
+
+								{regXCharId > 0 && regYCharId > 0 && regXCharId === regYCharId && (
+									<p className="text-destructive mt-2 text-xs">
+										X and Y must be different characteristics
+									</p>
+								)}
+
+								{/* Regression result */}
+								{regressionResult && (
+									<div className="mt-4">
+										<div className="mb-2">
+											<h4 className="text-foreground flex items-center gap-2 text-sm font-semibold">
+												<TrendingUp className="h-3.5 w-3.5" />
+												{regressionResult.x_name} vs {regressionResult.y_name}
+											</h4>
+											<p className="text-muted-foreground text-xs">
+												{regressionResult.x_hierarchy_path && (
+													<span className="mr-3">
+														X: {regressionResult.x_hierarchy_path}
+													</span>
+												)}
+												{regressionResult.y_hierarchy_path && (
+													<span>Y: {regressionResult.y_hierarchy_path}</span>
+												)}
+											</p>
+										</div>
+										<RegressionScatterPlot data={regressionResult} />
 									</div>
 								)}
 							</div>

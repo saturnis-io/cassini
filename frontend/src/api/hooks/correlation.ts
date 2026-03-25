@@ -58,6 +58,22 @@ export function useComputePartialCorrelation() {
 // Query hooks
 // -----------------------------------------------------------------------
 
+export function useRegressionScatter() {
+	return useMutation({
+		mutationFn: (data: {
+			plant_id: number
+			x_characteristic_id: number
+			y_characteristic_id: number
+			start_date?: string
+			end_date?: string
+		}) => correlationAnalysisApi.computeRegression(data),
+		onSuccess: () => {
+			toast.success('Regression analysis complete')
+		},
+		onError: handleMutationError('Regression analysis failed'),
+	})
+}
+
 export function useVariableImportance(charId: number) {
 	return useQuery({
 		queryKey: correlationAnalysisKeys.variableImportance(charId),

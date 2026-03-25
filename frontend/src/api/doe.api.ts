@@ -135,6 +135,13 @@ export interface TaguchiANOM {
   sn_ratios: (number | null)[]
 }
 
+export interface DOERegression {
+  coefficients: Record<string, number>
+  r_squared: number
+  adj_r_squared: number
+  optimal_settings: Record<string, number> | null
+}
+
 export interface DOEAnalysis {
   anova_table: DOEANOVARow[]
   effects: DOEEffect[]
@@ -152,6 +159,7 @@ export interface DOEAnalysis {
   normality_test: DOENormalityTest | null
   outlier_indices: number[] | null
   residual_stats: DOEResidualStats | null
+  regression: DOERegression | null
 }
 
 export interface ConfirmationRunResult {

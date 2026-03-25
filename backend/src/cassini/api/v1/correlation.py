@@ -1,10 +1,13 @@
 """Correlation Analysis REST endpoints (Pro tier).
 
 Provides dedicated correlation matrix, PCA, partial correlation,
-and variable importance ranking endpoints. Separate from the
-multivariate SPC router for clean Pro-tier gating.
+regression scatter, and variable importance ranking endpoints.
+Separate from the multivariate SPC router for clean Pro-tier gating.
 """
 
+from datetime import timezone
+
+import numpy as np
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -23,6 +26,8 @@ from cassini.api.schemas.correlation import (
     PartialCorrelationResponse,
     PCARequest,
     PCAResponse,
+    RegressionScatterRequest,
+    RegressionScatterResponse,
     VariableImportanceItem,
     VariableImportanceResponse,
 )
@@ -30,6 +35,7 @@ from cassini.core.correlation import (
     compute_correlation_matrix,
     compute_partial_correlation,
     compute_pca,
+    compute_regression_scatter,
     rank_variable_importance,
 )
 from cassini.core.multivariate.data_loader import load_aligned_data
@@ -273,6 +279,145 @@ async def partial_correlation(
         r=result.r,
         p_value=result.p_value,
         df=result.df,
+    )
+
+
+@router.post("/regression", response_model=RegressionScatterResponse)
+async def regression_scatter(
+    body: RegressionScatterRequest,
+    session: AsyncSession = Depends(get_db_session),
+    user: User = Depends(get_current_user),
+) -> RegressionScatterResponse:
+    """Compute OLS regression scatter plot for two characteristics.
+
+    Loads aligned sample data for the X and Y characteristics, runs
+    linear regression via scipy.stats.linregress, and returns scatter
+    points, the fitted line, 95% confidence and prediction bands,
+    R-squared, p-value, slope, and intercept.
+
+    Requires engineer+ role for the target plant.
+    """
+    check_plant_role(user, body.plant_id, "engineer")
+
+    if body.x_characteristic_id == body.y_characteristic_id:
+        raise HTTPException(400, "X and Y must be different characteristics")
+
+    await _validate_char_ids_for_plant(
+        session,
+        [body.x_characteristic_id, body.y_characteristic_id],
+        body.plant_id,
+    )
+
+    try:
+        X, timestamps, char_names = await load_aligned_data(
+            session,
+            [body.x_characteristic_id, body.y_characteristic_id],
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to load aligned data for the specified characteristics",
+        )
+
+    if X.shape[0] < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Insufficient aligned data — need at least 3 aligned observations",
+        )
+
+    # Optional date filtering on the aligned timestamps
+    if body.start_date is not None or body.end_date is not None:
+        mask = np.ones(len(timestamps), dtype=bool)
+        for i, ts in enumerate(timestamps):
+            ts_aware = ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+            if body.start_date is not None:
+                sd = body.start_date if body.start_date.tzinfo is not None else body.start_date.replace(tzinfo=timezone.utc)
+                if ts_aware < sd:
+                    mask[i] = False
+            if body.end_date is not None:
+                ed = body.end_date if body.end_date.tzinfo is not None else body.end_date.replace(tzinfo=timezone.utc)
+                if ts_aware > ed:
+                    mask[i] = False
+        X = X[mask]
+        if X.shape[0] < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Insufficient aligned data in date range — need at least 3 observations",
+            )
+
+    try:
+        reg = compute_regression_scatter(
+            x_values=X[:, 0].tolist(),
+            y_values=X[:, 1].tolist(),
+            x_name=char_names[0],
+            y_name=char_names[1],
+        )
+    except Exception:
+        logger.exception("regression_computation_failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Regression computation failed",
+        )
+
+    # Resolve hierarchy paths for both characteristics
+    x_hierarchy_path = None
+    y_hierarchy_path = None
+    for cid, attr in [
+        (body.x_characteristic_id, "x"),
+        (body.y_characteristic_id, "y"),
+    ]:
+        char_stmt = select(Characteristic.hierarchy_id).where(Characteristic.id == cid)
+        char_result = await session.execute(char_stmt)
+        hierarchy_id = char_result.scalar_one_or_none()
+        if hierarchy_id is not None:
+            parts: list[str] = []
+            current_id: int | None = hierarchy_id
+            while current_id is not None:
+                h_stmt = select(Hierarchy.name, Hierarchy.parent_id).where(
+                    Hierarchy.id == current_id
+                )
+                h_result = await session.execute(h_stmt)
+                row = h_result.one_or_none()
+                if row is None:
+                    break
+                parts.insert(0, row[0])
+                current_id = row[1]
+            path = " > ".join(parts)
+            if attr == "x":
+                x_hierarchy_path = path
+            else:
+                y_hierarchy_path = path
+
+    logger.info(
+        "regression_scatter_computed",
+        plant_id=body.plant_id,
+        x_char=body.x_characteristic_id,
+        y_char=body.y_characteristic_id,
+        n=reg.sample_count,
+        r_squared=round(reg.r_squared, 4),
+        user=user.username,
+    )
+
+    return RegressionScatterResponse(
+        x_name=char_names[0],
+        y_name=char_names[1],
+        x_hierarchy_path=x_hierarchy_path,
+        y_hierarchy_path=y_hierarchy_path,
+        points=[
+            {"x": p["x"], "y": p["y"], "residual": p["residual"]}
+            for p in reg.points
+        ],
+        regression_line=reg.regression_line,
+        confidence_band_upper=reg.confidence_band_upper,
+        confidence_band_lower=reg.confidence_band_lower,
+        prediction_band_upper=reg.prediction_band_upper,
+        prediction_band_lower=reg.prediction_band_lower,
+        slope=reg.slope,
+        intercept=reg.intercept,
+        r_squared=reg.r_squared,
+        p_value=reg.p_value,
+        std_err=reg.std_err,
+        sample_count=reg.sample_count,
     )
 
 
