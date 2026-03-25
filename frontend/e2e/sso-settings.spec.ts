@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
 import { getAuthToken, apiGet, apiDelete } from './helpers/api'
+import { switchToPlant } from './helpers/seed'
 
 test.describe.serial('SSO Settings', () => {
   let token: string
@@ -38,6 +39,9 @@ test.describe.serial('SSO Settings', () => {
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
+    // SSO is global but the admin role is resolved per-plant — ensure a plant is selected
+    // so ProtectedRoute sees the admin role and doesn't redirect
+    await switchToPlant(page, 'Screenshot Tour Plant')
     await page.goto('/settings/sso')
     await page.waitForTimeout(2000)
   })

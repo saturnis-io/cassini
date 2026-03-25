@@ -311,24 +311,62 @@ export async function acknowledgeViolation(
 }
 
 /**
- * Switch to a specific plant using the plant selector dropdown.
- * Extracted from the repeated pattern across spec files.
+ * Switch to a specific plant by setting it directly in localStorage.
+ *
+ * The Zustand `cassini-ui` store persists `selectedPlantId` to localStorage.
+ * This helper refreshes the access token (via the httpOnly cookie), fetches
+ * the plant list from the API, resolves the plant name to an ID, writes it
+ * into the persisted store, and reloads the page so the app picks up the
+ * new selection.
+ *
+ * This is far more reliable than the previous UI-dropdown approach, which
+ * silently failed when the plant option wasn't visible in the listbox.
  */
 export async function switchToPlant(page: Page, plantName: string) {
-  const plantSelector = page.locator('button[aria-haspopup="listbox"]')
-  await expect(plantSelector).toBeVisible({ timeout: 10000 })
-  await plantSelector.click()
-  const listbox = page.locator('[role="listbox"]')
-  await expect(listbox).toBeVisible({ timeout: 3000 })
-  const targetOption = listbox.locator('[role="option"]').filter({ hasText: plantName })
-  if (await targetOption.isVisible({ timeout: 2000 })) {
-    await targetOption.click()
-    // Wait for the dropdown to close and the selector button to show the new plant name
-    await expect(listbox).not.toBeVisible({ timeout: 3000 })
-    await expect(plantSelector).toContainText(plantName, { timeout: 5000 })
-  } else {
-    await page.keyboard.press('Escape')
-  }
+  // Resolve plant name to ID and set it in localStorage, all inside the browser context.
+  // The access token is in-memory only, so we first refresh to get a fresh one via
+  // the httpOnly cookie, then use that token to call the plants endpoint.
+  const plantId = await page.evaluate(async (name: string) => {
+    // Get a fresh access token using the httpOnly refresh cookie
+    const refreshRes = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!refreshRes.ok) {
+      throw new Error(`Token refresh failed: ${refreshRes.status}`)
+    }
+    const { access_token } = await refreshRes.json()
+
+    // Fetch plant list with the fresh token
+    const res = await fetch('/api/v1/plants/', {
+      headers: { Authorization: `Bearer ${access_token}` },
+    })
+    if (!res.ok) throw new Error(`Failed to fetch plants: ${res.status}`)
+    const plants: { id: number; name: string }[] = await res.json()
+    const plant = plants.find((p) => p.name === name)
+    if (!plant) {
+      throw new Error(
+        `Plant "${name}" not found. Available: ${plants.map((p) => p.name).join(', ')}`,
+      )
+    }
+    return plant.id
+  }, plantName)
+
+  // Write the plant ID into the Zustand persisted store in localStorage
+  await page.evaluate((id: number) => {
+    const raw = localStorage.getItem('cassini-ui')
+    const store = raw ? JSON.parse(raw) : { state: {}, version: 0 }
+    store.state = store.state || {}
+    store.state.selectedPlantId = id
+    localStorage.setItem('cassini-ui', JSON.stringify(store))
+  }, plantId)
+
+  // Reload so the app picks up the new plant selection
+  await page.reload({ waitUntil: 'networkidle' })
+
+  // Verify the plant selector shows the correct plant name
+  const plantSelector = page.locator('[data-ui="plant-selector"] button')
+  await expect(plantSelector).toContainText(plantName, { timeout: 10000 })
 }
 
 /**
