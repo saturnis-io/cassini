@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, func, text
+from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from cassini.db.models.hierarchy import Base
@@ -42,7 +42,7 @@ class Plant(Base):
     )
 
     # Plant logo (stored as base64 data URL, excluded from list queries for performance)
-    logo_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    logo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Capability thresholds
     capability_green_threshold: Mapped[Optional[float]] = mapped_column(

@@ -51,7 +51,7 @@ class PredictionConfig(Base):
         Integer, nullable=False, default=50, server_default=sa.text("50")
     )
     confidence_levels: Mapped[str] = mapped_column(
-        Text, nullable=False, default="[0.8, 0.95]", server_default="[0.8, 0.95]"
+        Text, nullable=False, default="[0.8, 0.95]"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

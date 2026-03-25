@@ -65,6 +65,12 @@ def _get_database_url() -> str:
     if parsed.get_backend_name() == "sqlite" and "aiosqlite" not in (parsed.get_driver_name() or ""):
         url = url.replace("sqlite:", "sqlite+aiosqlite:", 1)
 
+    # MSSQL requires MARS (Multiple Active Result Sets) for create_all() which
+    # issues has_table() checks while iterating metadata tables.
+    if parsed.get_backend_name() == "mssql" and "MARS_Connection" not in url:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}MARS_Connection=Yes"
+
     return url
 
 

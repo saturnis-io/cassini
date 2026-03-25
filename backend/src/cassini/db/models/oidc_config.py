@@ -30,13 +30,11 @@ class OIDCConfig(Base):
     scopes: Mapped[str] = mapped_column(
         Text,
         default='["openid", "profile", "email"]',
-        server_default='["openid", "profile", "email"]',
         nullable=False,
     )
     role_mapping: Mapped[str] = mapped_column(
         Text,
         default="{}",
-        server_default="{}",
         nullable=False,
     )
     auto_provision: Mapped[bool] = mapped_column(
@@ -48,13 +46,12 @@ class OIDCConfig(Base):
     claim_mapping: Mapped[str] = mapped_column(
         Text,
         default="{}",
-        server_default="{}",
         nullable=False,
     )
     end_session_endpoint: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     post_logout_redirect_uri: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     allowed_redirect_uris: Mapped[str] = mapped_column(
-        Text, default="[]", server_default="[]", nullable=False
+        Text, default="[]", nullable=False
     )
     sso_only: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.False_(), nullable=False

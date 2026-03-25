@@ -50,10 +50,10 @@ class ERPConnector(Base):
     base_url: Mapped[str] = mapped_column(String(500), nullable=False)
     auth_type: Mapped[str] = mapped_column(String(50), nullable=False)
     auth_config: Mapped[str] = mapped_column(
-        Text, nullable=False, default="{}", server_default="{}"
+        Text, nullable=False, default="{}"
     )
     headers: Mapped[str] = mapped_column(
-        Text, nullable=False, default="{}", server_default="{}"
+        Text, nullable=False, default="{}"
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=sa.True_()

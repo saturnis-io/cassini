@@ -59,5 +59,8 @@ services:
       start_period: 30s
     volumes:
       - ./backend/scripts/mssql-init.sh:/usr/src/mssql-init.sh
+      - mssql-data:/var/opt/mssql
     entrypoint: /bin/bash -c "/usr/src/mssql-init.sh & /opt/mssql/bin/sqlservr"
-    tmpfs: /var/opt/mssql/data
+
+volumes:
+  mssql-data:
