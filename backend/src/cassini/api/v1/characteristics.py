@@ -266,14 +266,8 @@ async def list_characteristics(
     )
 
 
-def _validate_custom_fields_schema(request: Request, fields_list: list[dict]) -> None:
-    """Validate and license-gate custom_fields_schema. Shared by create + update."""
-    license_svc = request.app.state.license_service
-    if not license_svc.has_feature("custom-metadata"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Custom metadata fields require a Pro or Enterprise license",
-        )
+def _validate_custom_fields_schema(fields_list: list[dict]) -> None:
+    """Validate custom_fields_schema structure. Shared by create + update."""
     from cassini.api.schemas.custom_fields import CustomFieldDefinition, MAX_CUSTOM_FIELDS
     if len(fields_list) > MAX_CUSTOM_FIELDS:
         raise HTTPException(
@@ -324,9 +318,9 @@ async def create_characteristic(
     # Plant-scoped authorization: engineer+ at the owning plant
     check_plant_role(_user, hierarchy.plant_id, "engineer")
 
-    # License-gate custom_fields_schema (Pro+ only)
+    # Validate custom_fields_schema structure
     if data.custom_fields_schema is not None:
-        _validate_custom_fields_schema(request, data.custom_fields_schema)
+        _validate_custom_fields_schema(data.custom_fields_schema)
 
     # Create characteristic
     characteristic = await repo.create(**data.model_dump())
@@ -470,9 +464,9 @@ async def update_characteristic(
                 detail=f"{update_data['sigma_method']} sigma method requires subgroup_size > 1",
             )
 
-    # License-gate custom_fields_schema (Pro+ only)
+    # Validate custom_fields_schema structure
     if "custom_fields_schema" in update_data and update_data["custom_fields_schema"] is not None:
-        _validate_custom_fields_schema(request, update_data["custom_fields_schema"])
+        _validate_custom_fields_schema(update_data["custom_fields_schema"])
 
     # Extract change_reason before applying updates to the model
     change_reason = update_data.pop("change_reason", None)
