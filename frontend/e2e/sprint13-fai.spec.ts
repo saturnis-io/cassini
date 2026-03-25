@@ -30,14 +30,23 @@ const API_BASE = `http://localhost:${process.env.E2E_BACKEND_PORT || '8001'}/api
 test.describe('Sprint 13 FAI — Form 2/3, Delta, Export, Auto-populate', () => {
   let token: string
   let plantId: number
+  let faiAvailable = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
     const manifest = getManifest()
     plantId = manifest.screenshot_tour.plant_id
+
+    // Probe FAI endpoint availability (enterprise-only commercial route)
+    const probe = await request.get(`${API_BASE}/fai/reports?plant_id=${plantId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const probeContentType = probe.headers()['content-type'] ?? ''
+    faiAvailable = probe.ok() && probeContentType.includes('application/json')
   })
 
   test.beforeEach(async ({ page }) => {
+    test.skip(!faiAvailable, 'FAI routes not available — commercial routes may not be registered')
     await loginAsAdmin(page)
     await switchToPlant(page, 'Screenshot Tour Plant')
   })

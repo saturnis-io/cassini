@@ -187,6 +187,7 @@ test.describe('Capability Bootstrap CIs', () => {
 test.describe('E-Signature Verification', () => {
   let plantId: number
   let token: string
+  let signaturesAvailable = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
@@ -194,6 +195,19 @@ test.describe('E-Signature Verification', () => {
     // Create a plant for the e-sig tests
     const plant = await createPlant(request, token, 'ESig Test Plant')
     plantId = plant.id
+
+    // Probe signatures endpoint availability (enterprise-only commercial route)
+    const probe = await request.post(`${API_BASE}/signatures/sign?plant_id=${plantId}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: {},
+    })
+    // A 422 (validation error) means the route exists; 404 or HTML means it does not
+    const probeContentType = probe.headers()['content-type'] ?? ''
+    if (!probeContentType.includes('application/json')) {
+      // Commercial routes not registered — tests will be skipped
+      return
+    }
+    signaturesAvailable = true
 
     // Create a signature meaning for the plant (required for sign_standalone)
     try {
@@ -207,6 +221,10 @@ test.describe('E-Signature Verification', () => {
     } catch {
       // Meaning may already exist from a previous run — ignore 409
     }
+  })
+
+  test.beforeEach(() => {
+    test.skip(!signaturesAvailable, 'Signature routes not available — commercial routes may not be registered')
   })
 
   test('sign and verify a resource — integrity check passes', async ({ request }) => {
@@ -323,11 +341,12 @@ test.describe('E-Signature Verification', () => {
 
     if (submitRes.ok()) {
       // Status changed to "submitted" — verify should detect tamper
-      const verifyAfter = await apiGet(
-        request,
-        `/signatures/verify/${signatureId}?plant_id=${plantId}`,
-        token,
+      const verifyAfterRaw = await request.get(
+        `${API_BASE}/signatures/verify/${signatureId}?plant_id=${plantId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
       )
+      expect(verifyAfterRaw.ok()).toBeTruthy()
+      const verifyAfter = await verifyAfterRaw.json()
       // resource_hash_valid should be false because status changed
       expect(verifyAfter.resource_hash_valid).toBe(false)
       // signature_hash_valid should still be true (the signature itself wasn't forged)
@@ -338,11 +357,12 @@ test.describe('E-Signature Verification', () => {
       // Workflow required — can't change status without signatures.
       // Verify the signature is still intact (no tampering occurred).
       expect(submitOk).toBe(true)
-      const verifyStill = await apiGet(
-        request,
-        `/signatures/verify/${signatureId}?plant_id=${plantId}`,
-        token,
+      const verifyStillRaw = await request.get(
+        `${API_BASE}/signatures/verify/${signatureId}?plant_id=${plantId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
       )
+      expect(verifyStillRaw.ok()).toBeTruthy()
+      const verifyStill = await verifyStillRaw.json()
       expect(verifyStill.is_tamper_free).toBe(true)
     }
   })

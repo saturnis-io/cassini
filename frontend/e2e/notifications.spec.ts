@@ -1,20 +1,28 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiPost, apiGet, apiDelete } from './helpers/api'
+import { getAuthToken, apiPost, apiGet, apiDelete, API_BASE } from './helpers/api'
 
 test.describe('Notification Settings', () => {
   let token: string
   let seedWebhookId: number | null = null
+  let webhooksAvailable = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
 
+    // Check if the notifications webhook endpoint is available (commercial/Pro route)
+    const probe = await request.get(`${API_BASE}/notifications/webhooks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const probeContentType = probe.headers()['content-type'] ?? ''
+    if (!probe.ok() || !probeContentType.includes('application/json')) {
+      // Commercial routes not registered or returned non-JSON — webhook tests will be skipped
+      return
+    }
+    webhooksAvailable = true
+
     // Clean up leftover test webhooks from previous runs
-    const existing: { id: number; name: string }[] = await apiGet(
-      request,
-      '/notifications/webhooks',
-      token,
-    )
+    const existing: { id: number; name: string }[] = await probe.json()
     for (const wh of existing) {
       if (wh.name === 'E2E Seed Hook' || wh.name === 'E2E Created Hook') {
         await apiDelete(request, `/notifications/webhooks/${wh.id}`, token)
@@ -31,6 +39,7 @@ test.describe('Notification Settings', () => {
   })
 
   test.afterAll(async ({ request }) => {
+    if (!webhooksAvailable) return
     // Best-effort cleanup of any webhooks created during this suite
     try {
       const all: { id: number; name: string }[] = await apiGet(

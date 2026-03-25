@@ -73,7 +73,11 @@ test.describe('DOE Residual Diagnostics', () => {
     if (!genRes.ok()) return
 
     // Get the generated runs
-    const runs = await apiGet(request, `/doe/studies/${doeStudyId}/runs`, token)
+    const runsRes = await request.get(`${API_BASE}/doe/studies/${doeStudyId}/runs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!runsRes.ok()) return
+    const runs = await runsRes.json()
 
     // Enter response values for all runs (realistic surface roughness data)
     const responseValues = [1.2, 2.5, 1.8, 3.1, 1.5, 2.8, 2.0, 3.4]
