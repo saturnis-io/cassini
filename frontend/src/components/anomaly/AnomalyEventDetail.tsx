@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { useSampleLabel } from '@/hooks/useSampleLabel'
@@ -67,6 +68,7 @@ export function AnomalyEventDetail({
   onDismiss,
   className,
 }: AnomalyEventDetailProps) {
+  const { t } = useTranslation('anomaly')
   const { formatDateTime } = useDateFormat()
   const getSampleLabel = useSampleLabel(event.char_id)
   const [dismissReason, setDismissReason] = useState('')
@@ -98,7 +100,7 @@ export function AnomalyEventDetail({
       {detailEntries.length > 0 && (
         <div className="space-y-1">
           <h4 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            Detection Details {/* TODO: i18n */}
+            {t('detail.detectionDetails')}
           </h4>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
             {detailEntries.map(([key, value]) => (
@@ -121,7 +123,7 @@ export function AnomalyEventDetail({
           <Clock className="h-3 w-3" />
           {getSampleLabel(event.sample_id) ?? `#${event.sample_id}`}
           <span className="mx-1">|</span>
-          Detected: {formatDateTime(event.detected_at)}
+          {t('detail.detected')}: {formatDateTime(event.detected_at)}
         </div>
       )}
 
@@ -129,17 +131,16 @@ export function AnomalyEventDetail({
       {event.is_acknowledged && (
         <div className="flex items-center gap-1.5 text-[10px] text-green-600">
           <User className="h-3 w-3" />
-          Acknowledged by {event.acknowledged_by}
-          {event.acknowledged_at && (
-            <span>at {formatDateTime(event.acknowledged_at)}</span>
-          )}
+          {event.acknowledged_at
+            ? t('detail.acknowledgedByAt', { user: event.acknowledged_by, time: formatDateTime(event.acknowledged_at) })
+            : t('detail.acknowledgedBy', { user: event.acknowledged_by })}
         </div>
       )}
 
       {/* Dismissal info */}
       {event.is_dismissed && (
         <div className="text-[10px] text-muted-foreground">
-          <span className="font-medium">Dismissed</span> by {event.dismissed_by}
+          <span className="font-medium">{t('detail.dismissedBy', { user: event.dismissed_by })}</span>
           {event.dismissed_reason && <span>: {event.dismissed_reason}</span>}
         </div>
       )}
@@ -152,7 +153,7 @@ export function AnomalyEventDetail({
             className="flex items-center gap-1 rounded bg-green-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-green-700"
           >
             <CheckCircle2 className="h-3 w-3" />
-            Acknowledge {/* TODO: i18n */}
+            {t('detail.acknowledge')}
           </button>
 
           {!showDismissInput ? (
@@ -161,7 +162,7 @@ export function AnomalyEventDetail({
               className="flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <XCircle className="h-3 w-3" />
-              Dismiss {/* TODO: i18n */}
+              {t('detail.dismiss')}
             </button>
           ) : (
             <div className="flex flex-1 items-center gap-1.5">
@@ -170,7 +171,7 @@ export function AnomalyEventDetail({
                 value={dismissReason}
                 onChange={(e) => setDismissReason(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleDismiss()}
-                placeholder="Reason for dismissal..."
+                placeholder={t('detail.dismissReasonPlaceholder')}
                 className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground"
                 autoFocus
               />
@@ -179,7 +180,7 @@ export function AnomalyEventDetail({
                 disabled={!dismissReason.trim()}
                 className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
               >
-                Dismiss
+                {t('detail.dismiss')}
               </button>
               <button
                 onClick={() => {
@@ -188,7 +189,7 @@ export function AnomalyEventDetail({
                 }}
                 className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               >
-                Cancel
+                {t('buttons.cancel', { ns: 'common' })}
               </button>
             </div>
           )}

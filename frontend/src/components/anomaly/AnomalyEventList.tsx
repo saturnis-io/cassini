@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useDateFormat } from '@/hooks/useDateFormat'
 import { useAnomalyEvents, useAcknowledgeAnomaly, useDismissAnomaly } from '@/api/hooks'
@@ -33,6 +34,7 @@ import {
 type FilterStatus = 'all' | 'active' | 'acknowledged' | 'dismissed'
 
 export function AnomalyEventList({ characteristicId, className }: AnomalyEventListProps) {
+  const { t } = useTranslation('anomaly')
   const { formatDateTime } = useDateFormat()
   const [severityFilter, setSeverityFilter] = useState<string>('')
   const [detectorFilter, setDetectorFilter] = useState<string>('')
@@ -82,7 +84,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
       {/* Header + Filters */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <h3 className="text-sm font-semibold text-foreground">
-          Anomaly Events {/* TODO: i18n */}
+          {t('events.title')}
           {data?.total ? (
             <span className="ml-1.5 text-xs font-normal text-muted-foreground">
               ({data.total})
@@ -99,7 +101,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
           )}
         >
           <Filter className="h-3 w-3" />
-          Filters
+          {t('events.filters')}
         </button>
       </div>
 
@@ -110,10 +112,10 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
             onChange={(e) => setSeverityFilter(e.target.value)}
             className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
           >
-            <option value="">All severities</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="WARNING">Warning</option>
-            <option value="INFO">Info</option>
+            <option value="">{t('filters.allSeverities')}</option>
+            <option value="CRITICAL">{t('filters.critical')}</option>
+            <option value="WARNING">{t('filters.warning')}</option>
+            <option value="INFO">{t('filters.info')}</option>
           </select>
 
           <select
@@ -121,10 +123,10 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
             onChange={(e) => setDetectorFilter(e.target.value)}
             className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
           >
-            <option value="">All detectors</option>
-            <option value="pelt">Process Shift</option>
-            <option value="isolation_forest">Unusual Pattern</option>
-            <option value="ks_test">Distribution Drift</option>
+            <option value="">{t('filters.allDetectors')}</option>
+            <option value="pelt">{t('filters.processShift')}</option>
+            <option value="isolation_forest">{t('filters.unusualPattern')}</option>
+            <option value="ks_test">{t('filters.distributionDrift')}</option>
           </select>
 
           <div className="flex gap-0.5 rounded border border-border">
@@ -139,7 +141,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {status}
+                {t(`filters.${status}`)}
               </button>
             ))}
           </div>
@@ -150,7 +152,7 @@ export function AnomalyEventList({ characteristicId, className }: AnomalyEventLi
       <div className="max-h-96 overflow-y-auto">
         {filteredEvents.length === 0 ? (
           <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-            No anomaly events found {/* TODO: i18n */}
+            {t('events.noEventsFound')}
           </div>
         ) : (
           <ul className="divide-y divide-border/50">

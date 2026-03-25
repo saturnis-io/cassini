@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   useAnomalyConfig,
@@ -26,6 +27,7 @@ function getSensitivityPreset(penalty: string): SensitivityPreset {
 }
 
 export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfigPanelProps) {
+  const { t } = useTranslation('anomaly')
   const { data: config, isLoading } = useAnomalyConfig(characteristicId)
   const updateConfig = useUpdateAnomalyConfig()
   const resetConfig = useResetAnomalyConfig()
@@ -79,7 +81,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
     <div className={cn('space-y-4 rounded-lg border border-border bg-card p-4', className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">
-          Anomaly Detection {/* TODO: i18n */}
+          {t('title')}
         </h3>
         <label className="flex items-center gap-2">
           <input
@@ -88,7 +90,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
             onChange={(e) => updateField('is_enabled', e.target.checked)}
             className="accent-primary h-4 w-4 rounded"
           />
-          <span className="text-xs text-muted-foreground">Enable</span>
+          <span className="text-xs text-muted-foreground">{t('config.enable')}</span>
         </label>
       </div>
 
@@ -97,10 +99,10 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* PELT Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Process Shift Detection
+              {t('config.processShiftDetection')}
             </legend>
             <p className="text-[10px] text-muted-foreground">
-              Detects sudden changes in the process mean or variance.
+              {t('config.processShiftDescription')}
             </p>
 
             <label className="flex items-center gap-2">
@@ -110,13 +112,13 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('pelt_enabled', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Enabled</span>
+              <span className="text-xs text-muted-foreground">{t('config.enabled')}</span>
             </label>
 
             {form.pelt_enabled && (
               <>
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Model:</label>
+                  <label className="text-xs text-muted-foreground">{t('config.model')}:</label>
                   <select
                     value={form.pelt_model ?? 'l2'}
                     onChange={(e) =>
@@ -124,14 +126,14 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                     }
                     className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                   >
-                    <option value="l2">L2 (mean shift)</option>
-                    <option value="rbf">RBF (mean+variance)</option>
-                    <option value="normal">Normal (parametric)</option>
+                    <option value="l2">{t('models.l2')}</option>
+                    <option value="rbf">{t('models.rbf')}</option>
+                    <option value="normal">{t('models.normal')}</option>
                   </select>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Sensitivity:</label>
+                  <label className="text-xs text-muted-foreground">{t('config.sensitivity')}:</label>
                   <div className="flex gap-1">
                     {(['low', 'medium', 'high'] as const).map((preset) => (
                       <button
@@ -144,7 +146,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                             : 'border border-border text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        {preset}
+                        {t(`sensitivity.${preset}`)}
                       </button>
                     ))}
                   </div>
@@ -152,7 +154,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
 
                 <div className="flex items-center gap-3">
                   <label className="text-xs text-muted-foreground" title="Min segment">
-                    Minimum run length:
+                    {t('config.minimumRunLength')}:
                   </label>
                   <input
                     type="number"
@@ -170,10 +172,10 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* Isolation Forest Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Unusual Pattern Detection
+              {t('config.unusualPatternDetection')}
             </legend>
             <p className="text-[10px] text-muted-foreground">
-              Finds data points that deviate from normal behavior.
+              {t('config.unusualPatternDescription')}
             </p>
 
             <label className="flex items-center gap-2">
@@ -184,7 +186,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
               <span className="text-xs text-muted-foreground">
-                Enabled (requires 50+ samples)
+                {t('config.enabledRequiresSamples')}
               </span>
             </label>
 
@@ -192,7 +194,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
               <>
                 <div className="flex items-center gap-3">
                   <label className="text-xs text-muted-foreground" title="Contamination">
-                    Expected anomaly rate:
+                    {t('config.expectedAnomalyRate')}:
                   </label>
                   <input
                     type="range"
@@ -212,7 +214,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
 
                 <div className="flex items-center gap-3">
                   <label className="text-xs text-muted-foreground" title="Score threshold">
-                    Detection threshold:
+                    {t('config.detectionThreshold')}:
                   </label>
                   <input
                     type="number"
@@ -233,10 +235,10 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* K-S Distribution Shift Configuration */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Distribution Drift Detection
+              {t('config.distributionDriftDetection')}
             </legend>
             <p className="text-[10px] text-muted-foreground">
-              Monitors for gradual changes in data distribution over time.
+              {t('config.distributionDriftDescription')}
             </p>
 
             <label className="flex items-center gap-2">
@@ -246,13 +248,13 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('ks_enabled', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Enabled</span>
+              <span className="text-xs text-muted-foreground">{t('config.enabled')}</span>
             </label>
 
             {form.ks_enabled && (
               <>
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Reference window:</label>
+                  <label className="text-xs text-muted-foreground">{t('config.referenceWindow')}:</label>
                   <input
                     type="number"
                     min={50}
@@ -263,11 +265,11 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                     }
                     className="w-20 rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                   />
-                  <span className="text-xs text-muted-foreground">samples</span>
+                  <span className="text-xs text-muted-foreground">{t('config.samples')}</span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Test window:</label>
+                  <label className="text-xs text-muted-foreground">{t('config.testWindow')}:</label>
                   <input
                     type="number"
                     min={20}
@@ -278,19 +280,19 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                     }
                     className="w-20 rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                   />
-                  <span className="text-xs text-muted-foreground">samples</span>
+                  <span className="text-xs text-muted-foreground">{t('config.samples')}</span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <label className="text-xs text-muted-foreground">Significance:</label>
+                  <label className="text-xs text-muted-foreground">{t('config.significance')}:</label>
                   <select
                     value={String(form.ks_alpha ?? 0.05)}
                     onChange={(e) => updateField('ks_alpha', parseFloat(e.target.value))}
                     className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground"
                   >
-                    <option value="0.01">0.01 (strict)</option>
-                    <option value="0.05">0.05 (standard)</option>
-                    <option value="0.10">0.10 (lenient)</option>
+                    <option value="0.01">{t('significanceLevels.strict')}</option>
+                    <option value="0.05">{t('significanceLevels.standard')}</option>
+                    <option value="0.10">{t('significanceLevels.lenient')}</option>
                   </select>
                 </div>
               </>
@@ -300,7 +302,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
           {/* Notification preferences */}
           <fieldset className="space-y-2 rounded border border-border/50 p-3">
             <legend className="px-1 text-xs font-medium text-foreground">
-              Notifications {/* TODO: i18n */}
+              {t('notifications.title')}
             </legend>
 
             <label className="flex items-center gap-2">
@@ -310,7 +312,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_changepoint', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on process shifts</span>
+              <span className="text-xs text-muted-foreground">{t('notifications.notifyOnProcessShifts')}</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -320,7 +322,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_anomaly_score', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on unusual patterns</span>
+              <span className="text-xs text-muted-foreground">{t('notifications.notifyOnUnusualPatterns')}</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -330,7 +332,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
                 onChange={(e) => updateField('notify_on_distribution_shift', e.target.checked)}
                 className="accent-primary h-3.5 w-3.5 rounded"
               />
-              <span className="text-xs text-muted-foreground">Notify on distribution drift</span>
+              <span className="text-xs text-muted-foreground">{t('notifications.notifyOnDistributionDrift')}</span>
             </label>
           </fieldset>
 
@@ -342,7 +344,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
               className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               <Save className="h-3.5 w-3.5" />
-              {updateConfig.isPending ? 'Saving...' : 'Save'}
+              {updateConfig.isPending ? t('config.saving') : t('config.save')}
             </button>
             <button
               onClick={handleReset}
@@ -350,7 +352,7 @@ export function AnomalyConfigPanel({ characteristicId, className }: AnomalyConfi
               className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Reset to defaults
+              {t('config.resetToDefaults')}
             </button>
           </div>
         </>

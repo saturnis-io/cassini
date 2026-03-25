@@ -9,6 +9,7 @@ import authEn from './locales/en/auth.json'
 import dashboardEn from './locales/en/dashboard.json'
 import settingsEn from './locales/en/settings.json'
 import violationsEn from './locales/en/violations.json'
+import anomalyEn from './locales/en/anomaly.json'
 
 i18n
   .use(LanguageDetector)
@@ -22,6 +23,7 @@ i18n
         dashboard: dashboardEn,
         settings: settingsEn,
         violations: violationsEn,
+        anomaly: anomalyEn,
       },
     },
     defaultNS: 'common',

@@ -1,0 +1,76 @@
+{
+  "title": "Anomaly Detection",
+  "events": {
+    "title": "Anomaly Events",
+    "noEventsFound": "No anomaly events found",
+    "filters": "Filters"
+  },
+  "config": {
+    "enable": "Enable",
+    "processShiftDetection": "Process Shift Detection",
+    "processShiftDescription": "Detects sudden changes in the process mean or variance.",
+    "unusualPatternDetection": "Unusual Pattern Detection",
+    "unusualPatternDescription": "Finds data points that deviate from normal behavior.",
+    "distributionDriftDetection": "Distribution Drift Detection",
+    "distributionDriftDescription": "Monitors for gradual changes in data distribution over time.",
+    "enabled": "Enabled",
+    "enabledRequiresSamples": "Enabled (requires 50+ samples)",
+    "model": "Model",
+    "sensitivity": "Sensitivity",
+    "minimumRunLength": "Minimum run length",
+    "expectedAnomalyRate": "Expected anomaly rate",
+    "detectionThreshold": "Detection threshold",
+    "referenceWindow": "Reference window",
+    "testWindow": "Test window",
+    "significance": "Significance",
+    "samples": "samples",
+    "save": "Save",
+    "saving": "Saving...",
+    "resetToDefaults": "Reset to defaults"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "notifyOnProcessShifts": "Notify on process shifts",
+    "notifyOnUnusualPatterns": "Notify on unusual patterns",
+    "notifyOnDistributionDrift": "Notify on distribution drift"
+  },
+  "detail": {
+    "detectionDetails": "Detection Details",
+    "detected": "Detected",
+    "acknowledgedBy": "Acknowledged by {{user}}",
+    "acknowledgedByAt": "Acknowledged by {{user}} at {{time}}",
+    "dismissedBy": "Dismissed by {{user}}",
+    "acknowledge": "Acknowledge",
+    "dismiss": "Dismiss",
+    "dismissReasonPlaceholder": "Reason for dismissal..."
+  },
+  "filters": {
+    "allSeverities": "All severities",
+    "critical": "Critical",
+    "warning": "Warning",
+    "info": "Info",
+    "allDetectors": "All detectors",
+    "processShift": "Process Shift",
+    "unusualPattern": "Unusual Pattern",
+    "distributionDrift": "Distribution Drift",
+    "all": "All",
+    "active": "Active",
+    "acknowledged": "Acknowledged",
+    "dismissed": "Dismissed"
+  },
+  "models": {
+    "l2": "L2 (mean shift)",
+    "rbf": "RBF (mean+variance)",
+    "normal": "Normal (parametric)"
+  },
+  "significanceLevels": {
+    "strict": "0.01 (strict)",
+    "standard": "0.05 (standard)",
+    "lenient": "0.10 (lenient)"
+  },
+  "sensitivity": {
+    "low": "low",
+    "medium": "medium",
+    "high": "high"
+  }
+}
