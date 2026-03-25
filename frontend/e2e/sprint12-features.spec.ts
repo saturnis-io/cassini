@@ -162,6 +162,7 @@ test.describe('Bivariate Confidence Ellipse', () => {
   let hasData = false
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     token = await getAuthToken(request)
 
     // Seed plant + hierarchy + 2 characteristics with correlated samples
@@ -498,6 +499,7 @@ test.describe('AI Tool-Use', () => {
   let hasData = false
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     token = await getAuthToken(request)
 
     // Seed a characteristic with 50+ samples and some violations

@@ -24,6 +24,7 @@ test.describe('Capability Bootstrap CIs', () => {
   let charFewId: number
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
 
     const plant = await createPlant(request, token, plantName)

@@ -16,6 +16,7 @@ test.describe('Correlation Analysis', () => {
   let charIds: number[]
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
     plantName = 'Correlation Test Plant'
 

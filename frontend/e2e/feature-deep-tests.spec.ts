@@ -23,6 +23,7 @@ test.describe('Correlation Matrix — Deep Functional', () => {
   let plantName: string
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
     plantName = 'Deep Corr Plant'
 
@@ -266,6 +267,7 @@ test.describe('Ishikawa Pareto — Deep Functional', () => {
   let charId: number
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
     plantName = 'Deep Ishi Plant'
 
@@ -405,6 +407,7 @@ test.describe('Predictions — Deep Functional', () => {
   let charId: number
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
     plantName = 'Deep Pred Plant'
 

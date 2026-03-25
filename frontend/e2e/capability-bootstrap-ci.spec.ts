@@ -17,6 +17,7 @@ test.describe('Capability Bootstrap Confidence Intervals', () => {
   let charId: number
 
   test.beforeAll(async ({ request }) => {
+    test.setTimeout(180_000) // 3 minutes for heavy data seeding
     const token = await getAuthToken(request)
     plantName = 'Capability CI Plant'
 
