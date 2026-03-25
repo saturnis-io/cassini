@@ -1,5 +1,16 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { Upload, RotateCcw, Check } from 'lucide-react'
+import {
+  Upload,
+  RotateCcw,
+  Check,
+  Palette,
+  Image,
+  Paintbrush,
+  Type,
+  Monitor,
+  Sun,
+  Moon,
+} from 'lucide-react'
 import { HelpTooltip } from '@/components/HelpTooltip'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -9,6 +20,7 @@ import {
   type BrandConfig,
   autoAdjustForMode,
   deriveLogoColors,
+  isValidHexColor,
   DEFAULT_LIGHT_BG,
   DEFAULT_DARK_BG,
 } from '@/lib/brand-engine'

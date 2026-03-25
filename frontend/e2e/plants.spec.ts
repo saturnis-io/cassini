@@ -150,6 +150,15 @@ test.describe('Plant Management', () => {
     await editModal.getByRole('button', { name: 'Save Changes' }).click()
     await page.waitForTimeout(1000)
 
+    // Handle the ChangeReasonDialog that appears after clicking Save
+    const reasonDialog = page.locator('.fixed.inset-0.z-\\[70\\]')
+    const reasonDialogVisible = await reasonDialog.isVisible().catch(() => false)
+    if (reasonDialogVisible) {
+      await reasonDialog.locator('textarea').fill('E2E test rename')
+      await reasonDialog.getByRole('button', { name: 'Save Changes' }).click()
+      await page.waitForTimeout(2000)
+    }
+
     // Refresh and verify
     await page.reload()
     await page.waitForTimeout(2000)
