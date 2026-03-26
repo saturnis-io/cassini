@@ -6,8 +6,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 """
 
 import asyncio
+import sys
 import structlog
 from contextlib import asynccontextmanager
+
+# ---------------------------------------------------------------------------
+# Windows event loop policy — must be set before any asyncio operations.
+# aiomqtt (paho-mqtt) uses add_reader/add_writer socket callbacks which
+# require SelectorEventLoop. Windows defaults to ProactorEventLoop which
+# does not implement these methods, causing MQTT connections to fail.
+# SelectorEventLoop is fully compatible with uvicorn HTTP/WebSocket serving.
+# ---------------------------------------------------------------------------
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request as FastAPIRequest
@@ -617,7 +628,18 @@ if _frontend_dist:
 
     @app.get("/{path:path}", include_in_schema=False)
     async def serve_frontend(path: str):
-        """Serve frontend static assets, SPA fallback for client-side routing."""
+        """Serve frontend static assets, SPA fallback for client-side routing.
+
+        API paths are explicitly excluded — commercial routers are registered
+        lazily during lifespan startup (after this catch-all), so without
+        this guard their GET routes would receive HTML instead of JSON.
+        """
+        if path.startswith("api/"):
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Not found"},
+            )
         file = (_resolved_dist / path).resolve()
         if file.is_file() and file.is_relative_to(_resolved_dist):
             return _FileResponse(file)
