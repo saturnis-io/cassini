@@ -107,6 +107,8 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "syw: Show Your Work contract tests (display value == explain value)",
+    "nist: NIST reference dataset validation tests",
+    "validation: Statistical validation tests against certified values",
 ]
 
 [tool.ruff]
