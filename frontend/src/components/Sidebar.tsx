@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   TrendingUp,
   FlaskConical,
+  Database,
   Users,
   Wrench,
   PanelLeftClose,
@@ -201,6 +202,13 @@ export function Sidebar({ className }: SidebarProps) {
       icon: <TrendingUp className="h-5 w-5" />,
       requiredRole: 'engineer',
       requiredTier: 'enterprise',
+    },
+    {
+      path: '/lakehouse',
+      labelKey: 'lakehouse',
+      icon: <Database className="h-5 w-5" />,
+      requiredRole: 'engineer',
+      requiredTier: 'pro',
     },
     {
       path: '/connectivity',

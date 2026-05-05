@@ -48,7 +48,7 @@ PRO_FEATURES = frozenset({
     "multi-plant", "enterprise-databases", "opc-ua", "unlimited-mqtt",
     "msa-gage-rr", "doe", "non-normal-distributions", "rule-presets",
     "ishikawa", "correlation", "scheduled-reporting", "api-keys",
-    "push-notifications", "email-alerts",
+    "push-notifications", "email-alerts", "lakehouse-export",
 })
 
 ENTERPRISE_FEATURES = frozenset({

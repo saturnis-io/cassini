@@ -75,6 +75,10 @@ windows = [
 cluster = [
     "redis[hiredis]>=5.0",
 ]
+lakehouse = [
+    "duckdb>=1.0",
+    "pyarrow>=16",
+]
 mcp = [
     "mcp>=1.0",
 ]

@@ -144,6 +144,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/update-profile"), "auth"),
     (re.compile(r"/api/v1/scheduled-reports(?:/(\d+))?"), "report_schedule"),
     (re.compile(r"/api/v1/reports/analytics(?:/|$)"), "report_analytics"),
+    (re.compile(r"/api/v1/lakehouse/[\w-]+"), "lakehouse"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
