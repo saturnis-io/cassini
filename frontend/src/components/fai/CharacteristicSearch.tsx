@@ -14,7 +14,7 @@ export function CharacteristicSearch({
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { data: results, isFetching } = useFAICharacteristicSearch(
     debouncedQuery,

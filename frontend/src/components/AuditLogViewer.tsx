@@ -288,7 +288,7 @@ function DetailDisplay({ detail }: { detail: Record<string, unknown> }) {
 
   return (
     <div>
-      {detail.change_reason && (
+      {!!detail.change_reason && (
         <div className="bg-primary/5 border-primary/20 mb-2 rounded-md border p-2">
           <span className="text-primary text-xs font-semibold">Reason for Change</span>
           <p className="text-foreground mt-0.5 text-sm">{String(detail.change_reason)}</p>

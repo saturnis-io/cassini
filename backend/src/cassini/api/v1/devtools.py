@@ -88,6 +88,13 @@ AVAILABLE_SCRIPTS = {
         "script_file": "scripts/seed_chart_showcase.py",
         "category": "demo",
     },
+    "nist_reference": {
+        "name": "NIST Reference Data",
+        "description": "NIST-certified and textbook reference datasets for SPC validation. Michelson, Mavro, Lew (I-MR), Flowrate (I-MR with certified limits), Piston Rings and Hard Bake (X-bar/R with capability), Orange Juice (p-chart), Wafer Defects and Circuit Board (c-chart), Dyed Cloth (u-chart).",
+        "estimated_samples": "~600",
+        "script_file": "scripts/seed_nist_reference.py",
+        "category": "reference",
+    },
 }
 
 

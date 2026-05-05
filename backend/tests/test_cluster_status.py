@@ -57,11 +57,6 @@ def _make_app(
     """Build a minimal FastAPI app with the cluster router wired up."""
     app = FastAPI()
 
-    # Override admin dependency
-    from cassini.api.deps import get_current_admin
-
-    app.dependency_overrides[get_current_admin] = _fake_admin
-
     task_queue = _FakeTaskQueue(pending=queue_pending)
     app.state.broker = _FakeBroker(backend=broker_backend, task_queue=task_queue)
 
@@ -74,7 +69,8 @@ async def test_cluster_status_standalone_mode():
     """Cluster status returns mode 'standalone' when no broker_url is set."""
     app = _make_app()
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = ""
         mock_settings.return_value.role_list = ["all"]
         mock_settings.return_value.app_version = "0.0.9"
@@ -94,7 +90,8 @@ async def test_cluster_status_cluster_mode():
     """Cluster status returns mode 'cluster' when broker_url is set."""
     app = _make_app(broker_backend="valkey", broker_url="valkey://localhost:6379")
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = "valkey://localhost:6379"
         mock_settings.return_value.role_list = ["api", "spc"]
         mock_settings.return_value.app_version = "0.0.9"
@@ -114,7 +111,8 @@ async def test_cluster_status_returns_broker_backend():
     """Cluster status returns the correct broker backend string."""
     app = _make_app(broker_backend="valkey")
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = "valkey://localhost:6379"
         mock_settings.return_value.role_list = ["all"]
         mock_settings.return_value.app_version = "0.0.9"
@@ -134,7 +132,8 @@ async def test_cluster_status_includes_node_info():
     """Cluster status includes this node's hostname, pid, roles, and version."""
     app = _make_app()
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = ""
         mock_settings.return_value.role_list = ["api", "spc"]
         mock_settings.return_value.app_version = "0.0.9"
@@ -161,7 +160,8 @@ async def test_cluster_status_returns_queue_depth():
     """Cluster status returns queue_depth from the broker task queue."""
     app = _make_app(queue_pending=42)
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = ""
         mock_settings.return_value.role_list = ["all"]
         mock_settings.return_value.app_version = "0.0.9"
@@ -182,7 +182,8 @@ async def test_cluster_status_queue_depth_zero_when_no_broker():
     app = _make_app()
     del app.state.broker
 
-    with patch("cassini.api.v1.cluster.get_settings") as mock_settings:
+    with patch("cassini.api.v1.cluster._get_admin_or_api_key", new_callable=AsyncMock, return_value=_fake_admin()), \
+         patch("cassini.api.v1.cluster.get_settings") as mock_settings:
         mock_settings.return_value.broker_url = ""
         mock_settings.return_value.role_list = ["all"]
         mock_settings.return_value.app_version = "0.0.9"

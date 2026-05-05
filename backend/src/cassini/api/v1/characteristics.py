@@ -1614,6 +1614,7 @@ async def recalculate_limits(
     end_date: datetime | None = Query(None, description="End date for baseline period"),
     last_n: int | None = Query(None, ge=1, description="Use only the most recent N samples"),
     material_id: int | None = Query(None, description="Recalculate for a specific material"),
+    preview: bool = Query(False, description="Compute and return limits without persisting"),
     service: ControlLimitService = Depends(get_control_limit_service),
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
     session: AsyncSession = Depends(get_db_session),
@@ -1752,36 +1753,45 @@ async def recalculate_limits(
 
     # Recalculate limits (standard — no material filter)
     try:
-        result = await service.recalculate_and_persist(
-            characteristic_id=char_id,
-            exclude_ooc=exclude_ooc,
-            min_samples=min_samples,
-            start_date=start_date,
-            end_date=end_date,
-            last_n=last_n,
-        )
+        if preview:
+            result = await service.calculate_limits(
+                characteristic_id=char_id,
+                exclude_ooc=exclude_ooc,
+                min_samples=min_samples,
+                start_date=start_date,
+                end_date=end_date,
+                last_n=last_n,
+            )
+        else:
+            result = await service.recalculate_and_persist(
+                characteristic_id=char_id,
+                exclude_ooc=exclude_ooc,
+                min_samples=min_samples,
+                start_date=start_date,
+                end_date=end_date,
+                last_n=last_n,
+            )
+            await session.refresh(characteristic)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid input for limit calculation"
         )
 
-    # Get updated characteristic
-    await session.refresh(characteristic)
-
-    request.state.audit_context = {
-        "resource_type": "characteristic",
-        "resource_id": char_id,
-        "action": "recalculate",
-        "summary": f"Control limits recalculated for '{characteristic.name}'",
-        "fields": {
-            "characteristic_name": characteristic.name,
-            "chart_type": characteristic.chart_type,
-            "ucl": result.ucl,
-            "centerline": result.center_line,
-            "lcl": result.lcl,
-        },
-    }
+    if not preview:
+        request.state.audit_context = {
+            "resource_type": "characteristic",
+            "resource_id": char_id,
+            "action": "recalculate",
+            "summary": f"Control limits recalculated for '{characteristic.name}'",
+            "fields": {
+                "characteristic_name": characteristic.name,
+                "chart_type": characteristic.chart_type,
+                "ucl": result.ucl,
+                "centerline": result.center_line,
+                "lcl": result.lcl,
+            },
+        }
 
     # Return before/after values with metadata
     return {
@@ -1800,6 +1810,7 @@ async def recalculate_limits(
             "start_date": start_date.isoformat() if start_date else None,
             "end_date": end_date.isoformat() if end_date else None,
             "last_n": last_n,
+            "preview": preview,
         },
     }
 
@@ -1826,6 +1837,10 @@ async def set_limits(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found",
         )
+
+    # Plant-scoped authorization
+    plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+    check_plant_role(_user, plant_id, "engineer")
 
     before = {
         "ucl": characteristic.ucl,

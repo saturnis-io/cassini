@@ -100,6 +100,15 @@ export function LoginPage() {
     }
   }
 
+  // Health check — single fetch on mount to show connection status
+  const [healthStatus, setHealthStatus] = useState<'checking' | 'connected' | 'disconnected' | 'unreachable'>('checking')
+  useEffect(() => {
+    fetch('/api/v1/health')
+      .then((res) => res.json())
+      .then((data) => setHealthStatus(data.database === 'connected' ? 'connected' : 'disconnected'))
+      .catch(() => setHealthStatus('unreachable'))
+  }, [])
+
   const hasProviders = oidcProviders && oidcProviders.length > 0
   const isSSOOnly = hasProviders && oidcProviders.some((p) => p.sso_only)
 
@@ -373,7 +382,32 @@ export function LoginPage() {
             className="mt-6 text-center font-mono tracking-widest uppercase"
             style={{ fontSize: '10px', color: '#4B5563' }}
           >
-            Cassini v0.4.0 &bull; Saturnis
+            Cassini v{__APP_VERSION__} &bull; Saturnis
+          </p>
+          <p
+            className="mt-2 flex cursor-default items-center justify-center gap-1.5 font-mono tracking-widest uppercase"
+            style={{ fontSize: '10px', color: '#4B5563' }}
+            title={
+              healthStatus === 'connected' ? 'Backend server and database are reachable'
+              : healthStatus === 'disconnected' ? 'Backend server is reachable but the database is not responding'
+              : healthStatus === 'unreachable' ? 'Cannot reach the backend server — is it running?'
+              : 'Checking backend server connectivity...'
+            }
+          >
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor:
+                  healthStatus === 'connected' ? '#22c55e'
+                  : healthStatus === 'disconnected' ? '#ef4444'
+                  : healthStatus === 'unreachable' ? '#f59e0b'
+                  : '#6b7280',
+              }}
+            />
+            {healthStatus === 'connected' && 'Connected'}
+            {healthStatus === 'disconnected' && 'Disconnected'}
+            {healthStatus === 'unreachable' && 'Unreachable'}
+            {healthStatus === 'checking' && 'Checking...'}
           </p>
         </div>
       </div>

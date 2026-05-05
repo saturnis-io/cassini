@@ -177,7 +177,7 @@ async def test_connection(
     driver = DIALECT_DRIVERS[data.dialect]
 
     if data.dialect == DatabaseDialect.SQLITE:
-        sqlite_path = data.database or "./cassini.db"
+        sqlite_path = data.database or "./data/cassini.db"
         # Validate SQLite file exists (aiosqlite auto-creates, which gives false positives)
         if not Path(sqlite_path).exists():
             return ConnectionTestResult(
@@ -410,7 +410,7 @@ async def backup_database(
 
     if db.dialect == DatabaseDialect.SQLITE:
         # Extract the file path from the URL
-        db_path = db.database_url.split("///")[-1] if "///" in db.database_url else "cassini.db"
+        db_path = db.database_url.split("///")[-1] if "///" in db.database_url else "data/cassini.db"
         source = Path(db_path).resolve()
 
         if not source.exists():

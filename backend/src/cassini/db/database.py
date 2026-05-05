@@ -196,9 +196,20 @@ def _resolve_database_url() -> str:
         )
         return settings.database_url
 
-    # 3. SQLite default
-    logger.info("database_url_resolved", source="default", dialect="sqlite")
-    return default_url
+    # 3. SQLite default — use data/ subdirectory relative to backend root
+    from pathlib import Path
+
+    # Walk up from this file to find the backend root (contains alembic.ini)
+    candidate = Path(__file__).resolve().parent
+    while candidate != candidate.parent:
+        if (candidate / "alembic.ini").exists():
+            break
+        candidate = candidate.parent
+    db_path = candidate / "data" / "cassini.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_url = f"sqlite+aiosqlite:///{db_path}"
+    logger.info("database_url_resolved", source="default", dialect="sqlite", path=str(db_path))
+    return resolved_url
 
 
 # Global database instance

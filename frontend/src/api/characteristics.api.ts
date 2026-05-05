@@ -78,6 +78,7 @@ export const characteristicApi = {
       startDate?: string
       endDate?: string
       lastN?: number
+      preview?: boolean
     },
   ) => {
     const params = new URLSearchParams()
@@ -85,8 +86,13 @@ export const characteristicApi = {
     if (options?.startDate) params.set('start_date', options.startDate)
     if (options?.endDate) params.set('end_date', options.endDate)
     if (options?.lastN) params.set('last_n', String(options.lastN))
+    if (options?.preview) params.set('preview', 'true')
     const query = params.toString()
-    return fetchApi<{ before: object; after: object; calculation: object }>(
+    return fetchApi<{
+      before: { ucl: number | null; lcl: number | null; center_line: number | null }
+      after: { ucl: number; lcl: number; center_line: number }
+      calculation: { method: string; sigma: number; sample_count: number; excluded_count: number; dry_run?: boolean }
+    }>(
       `/characteristics/${id}/recalculate-limits${query ? `?${query}` : ''}`,
       { method: 'POST' },
     )

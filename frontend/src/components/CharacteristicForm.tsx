@@ -287,15 +287,18 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
     startDate?: string
     endDate?: string
     lastN?: number
+    preview?: boolean
   }) => {
     if (!characteristicId) return
-    await recalculateLimits.mutateAsync({
+    const result = await recalculateLimits.mutateAsync({
       id: characteristicId,
       excludeOoc: options?.excludeOoc ?? true,
       startDate: options?.startDate,
       endDate: options?.endDate,
       lastN: options?.lastN,
+      preview: options?.preview,
     })
+    return result
   }
 
   const handleSetManualLimits = async (data: {

@@ -59,7 +59,7 @@ def _resolve_sync_database_url() -> str:
         return _async_to_sync_url(env_url)
 
     # 3. Default SQLite
-    return f"sqlite:///{backend_dir / 'cassini.db'}"
+    return f"sqlite:///{backend_dir / 'data' / 'cassini.db'}"
 
 
 def reset_password(username: str, new_password: str) -> None:
@@ -69,7 +69,7 @@ def reset_password(username: str, new_password: str) -> None:
 
     if url.startswith("sqlite"):
         # Extract path from sqlite:///path
-        db_path = url.split("///", 1)[1] if "///" in url else "cassini.db"
+        db_path = url.split("///", 1)[1] if "///" in url else "data/cassini.db"
         if not os.path.exists(db_path):
             print(f"ERROR: Database file not found: {db_path}")
             sys.exit(1)

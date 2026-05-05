@@ -50,7 +50,8 @@ interface LimitsTabProps {
     startDate?: string
     endDate?: string
     lastN?: number
-  }) => void
+    preview?: boolean
+  }) => Promise<{ after: { ucl: number; lcl: number; center_line: number }; calculation: { method: string; sigma: number; sample_count: number; excluded_count: number } } | void>
   onSetManualLimits?: (data: {
     ucl: number
     lcl: number
@@ -94,6 +95,16 @@ export function LimitsTab({
   const [manualCenterLine, setManualCenterLine] = useState('')
   const [manualSigma, setManualSigma] = useState('')
   const [changeReasonOpen, setChangeReasonOpen] = useState(false)
+  const [changeReasonSource, setChangeReasonSource] = useState<'manual' | 'recalculate'>('manual')
+  const [pendingLimits, setPendingLimits] = useState<{
+    ucl: number
+    lcl: number
+    center_line: number
+    sigma: number
+    method: string
+    sample_count: number
+    excluded_count: number
+  } | null>(null)
   const target = isNaN(parseFloat(formData.target_value)) ? null : parseFloat(formData.target_value)
   const usl = isNaN(parseFloat(formData.usl)) ? null : parseFloat(formData.usl)
   const lsl = isNaN(parseFloat(formData.lsl)) ? null : parseFloat(formData.lsl)
@@ -102,7 +113,7 @@ export function LimitsTab({
   const range = hasSpecLimits ? usl - lsl : 0
   const targetPercent = hasSpecLimits && target !== null ? ((target - lsl) / range) * 100 : 50
 
-  const handleRecalculate = () => {
+  const _buildRecalcOptions = () => {
     let startDate: string | undefined
     let endDate: string | undefined
     let lastN: number | undefined
@@ -116,34 +127,66 @@ export function LimitsTab({
       startDate = new Date(Date.now() - dateRange.hoursBack * 60 * 60 * 1000).toISOString()
       endDate = new Date().toISOString()
     }
-    // hoursBack === 0 means "all data" (no date filter, no lastN)
+    return { excludeOoc, startDate, endDate, lastN }
+  }
 
-    onRecalculate({
-      excludeOoc,
-      startDate,
-      endDate,
-      lastN,
-    })
+  const handleRecalculate = async () => {
+    const options = _buildRecalcOptions()
+    const result = await onRecalculate({ ...options, preview: true })
+    if (result?.after && result?.calculation) {
+      setPendingLimits({
+        ucl: result.after.ucl,
+        lcl: result.after.lcl,
+        center_line: result.after.center_line,
+        sigma: result.calculation.sigma,
+        method: result.calculation.method,
+        sample_count: result.calculation.sample_count,
+        excluded_count: result.calculation.excluded_count,
+      })
+    }
+  }
+
+  const handleApplyPending = () => {
+    if (!pendingLimits) return
+    setChangeReasonSource('recalculate')
+    setChangeReasonOpen(true)
+  }
+
+
+  const handleDiscardPending = () => {
+    setPendingLimits(null)
   }
 
   const handleSetManual = () => {
     if (!isManualValid) return
+    setChangeReasonSource('manual')
     setChangeReasonOpen(true)
   }
 
-  const handleSetManualWithReason = (reason: string) => {
-    const ucl = parseFloat(manualUcl)
-    const lcl = parseFloat(manualLcl)
-    const centerLine = parseFloat(manualCenterLine)
-    const sigma = parseFloat(manualSigma)
+  const handleChangeReasonConfirm = (reason: string) => {
+    if (changeReasonSource === 'recalculate' && pendingLimits) {
+      onSetManualLimits?.({
+        ucl: pendingLimits.ucl,
+        lcl: pendingLimits.lcl,
+        center_line: pendingLimits.center_line,
+        sigma: pendingLimits.sigma,
+        change_reason: reason || `Recalculated from data (${pendingLimits.method}, ${pendingLimits.sample_count} samples)`,
+      })
+      setPendingLimits(null)
+    } else {
+      const ucl = parseFloat(manualUcl)
+      const lcl = parseFloat(manualLcl)
+      const centerLine = parseFloat(manualCenterLine)
+      const sigma = parseFloat(manualSigma)
 
-    onSetManualLimits?.({
-      ucl,
-      lcl,
-      center_line: centerLine,
-      sigma,
-      change_reason: reason || undefined,
-    })
+      onSetManualLimits?.({
+        ucl,
+        lcl,
+        center_line: centerLine,
+        sigma,
+        change_reason: reason || undefined,
+      })
+    }
     setChangeReasonOpen(false)
   }
 
@@ -423,17 +466,60 @@ export function LimitsTab({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-muted-foreground text-sm font-medium">LCL</label>
-              <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
-                {characteristic.lcl?.toFixed(4) ?? '—'}
+              <div className={cn(
+                'mt-1.5 rounded-lg px-3 py-2 font-mono text-sm',
+                pendingLimits ? 'bg-warning/10 border border-warning/30' : 'bg-muted',
+              )}>
+                {pendingLimits ? pendingLimits.lcl.toFixed(4) : characteristic.lcl?.toFixed(4) ?? '—'}
               </div>
             </div>
             <div>
               <label className="text-muted-foreground text-sm font-medium">UCL</label>
-              <div className="bg-muted mt-1.5 rounded-lg px-3 py-2 font-mono text-sm">
-                {characteristic.ucl?.toFixed(4) ?? '—'}
+              <div className={cn(
+                'mt-1.5 rounded-lg px-3 py-2 font-mono text-sm',
+                pendingLimits ? 'bg-warning/10 border border-warning/30' : 'bg-muted',
+              )}>
+                {pendingLimits ? pendingLimits.ucl.toFixed(4) : characteristic.ucl?.toFixed(4) ?? '—'}
               </div>
             </div>
           </div>
+
+          {/* Pending limits preview */}
+          {pendingLimits && (
+            <div className="border-warning/30 bg-warning/5 rounded-lg border p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-medium">Preview — not yet saved</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDiscardPending}
+                    className="text-muted-foreground rounded-md px-3 py-1 text-xs hover:underline"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyPending}
+                    disabled={isRecalculating}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-medium',
+                      'bg-primary text-primary-foreground',
+                      'hover:bg-primary/90 transition-colors',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                    )}
+                  >
+                    {isRecalculating ? 'Applying...' : 'Apply'}
+                  </button>
+                </div>
+              </div>
+              <div className="text-muted-foreground grid grid-cols-4 gap-2 text-xs font-mono">
+                <div>CL: {pendingLimits.center_line.toFixed(4)}</div>
+                <div>σ: {pendingLimits.sigma.toFixed(4)}</div>
+                <div>{pendingLimits.sample_count} samples</div>
+                <div>{pendingLimits.excluded_count} excluded</div>
+              </div>
+            </div>
+          )}
 
           {/* Phase I/II Status Banner */}
           {characteristic.limits_frozen ? (
@@ -717,10 +803,12 @@ export function LimitsTab({
 
               <ChangeReasonDialog
                 open={changeReasonOpen}
-                onConfirm={handleSetManualWithReason}
-                onCancel={() => setChangeReasonOpen(false)}
-                title="Reason for Manual Limits"
-                description="Describe why control limits are being manually set (e.g., external capability study reference)."
+                onConfirm={handleChangeReasonConfirm}
+                onCancel={() => { setChangeReasonOpen(false); setPendingLimits(null) }}
+                title={changeReasonSource === 'recalculate' ? 'Apply Recalculated Limits' : 'Reason for Manual Limits'}
+                description={changeReasonSource === 'recalculate'
+                  ? 'Provide a reason for applying these recalculated limits (optional — defaults to calculation summary).'
+                  : 'Describe why control limits are being manually set (e.g., external capability study reference).'}
                 isLoading={isSettingManual}
               />
             </div>

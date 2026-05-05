@@ -16,6 +16,7 @@ import {
   Wine,
   Sparkles,
   BookOpen,
+  BookMarked,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -31,6 +32,7 @@ const SCRIPT_ICONS: Record<string, React.ReactNode> = {
   pharma: <FlaskConical className="h-6 w-6" />,
   nelson_test: <TestTubes className="h-6 w-6" />,
   chart_showcase: <BarChart3 className="h-6 w-6" />,
+  nist_reference: <BookMarked className="h-6 w-6" />,
 }
 
 export function DevToolsPage() {

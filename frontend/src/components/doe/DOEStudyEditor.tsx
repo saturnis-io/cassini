@@ -23,6 +23,7 @@ import {
   useAnalyzeConfirmation,
 } from '@/api/hooks'
 import type { SNType, TaguchiANOM, ConfirmationAnalysis } from '@/api/doe.api'
+import { DESIGN_TYPES } from './NewStudyForm'
 import { DesignMatrix } from './DesignMatrix'
 import { RunTable } from './RunTable'
 import { ANOVATable } from './ANOVATable'

@@ -20,7 +20,7 @@ import {
 } from '@/api/hooks'
 import { PlantUsageBar } from '@/components/PlantUsageBar'
 import { LicenseComparisonDialog } from '@/components/LicenseComparisonDialog'
-import type { LicenseStatus } from '@/api/license.api'
+import type { LicenseStatus, LicenseTier } from '@/api/license.api'
 
 /**
  * Parse the body (payload) of a JWT token without verifying its signature.
@@ -169,12 +169,13 @@ export function LicenseSettings() {
   // Build the current LicenseStatus object for comparison dialog
   const currentStatus: LicenseStatus = {
     edition: license.edition,
-    tier: license.tier,
-    licensed_tier: license.licensedTier,
+    tier: license.tier as LicenseTier,
+    licensed_tier: license.licensedTier as LicenseTier | null,
     max_plants: license.maxPlants,
     expires_at: license.expiresAt,
     days_until_expiry: license.daysUntilExpiry,
     is_expired: license.isExpired,
+    instance_id: null,
   }
 
   return (

@@ -1832,27 +1832,27 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
     # ── MQTT Brokers (one per plant) ────────────────────────────────────
     cur.execute("""INSERT INTO mqtt_broker
         (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
-         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         use_tls, tls_insecure, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
          outbound_rate_limit, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
         (IDS["det_plant"], "Detroit MQTT", "localhost", 1883, "cassini-detroit", 60, 30,
          "json", "cassini/detroit/outbound/", "json", 10.0, now, now))
     IDS["det_broker"] = cur.lastrowid
 
     cur.execute("""INSERT INTO mqtt_broker
         (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
-         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         use_tls, tls_insecure, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
          outbound_rate_limit, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
         (IDS["ict_plant"], "Wichita MQTT", "localhost", 1883, "cassini-wichita", 60, 30,
          "json", "cassini/wichita/outbound/", "json", 10.0, now, now))
     IDS["ict_broker"] = cur.lastrowid
 
     cur.execute("""INSERT INTO mqtt_broker
         (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
-         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         use_tls, tls_insecure, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
          outbound_rate_limit, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
         (IDS["rtp_plant"], "RTP MQTT", "localhost", 1883, "cassini-rtp", 60, 30,
          "json", "cassini/rtp/outbound/", "json", 10.0, now, now))
     IDS["rtp_broker"] = cur.lastrowid
@@ -1862,24 +1862,24 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
 
     cur.execute("""INSERT INTO opcua_server
         (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
-         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+         is_active, session_timeout, publishing_interval, sampling_interval, tls_insecure, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, 0, ?, ?)""",
         (IDS["det_plant"], "Detroit OPC-UA", endpoint, "anonymous", "None", "None",
          30000, 1000, 500, now, now))
     IDS["det_opcua"] = cur.lastrowid
 
     cur.execute("""INSERT INTO opcua_server
         (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
-         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+         is_active, session_timeout, publishing_interval, sampling_interval, tls_insecure, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, 0, ?, ?)""",
         (IDS["ict_plant"], "Wichita OPC-UA", endpoint, "anonymous", "None", "None",
          30000, 1000, 500, now, now))
     IDS["ict_opcua"] = cur.lastrowid
 
     cur.execute("""INSERT INTO opcua_server
         (plant_id, name, endpoint_url, auth_mode, username, password, security_policy, security_mode,
-         is_active, session_timeout, publishing_interval, sampling_interval, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, ?, ?)""",
+         is_active, session_timeout, publishing_interval, sampling_interval, tls_insecure, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, 1, ?, ?, ?, 0, ?, ?)""",
         (IDS["rtp_plant"], "RTP OPC-UA", endpoint, "anonymous", "None", "None",
          30000, 1000, 500, now, now))
     IDS["rtp_opcua"] = cur.lastrowid
@@ -3549,7 +3549,7 @@ def finalize_calculations(cur: sqlite3.Cursor) -> None:
 
 async def seed() -> None:
     """Entry point for DevTools page. Wipes cassini.db and re-seeds."""
-    db_path = backend_dir / "cassini.db"
+    db_path = backend_dir / "data" / "cassini.db"
 
     # Drop all existing tables in-place (avoids Windows file-lock on unlink)
     if db_path.exists():

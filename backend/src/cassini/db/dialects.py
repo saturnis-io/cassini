@@ -256,7 +256,7 @@ def build_database_url(config: DatabaseConnectionConfig, key: bytes) -> str:
     driver = DIALECT_DRIVERS[dialect]
 
     if dialect == DatabaseDialect.SQLITE:
-        db_path = config.database or "./cassini.db"
+        db_path = config.database or "./data/cassini.db"
         return f"sqlite+{driver}:///{db_path}"
 
     # Validate port for server dialects

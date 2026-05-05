@@ -181,20 +181,24 @@ export function useRecalculateLimits() {
       startDate,
       endDate,
       lastN,
+      preview,
     }: {
       id: number
       excludeOoc?: boolean
       startDate?: string
       endDate?: string
       lastN?: number
-    }) => characteristicApi.recalculateLimits(id, { excludeOoc, startDate, endDate, lastN }),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
-      queryClient.invalidateQueries({
-        queryKey: ['characteristics', 'chartData', variables.id],
-      })
-      queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
-      toast.success('Control limits recalculated')
+      preview?: boolean
+    }) => characteristicApi.recalculateLimits(id, { excludeOoc, startDate, endDate, lastN, preview }),
+    onSuccess: (_data, variables) => {
+      if (!variables.preview) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.characteristics.detail(variables.id) })
+        queryClient.invalidateQueries({
+          queryKey: ['characteristics', 'chartData', variables.id],
+        })
+        queryClient.invalidateQueries({ queryKey: queryKeys.explain.all })
+        toast.success('Control limits recalculated')
+      }
     },
     onError: handleMutationError('Failed to recalculate limits'),
   })

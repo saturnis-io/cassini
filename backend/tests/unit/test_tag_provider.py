@@ -38,6 +38,7 @@ def _make_mqtt_source(
     char.hierarchy_id = hierarchy_id
     char.name = char_name
     char.subgroup_size = subgroup_size
+    char.custom_fields_schema = None
 
     src = Mock()
     src.id = id
@@ -50,6 +51,7 @@ def _make_mqtt_source(
     src.characteristic = char
     src.product_code = product_code
     src.product_json_path = product_json_path
+    src.metadata_json_paths = None
     return src
 
 
@@ -258,10 +260,11 @@ class TestSubgroupBuffer:
         buffer.add(10.1)
         buffer.add(10.2)
 
-        values, product_code = buffer.flush()
+        values, product_code, metadata = buffer.flush()
 
         assert values == [10.0, 10.1, 10.2]
         assert product_code is None
+        assert metadata is None
         assert buffer.values == []
         assert buffer.first_reading_time is None
 

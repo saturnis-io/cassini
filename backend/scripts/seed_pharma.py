@@ -42,7 +42,7 @@ from cassini.core.auth.passwords import hash_password
 from scripts.seed_utils import InlineNelsonChecker, NELSON_RULE_NAMES, make_timestamps, utcnow, ts_offset, BASE_TIME
 
 # ── Constants ────────────────────────────────────────────────────────────
-DB_PATH = backend_dir / "cassini.db"
+DB_PATH = backend_dir / "data" / "cassini.db"
 IDS: dict[str, int] = {}
 
 RANDOM_SEED = 2026
@@ -883,8 +883,9 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
         b_def = site_def["broker"]
         cur.execute(
             """INSERT INTO mqtt_broker
-            (plant_id, name, host, port, use_tls, client_id, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)""",
+            (plant_id, name, host, port, use_tls, tls_insecure, client_id, keepalive, max_reconnect_delay,
+             is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 0, ?, 60, 300, 1, ?, ?)""",
             (
                 IDS[f"{site_def['code'].lower()}_plant"],
                 b_def["name"], b_def["host"], b_def.get("port", 1883),
@@ -1786,7 +1787,7 @@ def seed_audit(cur: sqlite3.Cursor) -> None:
 
 async def seed() -> None:
     """Entry point for DevTools page. Wipes cassini.db and re-seeds."""
-    db_path = backend_dir / "cassini.db"
+    db_path = backend_dir / "data" / "cassini.db"
 
     # Drop all existing tables in-place (avoids Windows file-lock on unlink)
     if db_path.exists():

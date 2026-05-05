@@ -56,9 +56,18 @@ def _get_database_url() -> str:
     if not url:
         url = config.get_main_option("sqlalchemy.url")
 
-    # 4. SQLite default
+    # 4. SQLite default — use data/ subdirectory relative to backend root
     if not url:
-        url = "sqlite:///./cassini.db"
+        from pathlib import Path
+
+        candidate = Path(__file__).resolve().parent
+        while candidate != candidate.parent:
+            if (candidate / "alembic.ini").exists():
+                break
+            candidate = candidate.parent
+        db_path = candidate / "data" / "cassini.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        url = f"sqlite:///{db_path}"
 
     # Ensure async driver for SQLite using make_url for proper URL parsing
     parsed = make_url(url)

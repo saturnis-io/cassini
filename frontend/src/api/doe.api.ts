@@ -49,13 +49,10 @@ export interface DOEStudy {
 }
 
 export interface DOEStudyDetail extends DOEStudy {
-  factors: {
+  factors: (DOEFactor & {
     id: number
-    name: string
-    low_level: number
-    high_level: number
-    unit: string | null
-  }[]
+    unit: string | null | undefined
+  })[]
 }
 
 export interface DOERun {

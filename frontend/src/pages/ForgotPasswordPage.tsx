@@ -146,7 +146,7 @@ export function ForgotPasswordPage() {
             className="mt-6 text-center font-mono tracking-widest uppercase"
             style={{ fontSize: '10px', color: '#4B5563' }}
           >
-            Cassini v0.4.0 &bull; Saturnis
+            Cassini v{__APP_VERSION__} &bull; Saturnis
           </p>
         </div>
       </div>

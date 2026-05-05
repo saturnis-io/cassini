@@ -163,9 +163,12 @@ export function ContourPlot({
         backgroundColor: tooltipBg,
         borderColor: tooltipBorder,
         textStyle: { color: tooltipTextColor, fontSize: 12 },
-        formatter: (
-          params: { data?: [number, number, number]; seriesType?: string; marker?: string },
-        ) => {
+        formatter: (rawParams: unknown) => {
+          const params = rawParams as {
+            data?: [number, number, number]
+            seriesType?: string
+            marker?: string
+          }
           if (!params.data) return ''
           if (params.seriesType === 'scatter') {
             const item = scatterData[0]

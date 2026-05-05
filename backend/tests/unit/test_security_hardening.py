@@ -140,14 +140,22 @@ class TestRootEndpoint:
     """Tests for root endpoint version removal."""
 
     def test_root_does_not_expose_version(self):
-        """Root endpoint should not include version information."""
+        """Root endpoint should not include version information.
+
+        When a built frontend exists, root serves SPA HTML (no API JSON at all).
+        When no frontend dist/ exists, root returns a JSON dict that must not
+        contain a ``version`` key.
+        """
         from starlette.testclient import TestClient
         from cassini.main import app
 
         client = TestClient(app)
         resp = client.get("/")
-        data = resp.json()
-        assert "version" not in data
+        content_type = resp.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = resp.json()
+            assert "version" not in data
+        # else: SPA HTML — no JSON version field to leak; pass.
 
 
 class TestHealthEndpointDisclosure:

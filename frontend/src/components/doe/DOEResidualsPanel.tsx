@@ -120,8 +120,8 @@ function QQPlot({
       },
       tooltip: {
         trigger: 'item',
-        formatter: (params: { data?: [number, number] }) => {
-          const d = params.data
+        formatter: (params: unknown) => {
+          const d = (params as { data?: [number, number] }).data
           if (!d) return ''
           return `Theoretical: ${d[0].toFixed(3)}<br/>Residual: ${d[1].toFixed(4)}`
         },
@@ -225,8 +225,8 @@ function ResidualsVsFitted({
       },
       tooltip: {
         trigger: 'item',
-        formatter: (params: { data?: [number, number] }) => {
-          const d = params.data
+        formatter: (params: unknown) => {
+          const d = (params as { data?: [number, number] }).data
           if (!d) return ''
           return `Fitted: ${d[0].toFixed(4)}<br/>Residual: ${d[1].toFixed(4)}`
         },
@@ -325,8 +325,8 @@ function ResidualsVsOrder({
       },
       tooltip: {
         trigger: 'item',
-        formatter: (params: { data?: [number, number] }) => {
-          const d = params.data
+        formatter: (params: unknown) => {
+          const d = (params as { data?: [number, number] }).data
           if (!d) return ''
           return `Run: ${d[0]}<br/>Residual: ${d[1].toFixed(4)}`
         },

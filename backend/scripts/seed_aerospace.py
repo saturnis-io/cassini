@@ -793,9 +793,9 @@ def seed_connectivity(cur: sqlite3.Cursor) -> None:
 
     cur.execute("""INSERT INTO mqtt_broker
         (plant_id, name, host, port, username, password, client_id, keepalive, max_reconnect_delay,
-         use_tls, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
+         use_tls, tls_insecure, is_active, payload_format, outbound_enabled, outbound_topic_prefix, outbound_format,
          outbound_rate_limit, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 0, 0, 1, ?, 1, ?, ?, ?, ?, ?)""",
         (IDS["cap_plant"], "Portland Shop Floor MQTT", "localhost", 1883,
          "cassini-portland", 60, 30,
          "json", "cassini/portland/outbound/", "json", 10.0, now, now))
@@ -988,7 +988,7 @@ _log = logging.getLogger("seed_aerospace")
 
 async def seed() -> None:
     """Entry point for DevTools page. Wipes cassini.db and re-seeds."""
-    db_path = backend_dir / "cassini.db"
+    db_path = backend_dir / "data" / "cassini.db"
 
     # Drop all existing tables in-place (avoids Windows file-lock on unlink)
     if db_path.exists():

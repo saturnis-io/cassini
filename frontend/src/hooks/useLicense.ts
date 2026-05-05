@@ -5,12 +5,13 @@ import type { LicenseTier } from '@/api/license.api'
 
 const COMMUNITY_DEFAULTS = {
   edition: 'community' as const,
-  tier: 'community',
+  tier: 'community' as LicenseTier,
   licensed_tier: null,
   max_plants: 1,
   expires_at: null,
   days_until_expiry: null,
   is_expired: null,
+  instance_id: null,
 }
 
 export function useLicense() {

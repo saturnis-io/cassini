@@ -33,6 +33,14 @@ sys.path.insert(0, str(scripts_dir))
 
 from seed_utils import make_timestamps, reset_and_migrate
 
+
+def _parse_timestamps(iso_strings: list[str]) -> list[datetime]:
+    """Convert ISO string timestamps from make_timestamps() to datetime objects.
+
+    SQLite requires datetime objects, not ISO strings.
+    """
+    return [datetime.fromisoformat(s) for s in iso_strings]
+
 from cassini.core.auth.passwords import hash_password
 from cassini.db import (
     Characteristic,
@@ -47,6 +55,9 @@ from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.user import User, UserPlantRole, UserRole
 from cassini.db.models.broker import MQTTBroker  # noqa: F401
 from cassini.db.models.api_key import APIKey  # noqa: F401
+from cassini.db.models.violation import Violation
+from cassini.utils.statistics import calculate_imr_limits, calculate_xbar_r_limits
+from cassini.core.engine.attribute_engine import calculate_attribute_limits
 
 from cassini.reference.datasets import (
     NIST_MICHELSON,
@@ -154,8 +165,108 @@ def _build_description(dataset) -> str:
     return f"{dataset.name}. Source: {dataset.source} ({dataset.license})"
 
 
+import numpy as np
+
+
+def _compute_limits_and_violations(
+    session, char: Characteristic, dataset, samples: list[Sample], stats: dict,
+) -> None:
+    """Compute control limits, store on characteristic, populate sample stats, create violations.
+
+    This replaces what SPCEngine.process_sample() would do — but in bulk after seeding.
+    """
+    if isinstance(dataset, IndividualsDataset):
+        values = [float(v) for v in dataset.values]
+        limits = calculate_imr_limits(values)
+        char.ucl = limits.xbar_limits.ucl
+        char.lcl = limits.xbar_limits.lcl
+        char.stored_center_line = limits.xbar_limits.center_line
+        char.stored_sigma = limits.xbar_limits.sigma
+
+        # Populate sample means and detect violations
+        moving_ranges = [abs(values[i] - values[i - 1]) for i in range(1, len(values))]
+        for i, (sample, value) in enumerate(zip(samples, values)):
+            sample.mean = value
+            sample.range_value = moving_ranges[i - 1] if i > 0 else None
+
+            # Nelson Rule 1: beyond 3-sigma
+            if value > char.ucl or value < char.lcl:
+                session.add(Violation(
+                    sample_id=sample.id,
+                    char_id=char.id,
+                    rule_id=1,
+                    rule_name="Beyond 3\u03c3",
+                    severity="CRITICAL",
+                    acknowledged=False,
+                    requires_acknowledgement=True,
+                ))
+                stats["violations"] += 1
+
+    elif isinstance(dataset, SubgroupDataset):
+        subgroups = dataset.subgroups
+        means = [float(np.mean(sg)) for sg in subgroups]
+        ranges = [float(max(sg) - min(sg)) for sg in subgroups]
+        limits = calculate_xbar_r_limits(means, ranges, dataset.subgroup_size)
+        char.ucl = limits.xbar_limits.ucl
+        char.lcl = limits.xbar_limits.lcl
+        char.stored_center_line = limits.xbar_limits.center_line
+        char.stored_sigma = limits.xbar_limits.sigma
+
+        for i, (sample, mean, rng) in enumerate(zip(samples, means, ranges)):
+            sample.mean = mean
+            sample.range_value = rng
+
+            if mean > char.ucl or mean < char.lcl:
+                session.add(Violation(
+                    sample_id=sample.id,
+                    char_id=char.id,
+                    rule_id=1,
+                    rule_name="Beyond 3\u03c3",
+                    severity="CRITICAL",
+                    acknowledged=False,
+                    requires_acknowledgement=True,
+                ))
+                stats["violations"] += 1
+
+    elif isinstance(dataset, AttributeDataset):
+        phase1_samples = [
+            {"defect_count": int(c), **(
+                {"sample_size": int(s)} if dataset.chart_type in ("p", "np")
+                else {"units_inspected": int(s)} if dataset.chart_type == "u"
+                else {}
+            )}
+            for c, s in zip(dataset.counts, dataset.sample_sizes)
+        ]
+        attr_limits = calculate_attribute_limits(dataset.chart_type, phase1_samples)
+        char.ucl = attr_limits.ucl
+        char.lcl = attr_limits.lcl
+        char.stored_center_line = attr_limits.center_line
+
+        for i, (sample, count) in enumerate(zip(samples, dataset.counts)):
+            # Plotted value depends on chart type
+            n = dataset.sample_sizes[i]
+            if dataset.chart_type == "p":
+                sample.mean = count / n
+            elif dataset.chart_type == "u":
+                sample.mean = count / n
+            elif dataset.chart_type in ("c", "np"):
+                sample.mean = float(count)
+
+            if sample.mean is not None and (sample.mean > char.ucl or sample.mean < char.lcl):
+                session.add(Violation(
+                    sample_id=sample.id,
+                    char_id=char.id,
+                    rule_id=1,
+                    rule_name="Beyond 3\u03c3",
+                    severity="CRITICAL",
+                    acknowledged=False,
+                    requires_acknowledgement=True,
+                ))
+                stats["violations"] += 1
+
+
 def _seed_individuals(
-    session, char: Characteristic, dataset: IndividualsDataset, timestamps: list[str],
+    session, char: Characteristic, dataset: IndividualsDataset, timestamps: list[datetime],
     stats: dict,
 ) -> list[Sample]:
     """Create samples for an IndividualsDataset (n=1, I-MR)."""
@@ -175,7 +286,7 @@ def _seed_individuals(
 
 
 def _seed_subgroups(
-    session, char: Characteristic, dataset: SubgroupDataset, timestamps: list[str],
+    session, char: Characteristic, dataset: SubgroupDataset, timestamps: list[datetime],
     stats: dict,
 ) -> list[Sample]:
     """Create samples for a SubgroupDataset (n=subgroup_size, X-bar/R)."""
@@ -195,7 +306,7 @@ def _seed_subgroups(
 
 
 def _seed_attribute(
-    session, char: Characteristic, dataset: AttributeDataset, timestamps: list[str],
+    session, char: Characteristic, dataset: AttributeDataset, timestamps: list[datetime],
     stats: dict,
 ) -> list[Sample]:
     """Create samples for an AttributeDataset (p/c/u charts)."""
@@ -230,7 +341,7 @@ async def seed() -> None:
 
     stats = {
         "plants": 0, "nodes": 0, "chars": 0,
-        "samples": 0, "measurements": 0, "users": 0,
+        "samples": 0, "measurements": 0, "violations": 0, "users": 0,
     }
 
     async with db_config.session() as session:
@@ -352,7 +463,7 @@ async def seed() -> None:
                             ))
 
                     # Generate timestamps
-                    timestamps = make_timestamps(n_points, span_days=90)
+                    timestamps = _parse_timestamps(make_timestamps(n_points, span_days=90))
 
                     # Seed samples based on dataset type
                     if isinstance(dataset, IndividualsDataset):
@@ -397,6 +508,10 @@ async def seed() -> None:
 
                     await session.flush()
 
+                    # Compute control limits, populate sample means, create violations
+                    _compute_limits_and_violations(session, char, dataset, samples, stats)
+                    await session.flush()
+
         # ---------------------------------------------------------------
         # 5. Commit
         # ---------------------------------------------------------------
@@ -417,7 +532,8 @@ async def seed() -> None:
     print(f"  Characteristics:  {stats['chars']}")
     print(f"  Samples:          {stats['samples']:,}")
     print(f"  Measurements:     {stats['measurements']:,}")
-    print(f"  DB File:          {backend_dir / 'cassini.db'}")
+    print(f"  Violations:       {stats['violations']:,}")
+    print(f"  DB File:          {backend_dir / 'data' / 'cassini.db'}")
     print("=" * 60)
     print(f"\nAll users have password: 'password'")
     print(f"Admin user: admin / password")

@@ -1210,7 +1210,7 @@ def seed_capability_and_annotations(cur: sqlite3.Cursor) -> None:
 
 async def seed() -> None:
     """Entry point for DevTools page. Wipes cassini.db and re-seeds."""
-    db_path = backend_dir / "cassini.db"
+    db_path = backend_dir / "data" / "cassini.db"
 
     # Drop all existing tables in-place (avoids Windows file-lock on unlink)
     if db_path.exists():

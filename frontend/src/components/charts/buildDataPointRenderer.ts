@@ -1,11 +1,12 @@
 import type { RenderItemParams, RenderItemAPI } from '@/lib/echarts'
 import { getPrimaryViolationRule } from '@/components/ViolationLegend'
 import type { ChartPoint } from '@/components/PinnedChartTooltip'
+import type { ChartColors } from '@/lib/theme-presets'
 
 export interface DataPointRendererParams {
   data: ChartPoint[]
-  chartColors: Record<string, string>
-  highlightedRange: [number, number] | null
+  chartColors: ChartColors | Record<string, string>
+  highlightedRange: [number, number] | null | undefined
   hoveredSampleIds: Set<number> | null
   highlightSampleId: number | undefined | null
   sampleAnomalyMap: Map<number, unknown[]>

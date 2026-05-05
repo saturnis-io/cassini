@@ -18,7 +18,7 @@ import type { SNType } from '@/api/doe.api'
 import { FactorEditor, type FactorRow } from './FactorEditor'
 import { StudySteps, type StudyStep } from '@/components/studies/StudySteps'
 
-const DESIGN_TYPES = [
+export const DESIGN_TYPES = [
   {
     value: 'full_factorial',
     label: 'Full Factorial',

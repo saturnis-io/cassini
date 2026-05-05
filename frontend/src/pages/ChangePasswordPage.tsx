@@ -179,7 +179,7 @@ export function ChangePasswordPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-muted-foreground mt-4 text-center text-xs">Cassini v0.5.0</p>
+        <p className="text-muted-foreground mt-4 text-center text-xs">Cassini v{__APP_VERSION__}</p>
       </div>
     </div>
   )

@@ -170,7 +170,8 @@ def reset_and_migrate(db_path: Path | None = None) -> Path:
     Returns the db_path used.
     """
     if db_path is None:
-        db_path = BACKEND_DIR / "cassini.db"
+        db_path = BACKEND_DIR / "data" / "cassini.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Drop all tables with FKs disabled (handles circular deps)
     if db_path.exists():
