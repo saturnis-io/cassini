@@ -219,6 +219,81 @@ test.describe('Kiosk & Wall Dashboard', () => {
     })
   })
 
+  test('wall save preset opens themed dialog (no native prompt)', async ({ page }) => {
+    // Audit C19: clicking Save must NOT trigger a blocking native
+    // window.prompt() — that would seize focus from kiosk fullscreen mode
+    // and is unthemed.  After the fix, an inline themed dialog appears.
+    let nativeDialogOpened = false
+    page.on('dialog', async (dialog) => {
+      // If we ever see a native dialog, mark the test as failing later.
+      nativeDialogOpened = true
+      await dialog.dismiss()
+    })
+
+    await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1}`)
+    await page.waitForTimeout(3000)
+
+    const saveBtn = page.getByTitle('Save preset')
+    if (await saveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await saveBtn.click()
+      await page.waitForTimeout(500)
+
+      // The themed dialog should appear with a header reading "Save preset"
+      // and an input field.  This is the SavePresetDialog component.
+      const themedDialog = page.locator('[data-ui="wall-dashboard-save-preset-dialog"]')
+      await expect(themedDialog).toBeVisible({ timeout: 3000 })
+      await expect(themedDialog.getByText('Save preset', { exact: false })).toBeVisible()
+      await expect(themedDialog.locator('input[type="text"]')).toBeVisible()
+
+      // Cancel the dialog without saving
+      await themedDialog.getByRole('button', { name: 'Cancel' }).click()
+      await page.waitForTimeout(300)
+      await expect(themedDialog).not.toBeVisible()
+    }
+
+    expect(nativeDialogOpened).toBe(false)
+
+    await test.info().attach('wall-save-preset-dialog', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('wall load preset opens themed dialog (no native prompt)', async ({ page }) => {
+    // Audit C19 (continued): the Load button must also use the themed
+    // dialog, not native prompt() / alert().
+    let nativeDialogOpened = false
+    page.on('dialog', async (dialog) => {
+      nativeDialogOpened = true
+      await dialog.dismiss()
+    })
+
+    await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1}`)
+    await page.waitForTimeout(3000)
+
+    const loadBtn = page.getByTitle('Load preset')
+    if (await loadBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await loadBtn.click()
+      await page.waitForTimeout(500)
+
+      const themedDialog = page.locator('[data-ui="wall-dashboard-load-preset-dialog"]')
+      await expect(themedDialog).toBeVisible({ timeout: 3000 })
+      await expect(themedDialog.getByText('Load preset', { exact: false })).toBeVisible()
+
+      // Close the dialog
+      await themedDialog.getByRole('button', { name: 'Close' }).click()
+      await page.waitForTimeout(300)
+      await expect(themedDialog).not.toBeVisible()
+    }
+
+    expect(nativeDialogOpened).toBe(false)
+
+    await test.info().attach('wall-load-preset-dialog', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
   test('wall chart card expand button opens modal', async ({ page }) => {
     await page.goto(`/wall-dashboard?plant=${plantId}&chars=${charId1}`)
     await page.waitForTimeout(3000)

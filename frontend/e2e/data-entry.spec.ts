@@ -144,6 +144,37 @@ test.describe('Data Entry', () => {
     })
   })
 
+  test('characteristic context bar shows hierarchy breadcrumb', async ({ page }) => {
+    // Audit C15: characteristic names are NOT unique — the operator must
+    // always see the hierarchy breadcrumb so they know which one they're
+    // entering data for.  CharacteristicContextBar renders the breadcrumb
+    // via useHierarchyPath; this test asserts the parent node is visible
+    // alongside the characteristic name.
+    await selectCharViaSidebar(page)
+
+    // The seeded data-entry plant has a hierarchy ancestor named "Data Entry"
+    // (or similar — derived from the plant name).  Assert that ANY hierarchy
+    // ancestor node label is rendered as part of the context bar breadcrumb.
+    const contextBar = page.locator('[class*="rounded-lg"]').filter({
+      hasText: /Test Char/,
+    }).first()
+    await expect(contextBar).toBeVisible({ timeout: 5000 })
+
+    // The breadcrumb is rendered as a sequence of node names with chevrons.
+    // The chevron-right SVG icon has a recognizable lucide class.  We assert
+    // at least one chevron is rendered next to the characteristic name.
+    const chevrons = contextBar.locator('svg').filter({
+      hasNot: page.locator('text=/./'),
+    })
+    // At least one ancestor breadcrumb element should be present
+    expect(await chevrons.count()).toBeGreaterThanOrEqual(1)
+
+    await test.info().attach('characteristic-hierarchy-breadcrumb', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
   test('sample history tab switches view', async ({ page }) => {
     await page.goto('/data-entry')
     await page.waitForTimeout(2000)

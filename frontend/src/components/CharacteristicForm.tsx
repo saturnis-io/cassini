@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { toast } from 'sonner'
 import {
   useCharacteristic,
   useUpdateCharacteristic,
@@ -178,7 +179,9 @@ export function CharacteristicForm({ characteristicId }: CharacteristicFormProps
       setPendingModeChange(null)
       setModeChangeReason('')
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to change mode')
+      // alert() blocks the main thread and is unthemed — use sonner toast,
+      // which is consistent with every other error surface in the app.
+      toast.error(error instanceof Error ? error.message : 'Failed to change mode')
     }
   }
 

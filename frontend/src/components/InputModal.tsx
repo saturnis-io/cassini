@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ChevronRight } from 'lucide-react'
 import { useDashboardStore } from '@/stores/dashboardStore'
 import { useAccessibilityStore } from '@/stores/accessibilityStore'
-import { useCharacteristic, useSubmitSample } from '@/api/hooks'
+import { useCharacteristic, useSubmitSample, useHierarchyPath } from '@/api/hooks'
 import { NumberInput } from './NumberInput'
 import { FieldError } from '@/components/FieldError'
 import { useFormValidation } from '@/hooks/useFormValidation'
@@ -13,6 +13,10 @@ export function InputModal() {
   const characteristicId = useDashboardStore((state) => state.inputModalCharacteristicId)
   const closeModal = useDashboardStore((state) => state.closeInputModal)
   const { data: characteristic } = useCharacteristic(characteristicId ?? 0)
+  // Characteristic names are NOT unique — show hierarchy breadcrumb so the
+  // operator entering data can confirm they're targeting the right
+  // characteristic (per CLAUDE.md rule).
+  const hierarchyPath = useHierarchyPath(characteristicId)
   const submitSample = useSubmitSample()
 
   const touchMode = useAccessibilityStore((s) => s.touchMode)
@@ -107,6 +111,18 @@ export function InputModal() {
 
         <div className={cn('space-y-4 p-4', touchMode && 'space-y-6 p-5')}>
           <div>
+            {hierarchyPath.length > 0 && (
+              <div className="text-muted-foreground mb-1 flex flex-wrap items-center gap-1 text-xs">
+                {hierarchyPath.map((node, idx) => (
+                  <span key={node.id} className="flex items-center gap-1">
+                    <span>{node.name}</span>
+                    {idx < hierarchyPath.length - 1 && (
+                      <ChevronRight className="text-muted-foreground/50 h-3 w-3" />
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="font-medium">{characteristic.name}</div>
             <div className="text-muted-foreground text-sm">
               {target !== null && `Target: ${target}`}
