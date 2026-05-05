@@ -21,7 +21,7 @@ from cassini.api.deps import (
     resolve_plant_id_for_characteristic,
 )
 from cassini.api.schemas.explain import CitationSchema, ExplanationResponse, ExplanationStepSchema
-from cassini.core.capability import calculate_capability
+from cassini.core.capability import calculate_capability_async
 from cassini.core.engine.attribute_engine import calculate_attribute_limits, calculate_laney_sigma_z
 from cassini.core.explain import (
     ATTRIBUTE_MSA_CITATION,
@@ -280,7 +280,7 @@ async def explain_capability_metric(
         _sg_count = len(sample_data) if sample_data else None
         _sg_size = char.subgroup_size
 
-    cap_result = calculate_capability(
+    cap_result = await calculate_capability_async(
         values=values,
         usl=_eff_usl,
         lsl=_eff_lsl,
