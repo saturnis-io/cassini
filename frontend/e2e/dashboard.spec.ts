@@ -1,16 +1,27 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { getAuthToken, apiGet } from './helpers/api'
-import { switchToPlant, expandHierarchyToChar } from './helpers/seed'
+import { getAuthToken, API_BASE, apiGet } from './helpers/api'
+import { switchToPlant, expandHierarchyToChar, collapseNavSection } from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 
 test.describe('Dashboard', () => {
   let token: string
   let characteristicId: number
+  let sprint13CharId: number | null = null
+  let sprint13PooledCharId: number | null = null
+  let sprint13PhaseCharId: number | null = null
+  let hasSprint13 = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
-    characteristicId = getManifest().dashboard.char_id
+    const manifest = getManifest()
+    characteristicId = manifest.dashboard.char_id
+    if (manifest.sprint13) {
+      sprint13CharId = manifest.sprint13.char_id
+      sprint13PooledCharId = manifest.sprint13.pooled_char_id
+      sprint13PhaseCharId = manifest.sprint13.phase_char_id
+      hasSprint13 = true
+    }
   })
 
   test.beforeEach(async ({ page }) => {
@@ -274,5 +285,262 @@ test.describe('Dashboard', () => {
       periodicRequests,
       `Expected no chart-data polling while WS is connected, but saw ${periodicRequests.length} requests`,
     ).toHaveLength(0)
+  })
+
+  // ========================================================================
+  // Sprint 13 SPC features (ported from sprint13-spc.spec.ts)
+  // Capability fields, freeze/unfreeze, pooled sigma, capability card UI.
+  // ========================================================================
+
+  // Helper: navigate to Sprint 13 char on dashboard
+  async function selectSprint13Char(
+    page: import('@playwright/test').Page,
+    charName: string,
+  ) {
+    await switchToPlant(page, 'Sprint 13 Tests')
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await collapseNavSection(page)
+
+    const firstNode = page.getByText('S13 Dept', { exact: true }).first()
+    await expect(firstNode).toBeVisible({ timeout: 15000 })
+
+    for (const nodeName of ['S13 Dept', 'S13 Line', 'S13 Station']) {
+      const node = page.getByText(nodeName, { exact: true }).first()
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(800)
+    }
+
+    await expect(page.getByText(charName).first()).toBeVisible({ timeout: 10000 })
+    await page.getByText(charName).first().click()
+    await page.waitForTimeout(2000)
+  }
+
+  // Helper: navigate to configuration and select Sprint 13 char
+  async function selectSprint13CharInConfig(
+    page: import('@playwright/test').Page,
+    charName: string,
+  ) {
+    await switchToPlant(page, 'Sprint 13 Tests')
+    await page.goto('/configuration')
+    await page.waitForTimeout(2000)
+
+    for (const nodeName of ['S13 Dept', 'S13 Line', 'S13 Station']) {
+      const nodeText = page.getByText(nodeName, { exact: true }).first()
+      await expect(nodeText).toBeVisible({ timeout: 10000 })
+      const row = nodeText.locator('..')
+      await row.locator('button').first().click()
+      await page.waitForTimeout(800)
+    }
+
+    await page.getByText(charName, { exact: true }).first().click()
+    await page.waitForTimeout(2000)
+  }
+
+  test('capability API returns z_bench and ppm fields', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    const capability = await apiGet(
+      request,
+      `/characteristics/${sprint13CharId}/capability`,
+      token,
+    )
+
+    expect(capability).toBeTruthy()
+    expect(capability.sample_count).toBeGreaterThanOrEqual(100)
+
+    expect(capability.z_bench_within).toBeDefined()
+    expect(typeof capability.z_bench_within).toBe('number')
+    expect(capability.z_bench_overall).toBeDefined()
+    expect(typeof capability.z_bench_overall).toBe('number')
+
+    expect(capability.ppm_within_expected).toBeDefined()
+    expect(typeof capability.ppm_within_expected).toBe('number')
+    expect(capability.ppm_overall_expected).toBeDefined()
+    expect(typeof capability.ppm_overall_expected).toBe('number')
+
+    expect(capability.ppm_within_expected).toBeGreaterThanOrEqual(0)
+    expect(capability.ppm_overall_expected).toBeGreaterThanOrEqual(0)
+  })
+
+  test('capability API returns stability warning when violations exist', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    const capability = await apiGet(
+      request,
+      `/characteristics/${sprint13CharId}/capability`,
+      token,
+    )
+
+    expect(capability).toBeTruthy()
+    expect(capability.recent_violation_count).toBeGreaterThan(0)
+    expect(capability.stability_warning).toBeTruthy()
+    expect(capability.stability_warning).toContain('unstable')
+    expect(capability.stability_warning).toContain('violation')
+  })
+
+  test('pooled sigma method is set on characteristic via API', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    const charData = await apiGet(request, `/characteristics/${sprint13PooledCharId}`, token)
+    expect(charData).toBeTruthy()
+    expect(charData.sigma_method).toBe('pooled')
+  })
+
+  test('sigma method dropdown visible in characteristic config', async ({ page }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    await loginAsAdmin(page)
+    await selectSprint13CharInConfig(page, 'S13 Variable')
+
+    await page.getByText('Limits', { exact: true }).click()
+    await page.waitForTimeout(1000)
+
+    const sigmaLabel = page.getByText(/Sigma Method/i).or(page.getByText(/sigma/i))
+    await expect(sigmaLabel.first()).toBeVisible({ timeout: 10000 })
+
+    await test.info().attach('sigma-method-config', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+  })
+
+  test('freeze and unfreeze limits via API', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    const freezeRes = await request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+    expect(freezeRes.ok()).toBeTruthy()
+
+    const afterFreeze = await apiGet(
+      request,
+      `/characteristics/${sprint13PhaseCharId}`,
+      token,
+    )
+    expect(afterFreeze.limits_frozen).toBe(true)
+    expect(afterFreeze.limits_frozen_at).toBeTruthy()
+
+    const unfreezeRes = await request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+    expect(unfreezeRes.ok()).toBeTruthy()
+
+    const afterUnfreeze = await apiGet(
+      request,
+      `/characteristics/${sprint13PhaseCharId}`,
+      token,
+    )
+    expect(afterUnfreeze.limits_frozen).toBe(false)
+  })
+
+  test('Phase I/II banner visible in configuration UI when frozen', async ({ page }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    await loginAsAdmin(page)
+    const freezeRes = await page.request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+    expect(freezeRes.ok()).toBeTruthy()
+
+    await selectSprint13CharInConfig(page, 'S13 Phase')
+
+    await page.getByText('Limits', { exact: true }).click()
+    await page.waitForTimeout(1000)
+
+    const phaseBanner = page.getByText(/Phase II/i).or(page.getByText(/frozen/i))
+    await expect(phaseBanner.first()).toBeVisible({ timeout: 10000 })
+
+    await test.info().attach('phase-ii-frozen-banner', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    })
+
+    // Cleanup
+    await page.request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+  })
+
+  test('recalculate-limits returns 409 when limits are frozen', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    await request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+
+    const recalcRes = await request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/recalculate-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+    expect(recalcRes.status()).toBe(409)
+
+    const errorBody = await recalcRes.json()
+    expect(errorBody.detail).toContain('frozen')
+
+    // Cleanup
+    await request.post(
+      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      },
+    )
+  })
+
+  test.skip('explain API responds for z_bench_within metric — z_bench_within not yet in explain registry', async ({
+    request,
+  }) => {
+    // The explain capability endpoint supports: cp, cpk, pp, ppk, cpm.
+    // z_bench_within is not yet registered as an explain metric.
+    const res = await request.get(
+      `${API_BASE}/explain/capability/z_bench_within/${sprint13CharId}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    )
+
+    if (res.ok()) {
+      const explanation = await res.json()
+      expect(explanation).toBeTruthy()
+      if (explanation.metric) {
+        expect(explanation.metric).toContain('z_bench')
+      }
+    } else {
+      expect([400, 404, 422]).toContain(res.status())
+    }
+  })
+
+  test('capability card renders on dashboard for Sprint 13 char', async ({ page }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    await loginAsAdmin(page)
+    await selectSprint13Char(page, 'S13 Variable')
+
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Process Capability').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Cpk').first()).toBeVisible({ timeout: 10000 })
+
+    await test.info().attach('sprint13-capability-card', {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    })
   })
 })

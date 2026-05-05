@@ -1,4 +1,10 @@
-"""Unit tests for Sparkplug B protocol implementation."""
+"""Unit tests for Sparkplug B protocol implementation.
+
+NOTE: Topic strings and edge node IDs that contain "openspc-server" reflect
+the legacy default edge_node_id retained for backward compatibility with
+existing broker ACLs and Sparkplug edge node naming. See
+cassini.mqtt.sparkplug.SparkplugAdapter (default `edge_node_id = "openspc-server"`).
+"""
 
 import json
 from datetime import datetime
