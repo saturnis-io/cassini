@@ -79,7 +79,7 @@ See the [README](README.md#getting-started) for detailed instructions and troubl
 
 ## Project Structure
 
-```
+```text
 cassini/
 ├── backend/              FastAPI application
 │   ├── src/cassini/
@@ -122,20 +122,77 @@ cassini/
 - Async/await for database operations (SQLAlchemy async)
 - Pydantic schemas for all API request/response models
 
+## Testing
+
+Cassini ships with a layered test stack. Pick the level that matches your change.
+
+### Unit + integration (always runs in CI, no Docker required)
+
+```bash
+cd backend
+pytest tests/ -x -m "not containerized"
+
+cd frontend
+npx tsc --noEmit       # type check
+npm run build          # production build
+```
+
+The default `pytest` invocation runs against SQLite. Integration tests live in `backend/tests/integration/` and exercise the full ASGI app via `httpx`.
+
+### Multi-database integration tests
+
+CI runs every integration test against PostgreSQL and MySQL on every PR; MSSQL is exercised nightly. To run locally against a different dialect:
+
+```bash
+docker compose -f docker-compose.test-dbs.yml up -d --wait
+cd backend
+CASSINI_DATABASE_URL="postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test" \
+  pytest tests/integration/ -x -m "not containerized"
+```
+
+Connection strings for the other dialects are in [`docker-compose.test-dbs.yml`](docker-compose.test-dbs.yml).
+
+### Containerized fixtures (real MQTT, OPC-UA, Valkey)
+
+Tests under `backend/tests/containerized/` spin real Docker containers via `testcontainers-python`. They are gated behind the `containerized` pytest marker so the default `pytest` run never touches them.
+
+```bash
+cd backend
+pip install -e ".[dev,test-containerized]"
+pytest tests/containerized -m containerized
+```
+
+If Docker isn't reachable, every fixture skips gracefully — no failures, no import errors. Full reference: [`docs/testing-harness.md`](docs/testing-harness.md).
+
+### Full-stack docker harness
+
+For Playwright runs or interactive debugging against the whole platform:
+
+```bash
+docker compose -f docker-compose.full.yml up -d --wait
+# Backend on :8001, frontend (vite preview) on :5174
+```
+
+Pick a database dialect with `CASSINI_DB_DIALECT={sqlite|postgresql|mysql|mssql}`.
+
+### End-to-end (Playwright)
+
+```bash
+cd frontend
+npx playwright install --with-deps chromium
+npx playwright test --project=functional
+```
+
+The CI matrix runs Playwright against SQLite on every PR, and against PostgreSQL and MySQL nightly (or on a `multi-db`-labeled PR).
+
 ## Pull Request Process
 
 1. **Fork** the repository and create a feature branch from `main`.
 2. **Implement** your changes, following the coding standards above.
-3. **Test** your changes:
-   ```bash
-   # Frontend type check
-   cd frontend && npx tsc --noEmit
-
-   # Backend tests
-   cd backend && pytest
-   ```
-4. **Commit** with clear, descriptive messages.
-5. **Submit** a pull request against `main` with a description of what changed and why.
+3. **Test** your changes — at minimum, the unit + integration tier above. For changes touching ingestion, brokers, or auth, run the containerized tier as well.
+4. **Type-check** the frontend (`npx tsc --noEmit`) — strict mode means an unused import or missing prop will block the build.
+5. **Commit** with clear, descriptive messages.
+6. **Submit** a pull request against `main` with a description of what changed and why.
 
 A maintainer will review your PR, provide feedback, and merge once it meets quality standards.
 

@@ -20,15 +20,22 @@
 
 # Cassini
 
-**Open-source statistical process control for manufacturing. Free forever, commercially supported.**
+**Ambient. Agentic. Audited. Open-source statistical process control for manufacturing.**
 
 **Three editions**: Open (free, AGPL-3.0) | [Pro](https://saturnis.io/pricing) ($1,200/plant/yr) | [Enterprise](https://saturnis.io/pricing) ($5,000/plant/yr)
 
 ![Cassini SPC Dashboard](docs/screenshots/core/dashboard-control-chart.png)
 
-Monitor process stability, detect out-of-control conditions, run capability studies, and manage quality data across your manufacturing operation — from a single control chart to a regulated multi-plant deployment.
+Cassini is an open-source SPC platform that lives next to the production line. Charts update in real time as samples flow in. Every value on every chart links to the formula that produced it. Every change is recorded in a hash-chained audit log. AI agents talk to it natively over MCP. Analytics workloads pull through a versioned Arrow / Parquet data product. Multi-plant, multi-database, multi-tier — but the open core ships a complete SPC platform with no license key required.
 
 *"In-control, like the Cassini Division."*
+
+### What sets Cassini apart
+
+- **Ambient.** Charts, dashboards, and kiosks update by WebSocket push. Operators don't refresh — the floor reflects reality.
+- **Agentic.** A built-in MCP server exposes a curated agent surface so Claude Code, Cursor, and Claude Desktop can query plants, capability, and violations directly. Optional `--allow-writes` for unattended automation.
+- **Audited.** Every mutation is hash-chained. Every numeric value on every chart is reproducible via Show Your Work — formula, inputs, intermediate steps, AIAG citation. Time-travel replay reconstructs any chart's state at any historical timestamp from the audit log alone.
+- **Open core.** AGPL-3.0 community edition is a complete SPC platform — Nelson rules, capability, MSA, DOE, Show Your Work, the works. Pro and Enterprise unlock multi-plant, compliance, and advanced analytics.
 
 > **Open-core model**: The Open Edition is free under AGPL-3.0 and includes a complete SPC platform. [Pro and Enterprise licenses](https://saturnis.io/pricing) unlock multi-plant, compliance, and advanced analytics features for organizations that need them.
 
@@ -48,6 +55,8 @@ Monitor process stability, detect out-of-control conditions, run capability stud
 - [Cluster-Ready Architecture (Enterprise)](#cluster-ready-architecture-enterprise) -- multi-node deployment
 - [Feature Comparison](#feature-comparison) -- three-tier side-by-side table
 - [Architecture](#architecture) -- tech stack and project structure
+- [Testing Harness](docs/testing-harness.md) -- Docker-orchestrated multi-DB test stack
+- [AGENTS.md](AGENTS.md) -- API surface for AI agents and integrators
 - [License](#license--commercial-use) -- AGPL-3.0 and commercial options
 
 ---
@@ -59,10 +68,48 @@ Cassini runs on **Windows**, **macOS**, and **Linux**. Pick your path:
 | Path | Platform | Time | Guide |
 |------|----------|------|-------|
 | **Windows Installer** | Windows | 2 min | [Download and run](docs/getting-started.md#windows) |
-| **Docker** | Any | 5 min | [Two commands](docs/getting-started.md#docker) |
+| **Docker (single-stack)** | Any | 5 min | [Two commands](docs/getting-started.md#docker) |
+| **Docker (full test stack)** | Any | 5 min | [`docker-compose.full.yml`](docs/testing-harness.md) — Postgres + MySQL + MSSQL + Valkey + MQTT + OPC-UA simulator + backend + frontend |
 | **From Source** | Any | 10 min | [Full dev setup](docs/getting-started.md#from-source) |
 
+### Quick Docker single-stack
+
+```bash
+docker compose up -d
+# Backend: http://localhost:8000
+# Frontend: served by the backend
+```
+
+### Quick from-source
+
+```bash
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+alembic upgrade head
+uvicorn cassini.main:app --reload                    # http://localhost:8000
+
+# Frontend (in a new terminal)
+cd frontend
+npm install
+npm run dev                                          # http://localhost:5173
+```
+
 Default login: `admin` / `cassini` (you'll be prompted to change the password).
+
+### Multi-database support
+
+Cassini speaks all four mainstream SQL dialects. Pick one in `cassini.toml` or via env:
+
+| Dialect | Driver | Connection string example |
+|---------|--------|---------------------------|
+| **SQLite** (default, dev) | `aiosqlite` | `sqlite+aiosqlite:///./data/cassini.db` |
+| **PostgreSQL** (recommended for production) | `asyncpg` | `postgresql+asyncpg://user:pw@host/cassini` |
+| **MySQL** | `aiomysql` / `asyncmy` | `mysql+aiomysql://user:pw@host/cassini` |
+| **MSSQL** | `aioodbc` | `mssql+aioodbc://...?driver=ODBC+Driver+18+for+SQL+Server` |
+
+The same Alembic migration set runs against every dialect. CI runs the full integration suite against PostgreSQL and MySQL on every pull request, plus MSSQL nightly. See [docs/testing-harness.md](docs/testing-harness.md) for the multi-DB CI matrix.
 
 > **Next steps:** [Configuration](docs/configuration.md) · [CLI Reference](docs/cli.md) · [Production Deployment](docs/deployment.md)
 
@@ -277,9 +324,11 @@ Plant-scoped role-based access control across four tiers:
 
 SQLite (default, zero-config) included with Open Edition. PostgreSQL, MySQL, and MSSQL available with Pro and Enterprise licenses. Database administration panel for backup, vacuum, and migration status.
 
-### Audit Trail
+### Audit Trail (hash-chained)
 
-Fire-and-forget middleware captures every data modification with user, timestamp, and action detail. Event bus integration logs background operations. Searchable viewer with filters and CSV export.
+Decoupled middleware enqueues every data modification — user, timestamp, action, target — to an in-memory ring buffer; a writer task batch-flushes to the database without blocking the request hot path. Each entry references the previous entry's SHA-256, producing a tamper-evident hash chain that `GET /api/v1/audit/verify` walks end-to-end. The same audit log feeds both the searchable viewer (filters, CSV export) and the time-travel replay engine, so any historical chart state is reconstructable from immutable history alone.
+
+Reads of protected history (replay, lakehouse exports) are also logged — viewing immutable history is itself part of the record (21 CFR Part 11 §11.10(e)).
 
 ### Reports & Display Modes
 
@@ -307,6 +356,34 @@ Fire-and-forget middleware captures every data modification with user, timestamp
 ## Pro Features
 
 > **These features require a [Pro license](https://saturnis.io/pricing) ($1,200/plant/year).** Open Edition users can evaluate Pro and Enterprise features locally by setting `CASSINI_DEV_TIER=enterprise`. [Learn more →](https://saturnis.io/pricing)
+
+### Time-travel SPC replay
+
+Audit-grade reconstruction of any control chart's state at any historical moment. Pick a date and time on the chart UI and the limits, rule configuration, signatures, and contributing sample list re-render exactly as they were at that timestamp — rebuilt on demand from the hash-chained audit log, never persisted as a new artifact. Designed against 21 CFR Part 11 §11.10(b).
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://cassini.example.com/api/v1/replay/characteristic/42?at=2026-03-14T14:00:00Z"
+```
+
+Full reference: [docs/features/time-travel-replay.md](docs/features/time-travel-replay.md)
+
+### Cassini Lakehouse
+
+A read-only data product API for analytics workloads. Curated tables (`samples`, `violations`, `characteristics`, `capability_snapshots`, `audit_log`) exported as JSON, CSV, Parquet, or Arrow IPC — plant-scoped, audited, rate-limited, schema-versioned.
+
+```python
+import io, pyarrow.ipc as ipc, pandas as pd, requests
+
+resp = requests.get(
+    "https://cassini.example.com/api/v1/lakehouse/samples",
+    params={"format": "arrow", "from": "2026-01-01", "to": "2026-04-01"},
+    headers={"Authorization": f"Bearer {token}"},
+)
+df = ipc.open_stream(io.BytesIO(resp.content)).read_all().to_pandas()
+```
+
+Full reference: [docs/features/lakehouse.md](docs/features/lakehouse.md)
 
 ### Multi-Plant & Multi-Database
 
@@ -349,6 +426,29 @@ Standardize rule configuration across your plant with four built-in presets (Nel
 ## Enterprise Features
 
 > **These features require an [Enterprise license](https://saturnis.io/pricing) ($5,000/plant/year).** Includes everything in Pro, plus compliance, advanced analytics, and dedicated support. [Learn more →](https://saturnis.io/pricing)
+
+### Streaming CEP rules
+
+A multi-stream complex-event-processing engine that fires when a pattern across two or more characteristics holds inside a sliding time window. Rules are authored in YAML, edited live in a Monaco editor with inline validation, and hot-reloaded into the running engine without restarting the backend.
+
+```yaml
+name: thermal-runaway
+description: Coolant temperature and cut diameter both trending up
+window: 2m
+conditions:
+  - characteristic: Plant 1 > Line A > Lathe 3 > Coolant Temp
+    rule: increasing
+    count: 6
+  - characteristic: Plant 1 > Line A > Lathe 3 > Cut Diameter
+    rule: increasing
+    count: 6
+action:
+  violation: THERMAL_RUNAWAY_SUSPECTED
+  severity: critical
+  message: Pause the line and inspect coolant flow / chiller before the next cut.
+```
+
+Sample rules in [`docs/cep-examples/`](docs/cep-examples/) and a full reference at [docs/features/streaming-cep.md](docs/features/streaming-cep.md).
 
 ### RS-232/USB Gage Bridge
 
@@ -500,13 +600,17 @@ cassini cluster status
 | DOE (Design of Experiments) | -- | Yes | Yes |
 | First Article Inspection (AS9102) | -- | -- | Yes |
 | Electronic signatures (21 CFR Part 11) | -- | -- | Yes |
+| Audit log with hash-chain integrity | Yes | Yes | Yes |
+| Time-travel SPC replay | -- | Yes | Yes |
 | **Analytics & Reporting** | | | |
 | Dashboard & violation tracking | Yes | Yes | Yes |
 | Ishikawa root cause diagrams | -- | Yes | Yes |
 | Correlation heatmap | -- | Yes | Yes |
 | Scheduled & automated reporting | -- | Yes | Yes |
+| Lakehouse data product API (Arrow / Parquet) | -- | Yes | Yes |
 | Multivariate SPC (T-squared, MEWMA) | -- | -- | Yes |
 | Anomaly detection (ML) | -- | -- | Yes |
+| Streaming CEP rules (multi-stream YAML DSL) | -- | -- | Yes |
 | Predictive analytics | -- | -- | Yes |
 | AI-powered analysis | -- | -- | Yes |
 | **Administration** | | | |
@@ -541,7 +645,7 @@ cassini cluster status
 
 ## Architecture
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │                        Data Sources                            │
 │  MQTT/SparkplugB  OPC-UA  RS-232 Gages  CSV/Excel  ERP/LIMS    │
@@ -575,6 +679,64 @@ cassini cluster status
 └────────────────────────────────────────────────────────────────┘
 ```
 
+### Data flow
+
+```mermaid
+flowchart LR
+    subgraph Sources["Data sources"]
+        MQTT[MQTT / Sparkplug B]
+        OPC[OPC-UA]
+        Gage[RS-232 / USB gages]
+        Manual[Manual / CSV / Excel]
+        ERP[ERP / LIMS adapters]
+    end
+
+    subgraph Backend["FastAPI backend"]
+        Ingest[Ingestion router]
+        SPC[SPC engine<br/>Nelson + CUSUM + EWMA]
+        Cap[Capability + MSA + DOE]
+        CEP[Streaming CEP engine<br/>Enterprise]
+        Audit[Audit queue + writer<br/>hash-chained]
+        Bus[Event bus]
+    end
+
+    subgraph Storage["Storage"]
+        DB[(SQLite / PostgreSQL<br/>MySQL / MSSQL)]
+        Lake[Lakehouse views<br/>Arrow / Parquet]
+        Replay[Time-travel reconstructor]
+    end
+
+    subgraph Consumers["Consumers"]
+        UI[React frontend<br/>22 pages, 200+ components]
+        WS[WebSocket clients<br/>kiosks + dashboards]
+        Agent[MCP agents<br/>Claude Code, Cursor]
+        BI[BI / notebooks<br/>via Lakehouse API]
+        Notify[Notifications<br/>email + webhook + push]
+    end
+
+    MQTT --> Ingest
+    OPC --> Ingest
+    Gage --> Ingest
+    Manual --> Ingest
+    ERP --> Ingest
+
+    Ingest --> SPC
+    SPC --> Bus
+    Cap --> Bus
+    CEP --> Bus
+    Bus --> Audit
+    Bus --> Notify
+    Audit --> DB
+    SPC --> DB
+    DB --> Lake
+    DB --> Replay
+
+    DB --> UI
+    Bus --> WS
+    DB --> Agent
+    Lake --> BI
+```
+
 ### Tech Stack
 
 | Layer | Technology |
@@ -587,8 +749,12 @@ cassini cluster status
 | **Bridge** | Python, pyserial, paho-mqtt (pip-installable `cassini-bridge`) |
 | **Desktop** | PyInstaller (freeze), Inno Setup (installer), pystray (tray), pywin32 (service) |
 | **Database** | SQLite, PostgreSQL, MySQL, MSSQL via dialect abstraction |
+| **Broker** | Local in-memory (default) or Valkey for cluster mode |
 | **Real-time** | WebSocket (FastAPI native), MQTT (paho-mqtt / asyncio-mqtt) |
+| **Analytics export** | Apache Arrow IPC, Parquet (via `pyarrow`) |
+| **CEP engine** | Custom multi-stream YAML DSL with Pydantic-validated rule schema |
 | **ML** | ruptures (changepoint), scikit-learn (Isolation Forest), scipy |
+| **Test harness** | Docker Compose, testcontainers-python, Playwright, multi-DB CI matrix |
 
 ---
 
@@ -605,6 +771,26 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup, coding st
 - **API paths**: Never include `/api/v1/` prefix in `fetchApi` calls (prepended automatically)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide.
+
+---
+
+## Compliance hooks
+
+Cassini's design assumptions are shaped by 21 CFR Part 11, AS9100 / AS9102, and ISO 9001 audits. The compliance surface is layered so a community-edition install already gives you the bones of a defensible record, and Pro / Enterprise add the formal workflows on top.
+
+| Capability | Tier | What it provides |
+|------------|------|------------------|
+| **Hash-chained audit log** | Open | Every mutation is SHA-256-chained to the previous entry. `GET /api/v1/audit/verify` walks the chain end-to-end. |
+| **Show Your Work** | Open | Click any number on any chart to see the formula, inputs, intermediate steps, and AIAG citation. The displayed value must equal the explained value — verified by `tests/test_showcase_consistency.py`. |
+| **Plant-scoped RBAC** | Open | Operator / Supervisor / Engineer / Admin roles, plant-scoped. Cross-plant probes return 404, never 403. |
+| **Time-travel SPC replay** | Pro | Reconstruct any chart's state at any historical moment from the audit log. 21 CFR Part 11 §11.10(b). |
+| **Lakehouse with audit-logged exports** | Pro | Every analytical export is recorded — table, format, row count, plant filter, columns. |
+| **Electronic signatures (21 CFR Part 11)** | Enterprise | Configurable multi-step workflows with password re-authentication, SHA-256 tamper detection, plant-scoped meanings, FDA-compliant password policies. |
+| **First Article Inspection (AS9102 Rev C)** | Enterprise | Forms 1, 2, 3 with separation-of-duties enforcement and print-optimized output. |
+| **Data retention enforcement** | Enterprise | Inheritance chain (global → plant → area → line → station) with full purge history for the regulator. |
+| **License JWT validation** | All | Offline Ed25519-signed JWT with mandatory `iss`/`aud`/`exp`. No phone-home. |
+
+> Validation documentation packages (IQ / OQ / PQ templates, traceability matrix) are available with Enterprise — [contact sales](mailto:sales@saturnis.io).
 
 ---
 
@@ -634,8 +820,14 @@ If your organization needs to make proprietary modifications, embed Cassini in a
 | **Pricing** | [saturnis.io/pricing](https://saturnis.io/pricing) |
 | **Commercial License** | [saturnis.io/pricing](https://saturnis.io/pricing) |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| **Changelog** | [CHANGELOG.md](CHANGELOG.md) |
 | **Security** | [SECURITY.md](SECURITY.md) |
 | **Code of Conduct** | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
+| **For AI agents** | [AGENTS.md](AGENTS.md) |
+| **Time-travel replay** | [docs/features/time-travel-replay.md](docs/features/time-travel-replay.md) |
+| **Lakehouse** | [docs/features/lakehouse.md](docs/features/lakehouse.md) |
+| **Streaming CEP** | [docs/features/streaming-cep.md](docs/features/streaming-cep.md) |
+| **Testing harness** | [docs/testing-harness.md](docs/testing-harness.md) |
 | **Support** | [community@saturnis.io](mailto:community@saturnis.io) |
 
 ---
