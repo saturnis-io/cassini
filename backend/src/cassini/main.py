@@ -336,7 +336,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     audit_service = AuditService(db.session)
     app.state.audit_service = audit_service
-    await audit_service.recover_last_hash()
+    # Start the queue + writer task. recover_last_hash() runs inside
+    # start_writer() so the cached chain tail is set before the writer
+    # appends.  After this call, AuditService.log() is a fast non-blocking
+    # enqueue; the writer drains the queue in batches.
+    await audit_service.start_writer()
     logger.info("Audit trail service initialized (all tiers)")
 
     # -----------------------------------------------------------------------
@@ -486,6 +490,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Wait for pending event handlers to complete, then shutdown broker
     await typed_event_bus.shutdown()
     await broker.broadcast.shutdown()
+
+    # Drain audit queue + stop writer.  Done after the event bus shuts
+    # down so any audit events emitted during teardown still land.
+    if hasattr(app.state, "audit_service"):
+        try:
+            await app.state.audit_service.stop_writer(timeout=10.0)
+        except Exception:
+            logger.warning("audit_writer_stop_failed", exc_info=True)
 
     # Stop WebSocket connection manager
     await ws_manager.stop()

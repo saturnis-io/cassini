@@ -14,6 +14,22 @@ log flooding.
     GET audit rate-limit state is per-worker.  In multi-worker deployments
     (e.g. gunicorn with ``--workers N``), each worker maintains its own
     cache so the effective rate limit is per-worker, not global.
+
+Write path
+----------
+``AuditService.log()`` is a fast non-blocking enqueue onto an in-process
+``asyncio.Queue``.  A dedicated background writer task drains the queue,
+batches up to ``_BATCH_MAX`` records, computes the hash chain in-process
+using a cached ``_last_hash``/``_last_seq``, and persists each entry in a
+single transaction.  This decouples the audit write from the request hot
+path: the original implementation issued a SELECT (chain tail read) +
+INSERT per request with retry contention under concurrent ingestion.
+
+Cluster mode (`broker_url` set) still uses the same per-node queue + writer
+model — every node runs its own chain partition.  Cross-node sequence
+ordering is best-effort (matches the pre-decoupling behavior) and is
+documented as a follow-up via leader election.  See ``AuditService`` for
+the TODO marker.
 """
 
 import asyncio
@@ -21,7 +37,7 @@ import hashlib
 import json as _json
 import re
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -322,21 +338,292 @@ async def _resolve_plant_for_resource(
 
 
 class AuditService:
-    """Central audit logging service.
+    """Central audit logging service with queue-decoupled write path.
 
-    Uses its own session factory to avoid sharing the request's session.
-    All log methods are fire-and-forget safe.
+    ``log()`` is a fast, non-blocking enqueue: callers never wait on a DB
+    session, SELECT, or INSERT.  A dedicated writer task drains the queue,
+    resolves any deferred lookups (resource display, plant_id), computes
+    the chain hash in-process using cached ``_last_hash``/``_last_seq``,
+    and persists rows.  Eliminating the per-request SELECT removes the
+    read-modify-write contention that previously serialized concurrent
+    sample submissions.
 
-    The hash chain and sequence numbering are DB-authoritative: each call
-    to ``log()`` reads the latest hash/sequence from the database so that
-    multiple application instances can safely append to the same chain.
+    Cluster mode caveat
+    -------------------
+    When ``broker_url`` is set, every node runs its own queue + writer.
+    Each writer's ``_last_seq`` is initialized from the global database
+    max on startup, which preserves single-row uniqueness via the unique
+    constraint and the IntegrityError fallback below — but cross-node
+    chain ordering is best-effort (matches the pre-decoupling behaviour).
+    A leader-elected writer would give a single global chain; deferred to
+    a follow-up.
+
+    .. todo::
+
+        Cluster-aware audit chain via ``LeaderElection`` from
+        ``cassini.core.broker.leader``: only the elected leader runs the
+        writer; other nodes publish events via ``broker.broadcast`` to the
+        leader.  This unifies the chain across the cluster but is out of
+        scope for the initial decoupling.
     """
+
+    # Maximum events held in the in-process queue before back-pressure kicks
+    # in.  Way larger than expected steady-state to absorb bursts (e.g.
+    # batch sample ingestion).  At full saturation the writer is the
+    # bottleneck, not the producers.
+    _QUEUE_MAX_SIZE: int = 10_000
+
+    # Maximum number of records the writer drains per loop iteration.  Each
+    # batch shares a single DB session/transaction, amortizing overhead.
+    _BATCH_MAX: int = 50
+
+    # When the queue is empty, writer waits up to this many seconds for
+    # the next event before yielding to the loop.  Short enough that
+    # graceful shutdown drain isn't perceptibly delayed.
+    _IDLE_TIMEOUT: float = 0.5
 
     def __init__(self, session_factory):
         self._session_factory = session_factory
         self._failure_count = 0
         self._last_failure_at: Optional[str] = None
-        self._last_hash: str = "0" * 64  # Genesis hash (used as fast-path cache)
+        # In-process chain cache — authoritative for the writer task.
+        self._last_hash: str = "0" * 64  # Genesis hash
+        self._last_seq: int = 0
+        # Queue + writer state.  The queue is created lazily so unit tests
+        # that don't run a writer don't pay for it.
+        self._queue: Optional[asyncio.Queue[dict[str, Any]]] = None
+        self._writer_task: Optional[asyncio.Task[None]] = None
+        self._stop_event: Optional[asyncio.Event] = None
+        # Test-only sync mode: bypass the queue and write inline.  Lets
+        # existing tests (test_audit_integrity, test_audit_delete_guard)
+        # exercise the chain logic without spinning up a writer.
+        self._sync_mode: bool = True
+
+    # ------------------------------------------------------------------
+    # Queue + writer lifecycle
+    # ------------------------------------------------------------------
+
+    def _ensure_queue(self) -> asyncio.Queue[dict[str, Any]]:
+        """Lazily create the queue bound to the running loop."""
+        if self._queue is None:
+            self._queue = asyncio.Queue(maxsize=self._QUEUE_MAX_SIZE)
+        return self._queue
+
+    async def start_writer(self) -> None:
+        """Start the background writer task.
+
+        Idempotent: calling twice on the same instance is a no-op.  Must be
+        called from inside a running event loop (i.e. from the FastAPI
+        lifespan).
+        """
+        if self._writer_task is not None and not self._writer_task.done():
+            return
+        # Recover chain state from DB before flipping out of sync mode so
+        # the first queued events build on the persisted tail.
+        await self.recover_last_hash()
+        self._ensure_queue()
+        self._stop_event = asyncio.Event()
+        self._sync_mode = False
+        self._writer_task = asyncio.create_task(
+            self._writer_loop(), name="audit_writer"
+        )
+        logger.info(
+            "audit_writer_started",
+            last_hash=self._last_hash[:12],
+            last_sequence=self._last_seq,
+        )
+
+    async def stop_writer(self, timeout: float = 10.0) -> None:
+        """Drain remaining queued events, then stop the writer.
+
+        Called from the FastAPI lifespan teardown.  Safe to call when the
+        writer was never started.
+        """
+        if self._writer_task is None:
+            return
+        if self._stop_event is not None:
+            self._stop_event.set()
+        try:
+            # Wait for the queue to drain; the writer exits on its own
+            # once stop_event is set AND the queue is empty.
+            await asyncio.wait_for(self._writer_task, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "audit_writer_shutdown_timeout",
+                queued=self._queue.qsize() if self._queue else 0,
+            )
+            self._writer_task.cancel()
+            try:
+                await self._writer_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        finally:
+            self._writer_task = None
+            self._sync_mode = True
+
+    async def _writer_loop(self) -> None:
+        """Drain the queue in batches until stop_event is set and queue is empty."""
+        assert self._queue is not None
+        assert self._stop_event is not None
+        queue = self._queue
+        stop_event = self._stop_event
+
+        while True:
+            batch: list[dict[str, Any]] = []
+            # Block for the first event so the writer doesn't spin.  If
+            # stop is requested and the queue is empty, exit cleanly.
+            try:
+                first = await asyncio.wait_for(queue.get(), timeout=self._IDLE_TIMEOUT)
+                batch.append(first)
+            except asyncio.TimeoutError:
+                if stop_event.is_set() and queue.empty():
+                    return
+                continue
+
+            # Opportunistically pull more items already pending without
+            # blocking.  Bounded by _BATCH_MAX to keep transactions small.
+            while len(batch) < self._BATCH_MAX:
+                try:
+                    batch.append(queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+
+            try:
+                await self._write_batch(batch)
+            except Exception:
+                # Persist failures are surfaced via failure_count + logs.
+                # Each task_done() must still fire so queue.join() can
+                # complete (write_batch handles per-row failures).
+                self._failure_count += len(batch)
+                from datetime import datetime, timezone
+
+                self._last_failure_at = datetime.now(timezone.utc).isoformat()
+                logger.warning(
+                    "audit_writer_batch_failed",
+                    batch_size=len(batch),
+                    failure_count=self._failure_count,
+                    exc_info=True,
+                )
+            finally:
+                # Mark every item done — pairs with put() so queue.join()
+                # works for tests / graceful shutdown.
+                for _ in batch:
+                    queue.task_done()
+
+    async def _write_batch(self, batch: list[dict[str, Any]]) -> None:
+        """Persist a batch of audit events sharing one DB session."""
+        async with self._session_factory() as session:
+            for event in batch:
+                try:
+                    await self._write_one(session, event)
+                except Exception:
+                    # Log per-row failure but keep draining the batch.
+                    self._failure_count += 1
+                    from datetime import datetime, timezone
+
+                    self._last_failure_at = datetime.now(timezone.utc).isoformat()
+                    logger.warning(
+                        "audit_log_failed",
+                        action=event.get("action"),
+                        failure_count=self._failure_count,
+                        exc_info=True,
+                    )
+                    # Roll back partial state from the failing row before
+                    # the next iteration's INSERT.
+                    try:
+                        await session.rollback()
+                    except Exception:
+                        pass
+
+    async def _write_one(self, session, event: dict[str, Any]) -> None:
+        """Persist a single audit event, deferring lookups + chain hash."""
+        from datetime import datetime, timezone
+
+        action = event["action"]
+        resource_type = event.get("resource_type")
+        resource_id = event.get("resource_id")
+        resource_display = event.get("resource_display")
+        plant_id = event.get("plant_id")
+
+        # Defer resource_display resolution to the writer so producers
+        # never block on a SELECT.
+        if resource_display is None and resource_type:
+            try:
+                from cassini.core.resource_display import resolve_resource_display
+
+                lookup_id = resource_id if resource_id else 0
+                resource_display = await resolve_resource_display(
+                    session, resource_type, lookup_id
+                )
+            except Exception:
+                logger.debug(
+                    "resource_display_resolve_failed",
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                )
+
+        # Same for plant_id — best-effort, NULL on failure.
+        if plant_id is None and resource_type and resource_id:
+            try:
+                plant_id = await _resolve_plant_for_resource(
+                    session, resource_type, resource_id
+                )
+            except Exception:
+                logger.debug(
+                    "audit_plant_resolve_failed",
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                )
+
+        # Chain hash uses the in-process cache — no SELECT in the hot path.
+        # On the rare IntegrityError (e.g. another process appended out of
+        # band), refresh from DB and retry once.
+        for attempt in range(2):
+            next_seq = self._last_seq + 1
+            timestamp = event.get("timestamp") or datetime.now(timezone.utc)
+
+            entry = AuditLog(
+                user_id=event.get("user_id"),
+                username=event.get("username"),
+                action=action,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                resource_display=resource_display,
+                plant_id=plant_id,
+                detail=event.get("detail"),
+                ip_address=event.get("ip_address"),
+                user_agent=event.get("user_agent"),
+                timestamp=timestamp,
+                sequence_number=next_seq,
+            )
+            entry.sequence_hash = compute_audit_hash(
+                self._last_hash,
+                entry.action,
+                entry.resource_type,
+                entry.resource_id,
+                entry.user_id,
+                entry.username,
+                entry.timestamp,
+                sequence_number=entry.sequence_number,
+            )
+
+            try:
+                session.add(entry)
+                await session.flush()
+                await session.commit()
+                # Commit succeeded — advance the cache.
+                self._last_hash = entry.sequence_hash
+                self._last_seq = next_seq
+                return
+            except IntegrityError:
+                await session.rollback()
+                if attempt == 1:
+                    raise
+                # Cache miss — another writer/process raced us.  Rebuild
+                # state from the DB and retry once.
+                last_hash, last_seq = await self._get_last_hash_and_seq(session)
+                self._last_hash = last_hash
+                self._last_seq = last_seq
 
     async def _get_last_hash_and_seq(self, session) -> tuple[str, int]:
         """Read the most recent sequence_hash and sequence_number from the DB.
@@ -371,107 +658,85 @@ class AuditService:
         resource_display: Optional[str] = None,
         plant_id: Optional[int] = None,
     ) -> None:
-        """Create an audit log entry.
+        """Enqueue an audit log entry.
 
-        If *resource_display* is not supplied but *resource_type* and
-        *resource_id* are present, the display name is resolved at write
-        time so it survives resource deletion.
+        Fast non-blocking enqueue when the writer task is running.  When
+        the writer is NOT running (sync mode — used by direct unit tests
+        and during early startup before lifespan activates the writer),
+        the entry is persisted inline using the same chain logic.
 
-        If ``plant_id`` is not supplied it is best-effort resolved from the
-        resource (characteristic/sample/violation/plant/hierarchy) so audit
-        list/export queries can scope to the caller's accessible plants.
+        Lookups (resource_display, plant_id resolution) are deferred to
+        the writer so producers never block on extra SELECTs.
+
+        If the queue is full (sustained burst over ``_QUEUE_MAX_SIZE``),
+        the entry is dropped with a warning rather than blocking the
+        request.  Audit completeness is critical but blocking ingestion
+        on a saturated audit pipeline would be worse.
+        """
+        from datetime import datetime, timezone
+
+        event: dict[str, Any] = {
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "detail": detail,
+            "user_id": user_id,
+            "username": username,
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+            "resource_display": resource_display,
+            "plant_id": plant_id,
+            # Capture the timestamp at enqueue so the audit reflects when
+            # the action happened, not when the writer drained the queue.
+            "timestamp": datetime.now(timezone.utc),
+        }
+
+        if self._sync_mode or self._queue is None:
+            await self._write_inline(event)
+            return
+
+        try:
+            self._queue.put_nowait(event)
+        except asyncio.QueueFull:
+            self._failure_count += 1
+            self._last_failure_at = datetime.now(timezone.utc).isoformat()
+            logger.warning(
+                "audit_queue_full_dropping_event",
+                action=action,
+                qsize=self._queue.qsize(),
+                failure_count=self._failure_count,
+            )
+
+    async def _write_inline(self, event: dict[str, Any]) -> None:
+        """Synchronous fallback path — used in tests and pre-writer startup.
+
+        Mirrors the original ``log()`` behavior: open a session, refresh
+        chain state from DB, write with the legacy retry loop.  Producers
+        hit this path only when no writer task is running.
         """
         try:
             async with self._session_factory() as session:
-                # Resolve display name at capture time when not provided
-                if resource_display is None and resource_type:
-                    try:
-                        from cassini.core.resource_display import resolve_resource_display
-
-                        if resource_id:
-                            resource_display = await resolve_resource_display(
-                                session, resource_type, resource_id
-                            )
-                        else:
-                            # No ID (e.g., POST creating a new resource) — use type label
-                            resource_display = await resolve_resource_display(
-                                session, resource_type, 0
-                            )
-                    except Exception:
-                        logger.debug(
-                            "resource_display_resolve_failed",
-                            resource_type=resource_type,
-                            resource_id=resource_id,
-                        )
-
-                # Resolve plant_id when not supplied. Best-effort — a failure
-                # leaves plant_id NULL, which still preserves the audit row.
-                if plant_id is None and resource_type and resource_id:
-                    try:
-                        plant_id = await _resolve_plant_for_resource(
-                            session, resource_type, resource_id
-                        )
-                    except Exception:
-                        logger.debug(
-                            "audit_plant_resolve_failed",
-                            resource_type=resource_type,
-                            resource_id=resource_id,
-                        )
-
-                from datetime import datetime, timezone
-
-                # Retry loop: on IntegrityError (duplicate sequence_number from
-                # concurrent requests), re-read last_seq and retry.  This handles
-                # the read-then-write race without SELECT FOR UPDATE (which
-                # doesn't work on SQLite).
-                for attempt in range(3):
-                    try:
-                        last_hash, last_seq = await self._get_last_hash_and_seq(session)
-                        next_seq = last_seq + 1
-
-                        entry = AuditLog(
-                            user_id=user_id,
-                            username=username,
-                            action=action,
-                            resource_type=resource_type,
-                            resource_id=resource_id,
-                            resource_display=resource_display,
-                            plant_id=plant_id,
-                            detail=detail,
-                            ip_address=ip_address,
-                            user_agent=user_agent,
-                            timestamp=datetime.now(timezone.utc),
-                            sequence_number=next_seq,
-                        )
-
-                        # Tamper evidence: SHA-256 chain (includes sequence_number)
-                        entry.sequence_hash = compute_audit_hash(
-                            last_hash,
-                            entry.action,
-                            entry.resource_type,
-                            entry.resource_id,
-                            entry.user_id,
-                            entry.username,
-                            entry.timestamp,
-                            sequence_number=entry.sequence_number,
-                        )
-                        self._last_hash = entry.sequence_hash
-
-                        session.add(entry)
-                        await session.flush()
-                        await session.commit()
-                        break
-                    except IntegrityError:
-                        await session.rollback()
-                        if attempt == 2:
-                            raise
-                        continue
+                # Cold path — refresh chain cache from DB so concurrent
+                # tests / external writers don't desync the in-process
+                # state.
+                self._last_hash, self._last_seq = await self._get_last_hash_and_seq(
+                    session
+                )
+                # Reuse the writer's row builder.  Two attempts mirrors the
+                # legacy 3-attempt retry minus the redundant first try
+                # (we already read fresh state above).
+                await self._write_one(session, event)
         except Exception:
             self._failure_count += 1
             from datetime import datetime, timezone
 
             self._last_failure_at = datetime.now(timezone.utc).isoformat()
-            logger.warning("audit_log_failed", action=action, failure_count=self._failure_count, exc_info=True)
+            logger.warning(
+                "audit_log_failed",
+                action=event.get("action"),
+                failure_count=self._failure_count,
+                exc_info=True,
+            )
 
     async def log_login(
         self,
@@ -508,12 +773,20 @@ class AuditService:
         )
 
     async def recover_last_hash(self) -> None:
-        """Load the last sequence_hash from DB to continue the chain after restart."""
+        """Load last sequence_hash and sequence_number from DB.
+
+        Called once at startup to seed the in-process chain cache so the
+        writer's first append continues the persisted chain instead of
+        resetting to genesis.  Updates both ``_last_hash`` and
+        ``_last_seq``; the latter is critical because the writer no
+        longer reads the sequence tail per row.
+        """
         try:
             async with self._session_factory() as session:
                 last_hash, last_seq = await self._get_last_hash_and_seq(session)
+                self._last_hash = last_hash
+                self._last_seq = last_seq
                 if last_hash != "0" * 64:
-                    self._last_hash = last_hash
                     logger.info(
                         "audit_hash_chain_recovered",
                         last_hash=last_hash[:12],
