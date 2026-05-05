@@ -149,6 +149,12 @@ export function GalaxyPage() {
 
   if (!plantId) return null
 
+  // E2E / DEV debug hook — renders a hidden list of planet entries so tests can
+  // assert scene content without direct Three.js scene access. The list is
+  // screen-reader invisible (aria-hidden) and zero-size so it never affects layout.
+  const isE2E = typeof window !== 'undefined' && (window as Window & { __e2e__?: boolean }).__e2e__ === true
+  const showDebugPlanets = import.meta.env.DEV || isE2E
+
   return (
     <div data-ui="galaxy-page" className="fixed inset-0 z-50 flex bg-[#080C16]">
       {/* Sidebar — push layout, flex-none */}
@@ -283,6 +289,27 @@ export function GalaxyPage() {
           />
         )}
       </div>
+
+      {/* Debug hook for E2E / DEV: hidden list of loaded characteristics so tests
+          can verify scene data binding without accessing the Three.js scene object.
+          aria-hidden + pointer-events-none ensures no visual/UX impact. */}
+      {showDebugPlanets && charsData?.items && charsData.items.length > 0 && (
+        <ul
+          data-testid="galaxy-planets-debug"
+          aria-hidden="true"
+          style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }}
+        >
+          {charsData.items.map((char) => (
+            <li
+              key={char.id}
+              data-testid="galaxy-planet"
+              data-plant-id={char.id}
+              data-hierarchy-id={char.hierarchy_id}
+              data-char-name={char.name}
+            />
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
