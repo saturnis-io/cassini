@@ -65,7 +65,7 @@ def _make_user(
 
 @pytest.mark.asyncio
 async def test_create_cli_token_basic(async_session: AsyncSession):
-    """Any authenticated user can create a CLI token."""
+    """Any authenticated user can create a CLI token (defaults to read-only)."""
     from cassini.api.v1.cli_auth import CLI_TOKEN_PREFIX, CLITokenRequest, create_cli_token
 
     user = _make_user(user_id=1, username="alice", plant_ids=[10, 20])
@@ -89,13 +89,14 @@ async def test_create_cli_token_basic(async_session: AsyncSession):
     assert result.name == f"{CLI_TOKEN_PREFIX}alice-my-workstation"
     assert result.plant_ids == [10, 20]
     assert result.revoked_previous == 0
+    assert result.scope == "read-only"
 
-    # Verify the API key was persisted
+    # Verify the API key was persisted with read-only scope by default (A6-H1)
     stmt = select(APIKey).where(APIKey.id == result.key_id)
     db_result = await async_session.execute(stmt)
     api_key = db_result.scalar_one()
     assert api_key.is_active is True
-    assert api_key.scope == "read-write"
+    assert api_key.scope == "read-only"
     assert api_key.plant_ids == [10, 20]
     # Verify the plain key matches the stored hash
     assert APIKeyAuth.verify_key(result.key, api_key.key_hash)
@@ -243,22 +244,22 @@ async def test_cli_token_response_includes_plain_key(async_session: AsyncSession
 
 @pytest.mark.asyncio
 async def test_cli_token_default_expiry(async_session: AsyncSession):
-    """Default expiry should be 90 days."""
+    """Default expiry should be 30 days (A6-H1: lowered from 90)."""
     from cassini.api.v1.cli_auth import CLITokenRequest, create_cli_token
 
     user = _make_user(user_id=8, username="frank", plant_ids=[1])
     mock_request = MagicMock()
     mock_request.state = MagicMock()
 
-    data = CLITokenRequest()  # defaults: expires_in_days=90
+    data = CLITokenRequest()  # defaults: expires_in_days=30
     result = await create_cli_token(
         request=mock_request, data=data, session=async_session, current_user=user,
     )
 
-    # Expiry should be roughly 90 days from now
+    # Expiry should be roughly 30 days from now
     now = datetime.now(timezone.utc)
     delta = result.expires_at - now
-    assert 89 <= delta.days <= 90
+    assert 29 <= delta.days <= 30
 
 
 @pytest.mark.asyncio

@@ -40,7 +40,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
     "three": "^0.183.1",
-    "xlsx": "0.18.5",
+    "exceljs": "^4.4.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"
   },

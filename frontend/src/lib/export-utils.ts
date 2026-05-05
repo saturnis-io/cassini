@@ -451,18 +451,80 @@ export async function exportReportToPdf(
 }
 
 /**
- * Export data to Excel (.xlsx)
+ * Trigger a browser download for an in-memory Blob.
+ *
+ * Centralised so the .xlsx and .csv exporters share identical anchor
+ * lifecycle handling.
+ */
+function triggerDownload(blob: Blob, filename: string) {
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', filename)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Determine the union of keys across a row collection. Used to build
+ * deterministic column ordering for sheets so insertion order does not
+ * silently drop sparse fields from later rows.
+ */
+function collectColumns(rows: Record<string, unknown>[]): string[] {
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!seen.has(key)) {
+        seen.add(key)
+        ordered.push(key)
+      }
+    }
+  }
+  return ordered
+}
+
+/**
+ * Append a worksheet built from JSON-style row data.
+ *
+ * Mirrors the previous XLSX.utils.json_to_sheet contract: each row becomes
+ * one row, header is the union of keys (preserving first-seen order), and
+ * missing values render as blanks.
+ */
+function appendJsonSheet(
+  workbook: import('exceljs').Workbook,
+  name: string,
+  rows: Record<string, unknown>[],
+) {
+  const sheet = workbook.addWorksheet(name)
+  const columns = collectColumns(rows)
+  sheet.columns = columns.map((header) => ({ header, key: header }))
+  for (const row of rows) {
+    sheet.addRow(row)
+  }
+}
+
+/**
+ * Export data to Excel (.xlsx). Uses ExcelJS — xlsx@0.18.5 carried two
+ * unpatched advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g60-mjqm) and was
+ * removed from the public npm registry by SheetJS.
  */
 export async function exportToExcel(
   data: Record<string, unknown>[],
   filename: string,
   sheetName = 'Data',
 ) {
-  const XLSX = await import('xlsx')
-  const ws = XLSX.utils.json_to_sheet(data)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, sheetName)
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
+  appendJsonSheet(workbook, sheetName, data)
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  triggerDownload(blob, `${filename}.xlsx`)
 }
 
 /**
@@ -474,32 +536,44 @@ export async function exportToExcelMultiSheet(
   sheets: Array<{ name: string; data: Record<string, unknown>[] }>,
   filename: string,
 ) {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
+  const ExcelJS = await import('exceljs')
+  const workbook = new ExcelJS.Workbook()
   for (const sheet of sheets) {
     if (sheet.data.length === 0) continue
-    const ws = XLSX.utils.json_to_sheet(sheet.data)
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name)
+    appendJsonSheet(workbook, sheet.name, sheet.data)
   }
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  triggerDownload(blob, `${filename}.xlsx`)
 }
 
 /**
- * Export data to CSV
+ * Export data to CSV. Uses RFC 4180 quoting compatible with Excel.
  */
 export async function exportToCsv(data: Record<string, unknown>[], filename: string) {
-  const XLSX = await import('xlsx')
-  const ws = XLSX.utils.json_to_sheet(data)
-  const csv = XLSX.utils.sheet_to_csv(ws)
+  const columns = collectColumns(data)
+  const lines: string[] = [columns.map(escapeCsvCell).join(',')]
+  for (const row of data) {
+    lines.push(columns.map((col) => escapeCsvCell(row[col])).join(','))
+  }
+  const csv = lines.join('\r\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-  link.setAttribute('href', url)
-  link.setAttribute('download', `${filename}.csv`)
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  triggerDownload(blob, `${filename}.csv`)
+}
+
+/**
+ * RFC 4180 cell encoding: wrap in quotes if the value contains a comma,
+ * quote, CR, or LF. Embedded quotes are doubled.
+ */
+function escapeCsvCell(value: unknown): string {
+  if (value == null) return ''
+  const str = typeof value === 'string' ? value : String(value)
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
 }
 
 /**

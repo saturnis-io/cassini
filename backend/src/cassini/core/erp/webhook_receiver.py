@@ -2,16 +2,78 @@
 
 Validates inbound webhooks using HMAC-SHA256 (constant-time comparison),
 parses the payload, and applies field mappings to create SPC data.
+
+Replay protection (A6-H2):
+  - Senders MUST emit ``X-Webhook-Timestamp`` (Unix epoch seconds) alongside
+    ``X-Hub-Signature-256``.
+  - The signature is computed over ``f"{timestamp}.{raw_body}"`` to prevent
+    a captured payload from being replayed with a different timestamp.
+  - The receiver rejects timestamps outside ``+/- WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS``
+    of server time (default 300s).
+  - A short-TTL nonce cache (request hash) blocks duplicate deliveries
+    inside the tolerance window.
+  - When ``CASSINI_ERP_WEBHOOK_LEGACY_GRACE=true`` (default during the
+    migration period) requests without a timestamp header still validate
+    against the body-only signature with a structured warning. The flag
+    will flip to False in the next minor release.
 """
 
 import hashlib
 import hmac
 import json
+import time
+from collections import OrderedDict
 from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+# Tolerance window for the X-Webhook-Timestamp header (seconds). Anything
+# outside +/- this many seconds of server time is rejected as stale or
+# clock-skewed.
+WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300
+
+# Nonce cache size cap. If a sender goes berserk we still want a bounded
+# memory footprint — oldest entries are evicted FIFO.
+_NONCE_CACHE_MAX_ENTRIES = 1024
+
+# Module-level nonce cache: {nonce_hex: expires_at_epoch}. Process-local —
+# in cluster mode each node has its own cache, which is acceptable because
+# the same captured payload would still need to land on the same node within
+# the 5-minute window to bypass detection. Future hardening can move this
+# into the broker if needed.
+_seen_nonces: "OrderedDict[str, float]" = OrderedDict()
+
+
+def _evict_expired_nonces(now: float) -> None:
+    """Drop entries whose TTL has elapsed."""
+    expired = [k for k, exp in _seen_nonces.items() if exp <= now]
+    for key in expired:
+        _seen_nonces.pop(key, None)
+
+
+def _record_nonce(nonce: str, now: float) -> None:
+    """Add a nonce with TTL = tolerance window."""
+    # Evict if at capacity
+    while len(_seen_nonces) >= _NONCE_CACHE_MAX_ENTRIES:
+        _seen_nonces.popitem(last=False)
+    _seen_nonces[nonce] = now + WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS
+
+
+def _is_nonce_seen(nonce: str, now: float) -> bool:
+    """Check whether the nonce was seen within the active window."""
+    _evict_expired_nonces(now)
+    return nonce in _seen_nonces
+
+
+def reset_nonce_cache() -> None:
+    """Test helper: clear the in-memory nonce cache."""
+    _seen_nonces.clear()
+
+
+class WebhookReplayError(ValueError):
+    """Raised when a webhook fails replay-protection checks."""
 
 
 class WebhookReceiver:
@@ -25,11 +87,16 @@ class WebhookReceiver:
         self._hmac_secret = hmac_secret.encode("utf-8") if isinstance(hmac_secret, str) else hmac_secret
 
     def validate_signature(self, payload: bytes, signature: str) -> bool:
-        """Validate HMAC-SHA256 signature using constant-time comparison.
+        """Validate HMAC-SHA256 over the raw body only (legacy path).
+
+        Used by the legacy-grace fallback and by callers that intentionally
+        sign just the body. New integrations should use
+        :meth:`validate_signature_with_timestamp` instead.
 
         Args:
             payload: Raw request body bytes
-            signature: Signature from X-Hub-Signature-256 header (hex digest, optionally prefixed with 'sha256=')
+            signature: Signature from X-Hub-Signature-256 header (hex digest,
+                optionally prefixed with 'sha256=')
 
         Returns:
             True if signature is valid
@@ -42,6 +109,101 @@ class WebhookReceiver:
             actual = actual[7:]
 
         return hmac.compare_digest(expected, actual)
+
+    def validate_signature_with_timestamp(
+        self,
+        payload: bytes,
+        signature: str,
+        timestamp: str,
+        *,
+        now: float | None = None,
+        tolerance_seconds: int = WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
+    ) -> bool:
+        """Validate timestamp-bound HMAC-SHA256 signature.
+
+        The signed string is ``f"{timestamp}.{raw_body}"`` (matching Stripe's
+        construction). Senders must therefore include the timestamp in the
+        HMAC input, not just send it alongside.
+
+        Args:
+            payload: Raw request body bytes.
+            signature: Hex digest from X-Hub-Signature-256 (with optional
+                'sha256=' prefix).
+            timestamp: Unix epoch seconds as a string (X-Webhook-Timestamp).
+            now: Override server time for testing.
+            tolerance_seconds: Acceptance window on either side of ``now``.
+
+        Returns:
+            True if the timestamp is within the window AND the signature
+            matches the timestamped payload.
+        """
+        ts_int = self._parse_timestamp(timestamp)
+        if ts_int is None:
+            return False
+
+        current = now if now is not None else time.time()
+        if abs(current - ts_int) > tolerance_seconds:
+            return False
+
+        signed_payload = f"{ts_int}.".encode("utf-8") + payload
+        expected = hmac.new(
+            self._hmac_secret, signed_payload, hashlib.sha256
+        ).hexdigest()
+
+        actual = signature
+        if actual.startswith("sha256="):
+            actual = actual[7:]
+
+        return hmac.compare_digest(expected, actual)
+
+    @staticmethod
+    def _parse_timestamp(value: str | None) -> int | None:
+        """Parse an X-Webhook-Timestamp header value.
+
+        Accepts plain integer seconds. Returns None on any parse failure.
+        """
+        if not value:
+            return None
+        try:
+            return int(str(value).strip())
+        except (ValueError, TypeError):
+            return None
+
+    def compute_nonce(
+        self,
+        payload: bytes,
+        signature: str,
+        timestamp: str,
+    ) -> str:
+        """Compute a stable cache key for replay tracking.
+
+        Hashes the (timestamp, signature) pair so a captured request cannot
+        be replayed verbatim within the tolerance window. The signature is
+        already content-bound, so collisions are vanishingly improbable.
+        """
+        digest = hashlib.sha256()
+        digest.update(str(timestamp).encode("utf-8"))
+        digest.update(b"|")
+        # Strip optional 'sha256=' prefix to canonicalize
+        sig_clean = signature
+        if sig_clean.startswith("sha256="):
+            sig_clean = sig_clean[7:]
+        digest.update(sig_clean.encode("utf-8"))
+        # Mix payload length so the same (ts, sig) pair on different bodies
+        # — which should be impossible — at least produces distinct nonces.
+        digest.update(b"|")
+        digest.update(str(len(payload)).encode("utf-8"))
+        return digest.hexdigest()
+
+    @staticmethod
+    def is_nonce_seen(nonce: str, *, now: float | None = None) -> bool:
+        """Check whether a nonce was already accepted in the active window."""
+        return _is_nonce_seen(nonce, now if now is not None else time.time())
+
+    @staticmethod
+    def record_nonce(nonce: str, *, now: float | None = None) -> None:
+        """Record that a nonce was accepted (for replay rejection)."""
+        _record_nonce(nonce, now if now is not None else time.time())
 
     def parse_payload(self, raw_body: bytes) -> dict[str, Any]:
         """Parse the webhook payload as JSON.

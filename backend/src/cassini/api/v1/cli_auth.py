@@ -4,10 +4,19 @@ Allows any authenticated user to generate a scoped API key for CLI usage.
 Unlike the admin/engineer API key endpoints, this is available to all roles
 including operators. The key is automatically scoped to the user's assigned
 plants and previous CLI tokens for the same user are revoked on creation.
+
+Security policy (A6-H1):
+  - Default scope is "read-only". Any authenticated user can issue a
+    read-only CLI token that mirrors their plant assignments.
+  - "read-write" scope requires the requester to hold the admin role on at
+    least one plant. Operators / supervisors / engineers cannot self-issue
+    a write-scoped key — preventing chained MCP --allow-writes abuse.
+  - Default expiry is 30 days; the upper bound remains 365.
 """
 
 import structlog
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -17,14 +26,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cassini.api.deps import get_current_user, get_db_session
 from cassini.core.auth.api_key import APIKeyAuth
 from cassini.db.models.api_key import APIKey
-from cassini.db.models.user import User
+from cassini.db.models.user import User, UserRole
 
 logger = structlog.get_logger(__name__)
 
 # CLI token name prefix — used to identify and revoke previous CLI tokens
 CLI_TOKEN_PREFIX = "cli-"
 
+# Default expiry for self-service CLI tokens. Lowered from 90d to 30d as part
+# of A6-H1 to limit the blast radius of a leaked key. Users can opt down to
+# 1 day; admins issuing read-write tokens may opt up to the 365-day cap.
+DEFAULT_EXPIRES_IN_DAYS = 30
+
 router = APIRouter(prefix="/api/v1/auth", tags=["cli-auth"])
+
+
+def _is_admin_anywhere(user: User) -> bool:
+    """Whether the user holds the admin role on at least one plant."""
+    return any(pr.role == UserRole.admin for pr in user.plant_roles)
 
 
 class CLITokenRequest(BaseModel):
@@ -36,10 +55,17 @@ class CLITokenRequest(BaseModel):
         description="Optional label to distinguish this CLI token",
     )
     expires_in_days: int = Field(
-        default=90,
+        default=DEFAULT_EXPIRES_IN_DAYS,
         ge=1,
         le=365,
-        description="Token expiry in days (1-365, default 90)",
+        description="Token expiry in days (1-365, default 30)",
+    )
+    scope: Literal["read-only", "read-write"] = Field(
+        default="read-only",
+        description=(
+            "Token scope. 'read-only' is available to all roles. "
+            "'read-write' requires admin role on at least one plant."
+        ),
     )
 
 
@@ -56,6 +82,9 @@ class CLITokenResponse(BaseModel):
     revoked_previous: int = Field(
         description="Number of previous CLI tokens that were revoked"
     )
+    scope: Literal["read-only", "read-write"] = Field(
+        description="Token scope (read-only or read-write)"
+    )
 
 
 @router.post("/cli-token", response_model=CLITokenResponse, status_code=status.HTTP_201_CREATED)
@@ -71,9 +100,27 @@ async def create_cli_token(
     scoped to the user's assigned plant IDs. Creating a new CLI token revokes
     all previous CLI tokens for the same user.
 
+    Scope enforcement (A6-H1):
+      * `scope="read-only"` (default) is available to all roles.
+      * `scope="read-write"` requires the requester to hold the admin role
+        on at least one plant. Operators / supervisors / engineers receive
+        HTTP 403 if they request a write-scoped token.
+
     The plain API key is returned only once — store it securely.
     """
     now = datetime.now(timezone.utc)
+
+    # Enforce write-scope requires admin role
+    if data.scope == "read-write" and not _is_admin_anywhere(current_user):
+        logger.warning(
+            "cli_token_write_scope_denied",
+            user_id=current_user.id,
+            username=current_user.username,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required to issue a read-write CLI token",
+        )
 
     # Build the token name from user identity + optional label
     label_suffix = f"-{data.label}" if data.label else ""
@@ -132,7 +179,7 @@ async def create_cli_token(
         key_prefix=APIKeyAuth.extract_prefix(plain_key),
         expires_at=expires_at,
         rate_limit_per_minute=60,
-        scope="read-write",
+        scope=data.scope,
         plant_ids=user_plant_ids,
     )
 
@@ -140,11 +187,17 @@ async def create_cli_token(
     await session.flush()
     await session.refresh(api_key)
 
-    # Audit context for the audit middleware
+    # Audit context for the audit middleware. Write-scope issuance gets a
+    # distinct event type so security review can filter for it.
+    audit_action = (
+        "cli_token_write_scope_issued"
+        if data.scope == "read-write"
+        else "create"
+    )
     request.state.audit_context = {
         "resource_type": "api_key",
         "resource_id": api_key.id,
-        "action": "create",
+        "action": audit_action,
         "summary": f"CLI token '{token_name}' created by {current_user.username}",
         "fields": {
             "name": token_name,
@@ -152,18 +205,25 @@ async def create_cli_token(
             "expires_at": str(expires_at),
             "plant_ids": user_plant_ids,
             "revoked_previous": revoked_count,
+            "scope": data.scope,
         },
     }
 
     await session.commit()
 
+    log_event = (
+        "cli_token_write_scope_issued"
+        if data.scope == "read-write"
+        else "cli_token_created"
+    )
     logger.info(
-        "cli_token_created",
+        log_event,
         user_id=current_user.id,
         username=current_user.username,
         key_id=api_key.id,
         expires_at=str(expires_at),
         plant_ids=user_plant_ids,
+        scope=data.scope,
     )
 
     return CLITokenResponse(
@@ -173,4 +233,5 @@ async def create_cli_token(
         expires_at=expires_at,
         plant_ids=user_plant_ids,
         revoked_previous=revoked_count,
+        scope=data.scope,
     )
