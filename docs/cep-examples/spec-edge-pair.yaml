@@ -1,0 +1,27 @@
+# Spec-edge pair — two adjacent characteristics riding the upper spec.
+#
+# When two related characteristics each post a sample above an absolute
+# threshold within ten seconds, the pair behaviour is more diagnostic
+# than either signal alone. Typical use case: a press operation where
+# both flange thickness and cup depth have spec ceilings, and a stuck
+# control valve drives both above limit simultaneously.
+
+name: spec-edge-pair
+description: Both flange thickness and cup depth above absolute ceiling within 10s
+window: 10s
+conditions:
+  - characteristic: Plant 1 > Press Bay > Press 7 > Flange Thickness
+    rule: above_value
+    count: 1
+    threshold: 4.95
+  - characteristic: Plant 1 > Press Bay > Press 7 > Cup Depth
+    rule: above_value
+    count: 1
+    threshold: 12.10
+action:
+  violation: PRESS_VALVE_SUSPECTED
+  severity: high
+  message: >-
+    Two correlated dimensions on Press 7 are over the upper ceiling
+    together. Inspect the control valve and pressure regulator before
+    continuing the run.

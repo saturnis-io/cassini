@@ -1,0 +1,29 @@
+# Cross-station drift — every station on a line walking the same way.
+#
+# When three independent CNC stations on the same line all drift above
+# centre line within a five-minute window, the most likely cause is a
+# shared input (coolant batch, raw material lot, ambient temperature)
+# rather than per-station tooling. Surface that as a single high-
+# severity event so the operator investigates the shared cause once,
+# not three machine-by-machine alarms.
+
+name: cross-station-drift
+description: Three stations on Line A drift up together within 5m — shared root cause
+window: 5m
+conditions:
+  - characteristic: Plant 1 > Line A > Station 1 > Diameter
+    rule: above_mean_consecutive
+    count: 4
+  - characteristic: Plant 1 > Line A > Station 2 > Diameter
+    rule: above_mean_consecutive
+    count: 4
+  - characteristic: Plant 1 > Line A > Station 3 > Diameter
+    rule: above_mean_consecutive
+    count: 4
+action:
+  violation: SHARED_ROOT_CAUSE_SUSPECTED
+  severity: high
+  message: >-
+    All three stations on Line A are drifting in the same direction.
+    Check coolant lot, raw material certificate, and ambient temperature
+    before adjusting tools.

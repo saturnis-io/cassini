@@ -64,6 +64,10 @@ const ACTION_LABELS: Record<string, string> = {
   lock_roles: 'Lock Roles',
   unlock_roles: 'Unlock Roles',
   create_delta: 'Create Delta',
+  match: 'Match',
+  enable: 'Enable',
+  disable: 'Disable',
+  validate: 'Validate',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -107,6 +111,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   report_schedule: 'Report Schedule',
   notification: 'Notification',
   license: 'License',
+  cep_rule: 'CEP Rule',
 }
 
 function ActionBadge({ action }: { action: string }) {

@@ -42,6 +42,7 @@ from cassini.api.v1.opcua_servers import router as opcua_servers_router
 from cassini.api.v1.database_admin import router as database_admin_router
 from cassini.api.v1.characteristic_config import router as config_router
 from cassini.api.v1.capability import router as capability_router
+from cassini.api.v1.cep_rules import router as cep_rules_router
 from cassini.api.v1.characteristics import router as characteristics_router
 from cassini.api.v1.data_entry import router as data_entry_router
 from cassini.api.v1.distributions import router as distributions_router
@@ -132,6 +133,7 @@ _ENTERPRISE_ROUTERS = [
     retention_router,
     database_admin_router,
     system_settings_router,
+    cep_rules_router,
 ]
 
 
@@ -385,6 +387,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("Community edition -- commercial services not initialized")
 
+    # -----------------------------------------------------------------------
+    # Streaming CEP engine (Enterprise) — subscribes to SampleProcessedEvent
+    # and fires multi-stream pattern matches as violations. In cluster
+    # mode the elected leader for the "cep" role evaluates rules; other
+    # nodes still mutate streaming state so a takeover resumes cleanly.
+    # -----------------------------------------------------------------------
+    if license_service.is_enterprise:
+        from cassini.core.cep.engine import CepEngine
+
+        cep_leader = None
+        cep_redis_client = getattr(broker.event_bus, "_client", None)
+        if broker.backend != "local" and cep_redis_client is not None:
+            from cassini.core.broker.leader import LeaderElection
+
+            cep_leader = LeaderElection(
+                redis_client=cep_redis_client,
+                role="cep",
+                namespace=getattr(settings, "broker_namespace", "default"),
+            )
+            try:
+                if await cep_leader.try_acquire():
+                    cep_leader.start_renewal()
+            except Exception:
+                logger.warning("cep_leader_acquire_failed", exc_info=True)
+
+        cep_engine = CepEngine(
+            session_factory=db.session,
+            event_bus=typed_event_bus,
+            leader_election=cep_leader,
+        )
+        if hasattr(app.state, "audit_service"):
+            cep_engine.attach_audit_service(app.state.audit_service)
+        await cep_engine.start()
+        app.state.cep_engine = cep_engine
+        app.state.cep_leader = cep_leader
+        logger.info("CEP engine initialized")
+
     # Compute initial compliance status
     try:
         async with db.session() as session:
@@ -476,6 +515,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.has_role("ingestion"):
         await tag_provider_manager.shutdown()
         await mqtt_manager.shutdown()
+
+    # Shutdown CEP engine (release leader lock, unsubscribe handlers)
+    if hasattr(app.state, "cep_engine"):
+        try:
+            await app.state.cep_engine.stop()
+        except Exception:
+            logger.warning("cep_engine_stop_failed", exc_info=True)
+    if getattr(app.state, "cep_leader", None) is not None:
+        try:
+            await app.state.cep_leader.release()
+        except Exception:
+            logger.debug("cep_leader_release_failed", exc_info=True)
 
     # Shutdown SPC consumer (broker-based) and queue (drain remaining items)
     if hasattr(app.state, 'spc_consumer'):

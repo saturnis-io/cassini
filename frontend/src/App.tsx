@@ -78,6 +78,9 @@ const GuidePage = lazy(() =>
 const PlantComparisonView = lazy(() =>
   import('@/components/PlantComparisonView').then((m) => ({ default: m.PlantComparisonView })),
 )
+const CepRulesPage = lazy(() =>
+  import('@/pages/CepRulesPage').then((m) => ({ default: m.CepRulesPage })),
+)
 
 // Lazy-loaded settings sub-pages
 const AppearanceSettings = lazy(() =>
@@ -488,6 +491,20 @@ function App() {
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
                             <AnalyticsPage />
+                          </Suspense>
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    </RequiresTier>
+                  }
+                />
+                <Route
+                  path="cep-rules"
+                  element={
+                    <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
+                      <ProtectedRoute requiredRole="engineer">
+                        <ErrorBoundary>
+                          <Suspense fallback={<PageSpinner />}>
+                            <CepRulesPage />
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>

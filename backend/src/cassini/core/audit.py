@@ -144,6 +144,8 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/update-profile"), "auth"),
     (re.compile(r"/api/v1/scheduled-reports(?:/(\d+))?"), "report_schedule"),
     (re.compile(r"/api/v1/reports/analytics(?:/|$)"), "report_analytics"),
+    (re.compile(r"/api/v1/cep_rules/validate"), "cep_rule"),
+    (re.compile(r"/api/v1/cep_rules(?:/(\d+))?"), "cep_rule"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -222,6 +224,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "unlock"
     if "/cusum-reset" in path:
         return "reset"
+    if "cep_rules/validate" in path:
+        return "validate"
     if "/forecast" in path:
         return "forecast"
     if "/test" in path:
@@ -334,6 +338,15 @@ async def _resolve_plant_for_resource(
     if resource_type == "retention":
         # PurgeCompletedEvent uses plant_id as resource_id
         return resource_id
+    if resource_type == "cep_rule":
+        from cassini.db.models.cep_rule import CepRule
+
+        row = (
+            await session.execute(
+                sa_select(CepRule.plant_id).where(CepRule.id == resource_id)
+            )
+        ).first()
+        return row[0] if row else None
     return None
 
 
