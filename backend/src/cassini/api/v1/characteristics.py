@@ -37,12 +37,14 @@ from cassini.api.schemas.characteristic import (
 )
 from cassini.api.deps import (
     check_plant_role,
+    get_accessible_plant_ids,
     get_characteristic_repo,
     get_current_user,
     get_current_engineer,
     get_db_session,
     get_sample_repo,
     resolve_plant_id_for_characteristic,
+    user_is_global_admin,
 )
 from cassini.api.schemas.common import PaginatedResponse, PaginationParams
 from cassini.core.engine.control_limits import ControlLimitService
@@ -89,6 +91,7 @@ async def get_control_limit_service(
 def _build_list_query(
     *,
     plant_id: int | None = None,
+    plant_ids: list[int] | None = None,
     hierarchy_id: int | None = None,
     provider_type: str | None = None,
     in_control: bool | None = None,
@@ -100,6 +103,11 @@ def _build_list_query(
         from cassini.db.models.hierarchy import Hierarchy
         stmt = stmt.join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id).where(
             Hierarchy.plant_id == plant_id
+        )
+    elif plant_ids is not None:
+        from cassini.db.models.hierarchy import Hierarchy
+        stmt = stmt.join(Hierarchy, Characteristic.hierarchy_id == Hierarchy.id).where(
+            Hierarchy.plant_id.in_(plant_ids)
         )
 
     if hierarchy_id is not None:
@@ -179,8 +187,21 @@ async def list_characteristics(
 
     repo = CharacteristicRepository(session)
 
+    # Plant-scoped filtering: explicit plant_id requires access; otherwise
+    # constrain to the user's accessible plants. Admins skip filtering.
+    is_admin = user_is_global_admin(_user)
+    accessible_plant_ids: list[int] | None = None
+    if plant_id is not None and not is_admin:
+        check_plant_role(_user, plant_id, "operator")
+    elif plant_id is None and not is_admin:
+        accessible = get_accessible_plant_ids(_user)
+        if not accessible:
+            return PaginatedResponse(items=[], total=0, offset=offset, limit=limit)
+        accessible_plant_ids = list(accessible)
+
     stmt = _build_list_query(
         plant_id=plant_id,
+        plant_ids=accessible_plant_ids,
         hierarchy_id=hierarchy_id,
         provider_type=provider_type,
         in_control=in_control,
@@ -363,15 +384,28 @@ async def create_characteristic(
 async def get_characteristic(
     char_id: int,
     repo: CharacteristicRepository = Depends(get_characteristic_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> CharacteristicResponse:
-    """Get characteristic details by ID."""
+    """Get characteristic details by ID.
+
+    Plant-scoped: callers without a role at the characteristic's plant get a
+    404 (not 403) so we do not leak existence at other plants.
+    """
     characteristic = await repo.get_with_data_source(char_id)
     if characteristic is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Characteristic {char_id} not found"
         )
+
+    if not user_is_global_admin(_user):
+        plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+        if plant_id not in get_accessible_plant_ids(_user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Characteristic {char_id} not found",
+            )
 
     return CharacteristicResponse.model_validate(characteristic)
 

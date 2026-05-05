@@ -121,14 +121,22 @@ class WebSocketBroadcaster:
         """
 
         async def _on_remote_message(message: dict) -> None:
-            """Handle a message received from the BroadcastChannel (another node)."""
+            """Handle a message received from the BroadcastChannel (another node).
+
+            ``broadcast_to_characteristic`` is intrinsically plant-scoped because
+            local subscriptions are plant-authorized at subscribe time. For
+            ``ack_update`` (broadcast-to-all class) we honour the embedded
+            ``plant_id`` so cross-node fan-out does not leak across tenants.
+            """
             msg_type = message.get("type")
             char_id = message.get("characteristic_id")
 
             if char_id is not None:
                 await self._manager.broadcast_to_characteristic(char_id, message)
             elif msg_type == "ack_update":
-                await self._manager.broadcast_to_all(message)
+                await self._manager.broadcast_to_all(
+                    message, plant_id=message.get("plant_id")
+                )
             else:
                 logger.debug("broadcast_remote_unroutable", message_type=msg_type)
 
@@ -333,12 +341,13 @@ class WebSocketBroadcaster:
     async def notify_violation_acknowledged(
         self, event: ViolationAcknowledged
     ) -> None:
-        """Broadcast acknowledgment update to all WebSocket clients.
+        """Broadcast acknowledgment update to WebSocket clients at the plant.
 
         Implements the AlertNotifier protocol method for violation acknowledgment.
-        Broadcasts the acknowledgment to ALL connected clients (not just subscribers
-        of a specific characteristic) because acknowledgments are important for
-        everyone to see.
+        Broadcasts to all connected clients whose user has a role at the
+        violation's plant — never cross-plant. Plant resolution is best-effort
+        (via violation -> characteristic -> hierarchy); on failure we drop
+        the notification rather than risk leaking it to other tenants.
 
         Args:
             event: ViolationAcknowledged event from AlertManager
@@ -348,25 +357,66 @@ class WebSocketBroadcaster:
                 "type": "ack_update",
                 "violation_id": int,
                 "ack_user": str,
-                "ack_reason": str
+                "ack_reason": str,
+                "plant_id": int | None
             }
         """
+        plant_id = await self._resolve_plant_for_violation(event.violation_id)
+
         message = {
             "type": "ack_update",
             "violation_id": event.violation_id,
             "ack_user": event.user,
             "ack_reason": event.reason,
+            "plant_id": plant_id,
         }
 
         logger.info(
             "broadcasting_acknowledgment",
             violation_id=event.violation_id,
             user=event.user,
+            plant_id=plant_id,
         )
 
-        # Broadcast to all clients (acknowledgments are important for everyone)
-        await self._manager.broadcast_to_all(message)
+        # Plant-scoped broadcast: only deliver to subscribers with role at the
+        # owning plant. If plant_id is None we still scope-down by passing it
+        # — broadcast_to_all returns immediately when allowed_user_ids is empty.
+        await self._manager.broadcast_to_all(message, plant_id=plant_id)
         await self._publish_to_broadcast(message)
+
+    async def _resolve_plant_for_violation(
+        self, violation_id: int
+    ) -> int | None:
+        """Best-effort plant lookup for a violation — used to scope ack fan-out."""
+        from cassini.db.database import get_database
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
+        from cassini.db.models.violation import Violation
+        from sqlalchemy import select as sa_select
+
+        try:
+            db = get_database()
+            async with db.session() as session:
+                row = (
+                    await session.execute(
+                        sa_select(Hierarchy.plant_id)
+                        .join(
+                            Characteristic,
+                            Characteristic.hierarchy_id == Hierarchy.id,
+                        )
+                        .join(
+                            Violation,
+                            Violation.char_id == Characteristic.id,
+                        )
+                        .where(Violation.id == violation_id)
+                    )
+                ).first()
+                return row[0] if row else None
+        except Exception:
+            logger.warning(
+                "violation_plant_resolve_failed", violation_id=violation_id
+            )
+            return None
 
 
 __all__ = ["WebSocketBroadcaster"]

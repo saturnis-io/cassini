@@ -332,6 +332,102 @@ def check_plant_role(user: User, plant_id: int, min_role: str) -> None:
         )
 
 
+def get_accessible_plant_ids(user: User) -> set[int]:
+    """Return the set of plant IDs the user has any role at.
+
+    Admin users at any plant are treated as having access to every plant — the
+    caller should detect the wildcard case via ``user_is_global_admin(user)``
+    and skip plant filtering entirely. For non-admin users this function
+    returns the explicit plant_ids their UserPlantRole rows reference.
+    """
+    return {pr.plant_id for pr in user.plant_roles}
+
+
+def user_is_global_admin(user: User) -> bool:
+    """True if the user has the admin role at any plant.
+
+    Mirrors ``get_user_role_level_for_plant``'s admin-everywhere semantics —
+    admins can read any plant's data. Used for list-endpoint filtering of
+    operational data (samples, violations, characteristics).
+
+    Note: audit-log queries DO NOT use this helper. Admin-scoped tenant
+    isolation requires that an admin at Plant A cannot read Plant B's audit
+    rows; use ``get_admin_plant_ids`` for that path.
+    """
+    return any(pr.role == UserRole.admin for pr in user.plant_roles)
+
+
+def get_admin_plant_ids(user: User) -> set[int]:
+    """Return the set of plant IDs the user has the *admin* role at.
+
+    Distinct from ``get_accessible_plant_ids`` which includes any role.
+    Used by audit-log queries which require admin-at-plant for visibility
+    rather than admin-anywhere.
+    """
+    return {pr.plant_id for pr in user.plant_roles if pr.role == UserRole.admin}
+
+
+async def resolve_plant_id_for_sample(
+    sample_id: int, session: AsyncSession
+) -> Optional[int]:
+    """Resolve the plant_id that owns a sample via sample → characteristic → hierarchy.
+
+    Returns ``None`` when the sample does not exist; callers should treat that
+    as "not found" rather than leaking existence information.
+    """
+    from sqlalchemy import select as sa_select
+
+    from cassini.db.models.sample import Sample
+
+    char_id = (
+        await session.execute(
+            sa_select(Sample.char_id).where(Sample.id == sample_id)
+        )
+    ).scalar_one_or_none()
+    if char_id is None:
+        return None
+    try:
+        return await resolve_plant_id_for_characteristic(char_id, session)
+    except HTTPException:
+        return None
+
+
+async def resolve_plant_id_for_violation(
+    violation_id: int, session: AsyncSession
+) -> Optional[int]:
+    """Resolve the plant_id that owns a violation via violation → sample → characteristic.
+
+    Returns ``None`` when the violation does not exist or its plant cannot be
+    resolved.
+    """
+    from sqlalchemy import select as sa_select
+
+    from cassini.db.models.violation import Violation
+
+    char_id = (
+        await session.execute(
+            sa_select(Violation.char_id).where(Violation.id == violation_id)
+        )
+    ).scalar_one_or_none()
+    if char_id is None:
+        # Fall back to char via sample (older rows may not have char_id denormalized)
+        from cassini.db.models.sample import Sample as _Sample
+
+        char_id = (
+            await session.execute(
+                sa_select(_Sample.char_id)
+                .join(Violation, Violation.sample_id == _Sample.id)
+                .where(Violation.id == violation_id)
+            )
+        ).scalar_one_or_none()
+    if char_id is None:
+        return None
+    try:
+        return await resolve_plant_id_for_characteristic(char_id, session)
+    except HTTPException:
+        return None
+
+
 async def get_current_user_no_api_key(
     authorization: Optional[str] = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
