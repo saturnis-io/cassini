@@ -41,6 +41,73 @@ ENTERPRISE_FEATURES = frozenset({
 # Bundled public key ships with Cassini — used to verify license JWTs from saturnis.io
 _BUNDLED_PUBLIC_KEY_PATH = Path(__file__).resolve().parent.parent / "license_public_key.pem"
 
+# Standard JWT claims that the website portal binds when issuing licenses
+LICENSE_ISSUER = "saturnis.io"
+LICENSE_AUDIENCE = "cassini"
+
+
+def _legacy_grace_enabled() -> bool:
+    """Whether to accept license JWTs missing standard iss/aud/exp claims.
+
+    Defaults to True during migration — set CASSINI_LICENSE_LEGACY_GRACE=false
+    once all in-the-wild licenses have been re-issued with the standard claims.
+    Plan: flip default to false in next minor release after portal rolls out
+    the new claim set.
+    """
+    raw = os.environ.get("CASSINI_LICENSE_LEGACY_GRACE", "true").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
+
+def _decode_license_jwt(token: str, public_key: bytes) -> dict:
+    """Decode and verify a license JWT against the bundled public key.
+
+    Verifies signature, algorithm, and (when present) standard JWT claims:
+    iss="saturnis.io", aud="cassini", exp. Falls back to legacy mode when
+    the grace flag is enabled and the token is missing those claims, but
+    always emits a warning so operators are aware of pre-migration tokens.
+
+    Raises:
+        jwt.InvalidSignatureError: Signature does not match.
+        jwt.DecodeError: Token is malformed.
+        jwt.MissingRequiredClaimError: Standard claims missing and grace disabled.
+        jwt.InvalidIssuerError / InvalidAudienceError / ExpiredSignatureError:
+            Standard claim verification failed.
+    """
+    # Strict path: enforce iss + aud + exp on tokens that include them.
+    try:
+        return jwt.decode(
+            token,
+            public_key,
+            algorithms=["EdDSA"],
+            issuer=LICENSE_ISSUER,
+            audience=LICENSE_AUDIENCE,
+            options={"require": ["exp", "iss", "aud"]},
+        )
+    except jwt.MissingRequiredClaimError as e:
+        # Token predates the iss/aud/exp migration. Optionally accept it
+        # under the legacy grace flag, but always warn.
+        if not _legacy_grace_enabled():
+            logger.warning(
+                "license_legacy_claims_missing",
+                msg=(
+                    "License JWT missing required iss/aud/exp claims and "
+                    "CASSINI_LICENSE_LEGACY_GRACE is disabled — rejecting"
+                ),
+                claim=str(e),
+            )
+            raise
+        logger.warning(
+            "license_legacy_claims_grace",
+            msg=(
+                "License JWT missing standard iss/aud/exp claims — "
+                "accepting under legacy grace flag. Re-issue this license "
+                "before disabling CASSINI_LICENSE_LEGACY_GRACE."
+            ),
+            claim=str(e),
+        )
+        # Re-decode without claim requirements but still verify signature.
+        return jwt.decode(token, public_key, algorithms=["EdDSA"])
+
 
 class LicenseService:
     """Validates and exposes license state for feature gating."""
@@ -156,7 +223,7 @@ class LicenseService:
 
         try:
             token = path.read_text().strip()
-            self._claims = jwt.decode(token, public_key, algorithms=["EdDSA"])
+            self._claims = _decode_license_jwt(token, public_key)
             self._valid = True
             self._instance_id = self._resolve_instance_id()
             logger.info(
@@ -186,11 +253,21 @@ class LicenseService:
     def tier(self) -> str:
         if not self.is_commercial:
             return LicenseTier.COMMUNITY.value
-        raw = self._claims.get("tier", "enterprise") if self._claims else "community"
+        # Default to COMMUNITY (most restrictive) when claim is missing — fail-closed.
+        raw = self._claims.get("tier", LicenseTier.COMMUNITY.value) if self._claims else LicenseTier.COMMUNITY.value
         try:
             return LicenseTier(raw).value
         except ValueError:
-            return LicenseTier.ENTERPRISE.value
+            # Unknown tier (typo or attacker-crafted) MUST fail closed to COMMUNITY,
+            # never escalate to ENTERPRISE. Log a security warning so operators
+            # notice the malformed license.
+            logger.warning(
+                "license_unknown_tier",
+                msg="Unknown license tier — falling back to COMMUNITY (fail-closed)",
+                tier=raw,
+                customer=self._claims.get("sub") if self._claims else None,
+            )
+            return LicenseTier.COMMUNITY.value
 
     @property
     def is_pro(self) -> bool:
@@ -253,7 +330,7 @@ class LicenseService:
             raise ValueError("No public key available to verify license")
 
         try:
-            claims = jwt.decode(token, public_key, algorithms=["EdDSA"])
+            claims = _decode_license_jwt(token, public_key)
         except jwt.InvalidSignatureError:
             raise ValueError("License has invalid signature")
         except jwt.DecodeError:
