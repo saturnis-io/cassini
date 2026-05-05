@@ -875,6 +875,7 @@ async def receive_webhook(
     connector_id: int,
     request: Request,
     x_hub_signature_256: str | None = Header(None, alias="X-Hub-Signature-256"),
+    x_webhook_timestamp: str | None = Header(None, alias="X-Webhook-Timestamp"),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Receive an inbound webhook from an ERP system.
@@ -882,6 +883,17 @@ async def receive_webhook(
     Validates HMAC-SHA256 signature, parses payload, and applies
     field mappings to create SPC data. No JWT auth required — uses
     HMAC signature from the connector's auth_config.
+
+    Replay protection (A6-H2):
+      * Senders must emit ``X-Webhook-Timestamp`` (Unix epoch seconds) and
+        compute the HMAC over ``f"{timestamp}.{raw_body}"``.
+      * Timestamps outside +/- 300s of server time are rejected.
+      * Recently-seen (timestamp, signature) pairs are blocked for the
+        duration of the tolerance window.
+      * When ``CASSINI_ERP_WEBHOOK_LEGACY_GRACE=true`` (default), requests
+        missing the timestamp header validate against the body-only
+        signature with a structured warning. The flag will flip to False
+        in the next minor release.
     """
     connector = await _get_connector_or_404(session, connector_id, load_mappings=True)
 
@@ -901,7 +913,11 @@ async def receive_webhook(
     raw_body = await request.body()
 
     # Validate HMAC signature
-    from cassini.core.erp.webhook_receiver import WebhookReceiver
+    from cassini.core.config import get_settings
+    from cassini.core.erp.webhook_receiver import (
+        WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
+        WebhookReceiver,
+    )
     from cassini.db.dialects import decrypt_password
 
     try:
@@ -930,16 +946,60 @@ async def receive_webhook(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing X-Hub-Signature-256 header",
         )
+
     receiver = WebhookReceiver(hmac_secret)
-    if not receiver.validate_signature(raw_body, x_hub_signature_256):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid HMAC signature",
+    settings = get_settings()
+    legacy_grace_enabled = settings.erp_webhook_legacy_grace
+
+    if x_webhook_timestamp:
+        # Modern path: timestamp-bound signature + nonce replay check.
+        if not receiver.validate_signature_with_timestamp(
+            raw_body, x_hub_signature_256, x_webhook_timestamp,
+        ):
+            logger.warning(
+                "erp_webhook_signature_or_timestamp_invalid",
+                connector_id=connector_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=(
+                    "Invalid HMAC signature or timestamp outside "
+                    f"+/-{WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS}s window"
+                ),
+            )
+        nonce = receiver.compute_nonce(
+            raw_body, x_hub_signature_256, x_webhook_timestamp,
         )
+        if receiver.is_nonce_seen(nonce):
+            logger.warning(
+                "erp_webhook_replay_blocked",
+                connector_id=connector_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Webhook replay detected (duplicate nonce)",
+            )
+        receiver.record_nonce(nonce)
+    else:
+        # Legacy path — accepted only while the migration grace flag is on.
+        if not legacy_grace_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing X-Webhook-Timestamp header",
+            )
+        logger.warning(
+            "erp_webhook_legacy_unsigned_timestamp_accepted",
+            connector_id=connector_id,
+            grace_flag="CASSINI_ERP_WEBHOOK_LEGACY_GRACE",
+        )
+        if not receiver.validate_signature(raw_body, x_hub_signature_256):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid HMAC signature",
+            )
 
     # Parse payload
     try:
-        receiver = WebhookReceiver(hmac_secret or "unused")
         payload = receiver.parse_payload(raw_body)
     except ValueError:
         raise HTTPException(
