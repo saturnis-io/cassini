@@ -321,6 +321,8 @@ export function Header({ className, plantSelector }: HeaderProps) {
 
         {/* Theme toggle */}
         <button
+          data-ui="theme-toggle"
+          aria-label="Toggle theme"
           onClick={cycleTheme}
           className="text-muted-foreground hover:text-foreground hover:bg-accent flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors"
           title={t('theme.label', { theme: getThemeLabel() })}

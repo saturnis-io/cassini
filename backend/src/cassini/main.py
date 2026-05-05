@@ -729,23 +729,44 @@ if _frontend_dist:
         """Serve the frontend SPA index page."""
         return _FileResponse(_index_html)
 
-    @app.get("/{path:path}", include_in_schema=False)
-    async def serve_frontend(path: str):
-        """Serve frontend static assets, SPA fallback for client-side routing.
+    # SPA fallback via 404 exception handler — runs AFTER all routes (including
+    # commercial routers registered lazily in lifespan). A previous catch-all
+    # ``@app.get("/{path:path}")`` was registered at module-import time and
+    # therefore shadowed any route that registered later, so GETs to lazily
+    # mounted commercial routers (lakehouse, cep_rules, replay) returned the
+    # SPA's index.html instead of reaching the router. Exception handlers run
+    # outside the route table and are immune to registration order.
+    from starlette.exceptions import HTTPException as _StarletteHTTPException
+    from starlette.responses import JSONResponse as _JSONResponse
 
-        API paths are explicitly excluded — commercial routers are registered
-        lazily during lifespan startup (after this catch-all), so without
-        this guard their GET routes would receive HTML instead of JSON.
-        """
-        if path.startswith("api/"):
-            from starlette.responses import JSONResponse
-            return JSONResponse(
+    @app.exception_handler(404)
+    async def _spa_fallback(request: FastAPIRequest, exc: _StarletteHTTPException):
+        """Serve the SPA for unmatched non-API paths; preserve 404 JSON for API."""
+        path = request.url.path
+        # Preserve JSON 404 for API routes, OpenAPI docs, and health probes.
+        # Anything else is assumed to be a client-side route and falls back
+        # to the SPA shell so the React Router can handle it.
+        if (
+            path.startswith("/api/")
+            or path.startswith("/docs")
+            or path.startswith("/redoc")
+            or path.startswith("/openapi")
+            or path.startswith("/health")
+            or path.startswith("/ws/")
+        ):
+            return _JSONResponse(
                 status_code=404,
-                content={"detail": "Not found"},
+                content={"detail": exc.detail or "Not found"},
             )
-        file = (_resolved_dist / path).resolve()
-        if file.is_file() and file.is_relative_to(_resolved_dist):
-            return _FileResponse(file)
+        # Try to serve the literal file from dist/ (assets, favicons, etc.).
+        # Strip leading slash before resolving to avoid Path() treating the
+        # path as absolute (which would discard the dist root on POSIX).
+        relative = path.lstrip("/")
+        if relative:
+            candidate = (_resolved_dist / relative).resolve()
+            if candidate.is_file() and candidate.is_relative_to(_resolved_dist):
+                return _FileResponse(candidate)
+        # SPA fallback — let React Router render the route client-side.
         return _FileResponse(_index_html)
 
     logger.info("frontend_serving_enabled", dist_dir=str(_resolved_dist))

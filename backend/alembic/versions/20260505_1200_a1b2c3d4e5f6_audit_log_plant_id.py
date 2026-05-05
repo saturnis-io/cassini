@@ -9,9 +9,16 @@ caller's accessible plants. Existing rows are left NULL — they remain visible
 only to admins (any plant) until the application backfills them via the
 resource → plant lookup. New rows populate plant_id at write time when the
 endpoint context provides one.
+
+Idempotent: the initial migration ``f5006ab282e0`` uses
+``Base.metadata.create_all()`` which already provisions ``plant_id`` on
+fresh databases (model state is current). Existing pre-Sprint-15 databases
+upgraded incrementally still need the column added. Guard with
+``inspect()`` so both paths succeed.
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 revision = "a1b2c3d4e5f6"
@@ -30,6 +37,12 @@ _NAMING = {
 def upgrade() -> None:
     bind = op.get_bind()
     dialect = bind.dialect.name
+    inspector = inspect(bind)
+
+    columns = {col["name"] for col in inspector.get_columns("audit_log")}
+    if "plant_id" in columns:
+        # Already provisioned by initial create_all() on fresh DBs. Skip.
+        return
 
     if dialect == "sqlite":
         with op.batch_alter_table(
@@ -68,6 +81,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     dialect = bind.dialect.name
+    inspector = inspect(bind)
+
+    columns = {col["name"] for col in inspector.get_columns("audit_log")}
+    if "plant_id" not in columns:
+        return
 
     if dialect == "sqlite":
         with op.batch_alter_table(
