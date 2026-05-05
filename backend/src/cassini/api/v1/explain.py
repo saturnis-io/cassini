@@ -160,26 +160,57 @@ async def explain_capability_metric(
 
     if has_chart_options:
         # Chart-view mode: fetch samples matching the caller's filter and
-        # compute subgroup means — matching the chart's data_points[].mean
-        sd = datetime.fromisoformat(start_date) if start_date else None
-        ed = datetime.fromisoformat(end_date) if end_date else None
-        samples = await repo.get_by_characteristic(
-            char_id=characteristic_id,
-            start_date=sd,
-            end_date=ed,
-            material_id=material_id,
-        )
-        # Filter excluded samples (get_by_characteristic doesn't do this)
-        samples = [s for s in samples if not s.is_excluded]
-        # Apply limit (most recent N within the range)
-        if limit and len(samples) > limit:
-            samples = samples[-limit:]
-        # Compute subgroup means
-        values: list[float] = []
-        for s in samples:
-            meas = [m.value for m in s.measurements]
-            if meas:
-                values.append(sum(meas) / len(meas))
+        # compute subgroup means — matching the chart's data_points[].mean.
+        #
+        # IMPORTANT: When called with limit-only (no date range), we MUST use
+        # the same query the dashboard uses (get_rolling_window_data) so the
+        # explained Cpk matches the displayed Cpk.  When start_date/end_date
+        # are given, we use get_by_characteristic with date filtering.
+        if start_date or end_date:
+            # Date-filtered branch — normalize naive ISO strings to UTC so
+            # SQLite's timezone-stripping comparison returns the right rows.
+            # SQLite drops tzinfo on storage, so naive vs aware comparison
+            # silently yields wrong samples.  Pattern from correlation.py:332.
+            sd = datetime.fromisoformat(start_date) if start_date else None
+            if sd is not None and sd.tzinfo is None:
+                sd = sd.replace(tzinfo=timezone.utc)
+            ed = datetime.fromisoformat(end_date) if end_date else None
+            if ed is not None and ed.tzinfo is None:
+                ed = ed.replace(tzinfo=timezone.utc)
+            samples = await repo.get_by_characteristic(
+                char_id=characteristic_id,
+                start_date=sd,
+                end_date=ed,
+                material_id=material_id,
+            )
+            # Filter excluded samples (get_by_characteristic doesn't do this)
+            samples = [s for s in samples if not s.is_excluded]
+            # Apply limit (most recent N within the range)
+            if limit and len(samples) > limit:
+                samples = samples[-limit:]
+            # Compute subgroup means
+            values: list[float] = []
+            for s in samples:
+                meas = [m.value for m in s.measurements]
+                if meas:
+                    values.append(sum(meas) / len(meas))
+        else:
+            # Limit-only branch — use the same query the dashboard's chart
+            # endpoint uses (get_rolling_window with window_size=limit) so
+            # values match exactly.  Diverging from this caused C14: any
+            # excluded sample produced a different displayed vs explained Cpk.
+            window_data = await repo.get_rolling_window_data(
+                char_id=characteristic_id,
+                window_size=limit or 50,
+                exclude_excluded=True,
+                material_id=material_id,
+            )
+            # Compute subgroup means from per-sample values
+            values: list[float] = []
+            for sd_item in window_data:
+                meas = sd_item["values"]
+                if meas:
+                    values.append(sum(meas) / len(meas))
     else:
         # No chart options — match the capability GET endpoint exactly.
         # CapabilityCard and dashboard Cpk pill use this path.

@@ -1012,10 +1012,61 @@ class SPCEngine:
                 sigma=cached.sigma,
             )
 
-        # Path 3: Compute from historical data and cache result
-        center_line, computed_ucl, computed_lcl = await self.recalculate_limits(
-            characteristic_id, exclude_ooc=False
-        )
+        # Path 3: Compute from historical data and cache result.
+        #
+        # COLD-START GUARD (audit C12):
+        # On the very first sample for a characteristic, the just-flushed
+        # sample is visible inside this session, but recalculate_limits()
+        # may still raise ValueError when there's insufficient data for the
+        # configured chart type (e.g., I-MR needs >=2 points; X-bar R needs
+        # >=2 subgroups).  Letting that ValueError propagate would 500 the
+        # request AND roll back the sample insert — the caller would see
+        # the sample disappear.
+        #
+        # We catch the ValueError, log it, and return synthetic neutral
+        # boundaries built from the current sample's values.  Limits are
+        # NOT cached, so the next process_sample call retries the real
+        # computation once enough historical data exists.
+        try:
+            center_line, computed_ucl, computed_lcl = await self.recalculate_limits(
+                characteristic_id, exclude_ooc=False
+            )
+        except ValueError as exc:
+            logger.info(
+                "recalculate_limits_cold_start_skipped",
+                characteristic_id=characteristic_id,
+                material_id=material_id,
+                reason=str(exc),
+            )
+            # Build neutral boundaries from any in-window samples so the
+            # current process_sample call can complete.  Use the most
+            # recent sample's value as the center and a tiny sigma so
+            # Nelson rules see the new point as in-zone-C (no false
+            # positives).  These boundaries are NOT cached.
+            recent = await self._sample_repo.get_rolling_window_data(
+                char_id=characteristic_id,
+                window_size=1,
+                exclude_excluded=True,
+                material_id=material_id,
+            )
+            if recent and recent[0]["values"]:
+                values_first = recent[0]["values"]
+                center_line = sum(values_first) / len(values_first)
+            else:
+                center_line = 0.0
+            sigma = 1.0  # Placeholder; rules will not fire meaningfully
+            zones = calculate_zones(center_line, sigma)
+            return ZoneBoundaries(
+                center_line=zones.center_line,
+                plus_1_sigma=zones.plus_1_sigma,
+                plus_2_sigma=zones.plus_2_sigma,
+                plus_3_sigma=zones.plus_3_sigma,
+                minus_1_sigma=zones.minus_1_sigma,
+                minus_2_sigma=zones.minus_2_sigma,
+                minus_3_sigma=zones.minus_3_sigma,
+                sigma=sigma,
+            )
+
         sigma = (computed_ucl - computed_lcl) / 6
 
         # Cache the computed limits

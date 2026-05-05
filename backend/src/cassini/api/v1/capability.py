@@ -5,6 +5,7 @@ for process capability indices (Cp, Cpk, Pp, Ppk, Cpm).
 """
 
 from datetime import datetime
+from typing import NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,12 +39,33 @@ router = APIRouter(prefix="/api/v1/characteristics", tags=["capability"])
 
 # ---- Helper to load characteristic + extract measurement values ----
 
+
+class CharCapabilityData(NamedTuple):
+    """Result of _get_char_and_values.
+
+    Effective spec limits (``eff_usl``, ``eff_lsl``, ``eff_target``) reflect
+    any material-specific overrides resolved at request time.  The returned
+    ``characteristic`` ORM object is NEVER mutated — callers MUST use the
+    effective fields below for any spec-limit-dependent computation.
+    Mutating the ORM would auto-flush to the DB and silently overwrite
+    canonical spec limits with material overrides (audit C13).
+    """
+
+    characteristic: Characteristic
+    values: list[float]
+    sigma_within: float | None
+    subgroup_count: int
+    eff_usl: float | None
+    eff_lsl: float | None
+    eff_target: float | None
+
+
 async def _get_char_and_values(
     char_id: int,
     session: AsyncSession,
     window_size: int = 1000,
     material_id: int | None = None,
-) -> tuple[Characteristic, list[float], float | None, int]:
+) -> CharCapabilityData:
     """Load the characteristic and extract individual measurement values.
 
     Args:
@@ -53,9 +75,9 @@ async def _get_char_and_values(
         material_id: Optional material for filtering samples and resolving limits
 
     Returns:
-        Tuple of (characteristic, flat_values, sigma_within, subgroup_count).
-        subgroup_count is the number of subgroups (samples) in the window,
-        needed for correct Cp CI degrees of freedom (ISO 22514-2:2017 §7.2.3).
+        ``CharCapabilityData`` with the unchanged ORM characteristic, flat
+        measurement values, sigma_within, subgroup_count, and effective
+        spec limits (USL/LSL/target with material overrides applied).
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
@@ -98,8 +120,14 @@ async def _get_char_and_values(
             detail=f"Insufficient measurement data: {len(all_values)} values (minimum 2 required)",
         )
 
-    # sigma_within from stored control chart parameters, with material override
+    # Resolve effective spec limits and sigma.  Use locals — never mutate
+    # the ORM characteristic object.  SQLAlchemy auto-flush would otherwise
+    # write material-specific overrides into the canonical characteristic
+    # row, silently corrupting global specs (audit C13).
     sigma_within = characteristic.stored_sigma
+    eff_usl = characteristic.usl
+    eff_lsl = characteristic.lsl
+    eff_target = characteristic.target_value
 
     if material_id:
         from cassini.core.material_resolver import MaterialResolver
@@ -114,19 +142,27 @@ async def _get_char_and_values(
         _resolved = await _resolver.resolve_flat(char_id, material_id, _char_defaults)
         if _resolved["stored_sigma"] is not None:
             sigma_within = _resolved["stored_sigma"]
-        # Override spec limits on the characteristic object for downstream callers
         if _resolved["usl"] is not None:
-            characteristic.usl = _resolved["usl"]
+            eff_usl = _resolved["usl"]
         if _resolved["lsl"] is not None:
-            characteristic.lsl = _resolved["lsl"]
+            eff_lsl = _resolved["lsl"]
         if _resolved["target_value"] is not None:
-            characteristic.target_value = _resolved["target_value"]
+            eff_target = _resolved["target_value"]
 
-    return characteristic, all_values, sigma_within, subgroup_count
+    return CharCapabilityData(
+        characteristic=characteristic,
+        values=all_values,
+        sigma_within=sigma_within,
+        subgroup_count=subgroup_count,
+        eff_usl=eff_usl,
+        eff_lsl=eff_lsl,
+        eff_target=eff_target,
+    )
 
 
-def _get_cp_unavailable_reason(characteristic: Characteristic) -> str | None:
-    if characteristic.usl is None or characteristic.lsl is None:
+def _get_cp_unavailable_reason(usl: float | None, lsl: float | None) -> str | None:
+    """Cp is undefined for one-sided specs (no spread reference)."""
+    if usl is None or lsl is None:
         return "one_sided_spec"
     return None
 
@@ -202,17 +238,24 @@ async def get_capability(
     Returns Cp, Cpk, Pp, Ppk, Cpm indices along with normality test results.
     Requires at least one specification limit (USL or LSL) on the characteristic.
     """
-    characteristic, values, sigma_within, subgroup_count = await _get_char_and_values(
+    data = await _get_char_and_values(
         char_id, session, window_size, material_id=material_id,
     )
+    characteristic = data.characteristic
+    values = data.values
+    sigma_within = data.sigma_within
+    subgroup_count = data.subgroup_count
+    eff_usl = data.eff_usl
+    eff_lsl = data.eff_lsl
+    eff_target = data.eff_target
 
-    if characteristic.usl is None and characteristic.lsl is None:
+    if eff_usl is None and eff_lsl is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
         )
 
-    cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
+    cp_unavailable_reason = _get_cp_unavailable_reason(eff_usl, eff_lsl)
     sigma_source_within = "within_subgroup" if sigma_within is not None else None
     sigma_method_str = _infer_sigma_method(characteristic)
 
@@ -221,9 +264,9 @@ async def get_capability(
     if include_ci:
         bootstrap_cis = compute_capability_confidence_intervals(
             measurements=values,
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
         )
         if "cpk" in bootstrap_cis:
@@ -250,9 +293,9 @@ async def get_capability(
 
         nn_result = calculate_capability_nonnormal(
             values=values,
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
             method=dist_method,
             distribution_params=dist_params,
@@ -278,9 +321,9 @@ async def get_capability(
             normality_test=nn_result.normality_test,
             is_normal=nn_result.is_normal,
             calculated_at=nn_result.calculated_at.isoformat(),
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
             short_run_mode=characteristic.short_run_mode,
             sigma_source=sigma_source_within,
@@ -295,9 +338,9 @@ async def get_capability(
     # ISO 22514-2:2017 §7.2.3: df = k*(m-1) when sigma is within-subgroup.
     result = calculate_capability(
         values=values,
-        usl=characteristic.usl,
-        lsl=characteristic.lsl,
-        target=characteristic.target_value,
+        usl=eff_usl,
+        lsl=eff_lsl,
+        target=eff_target,
         sigma_within=sigma_within,
         subgroup_count=subgroup_count,
         subgroup_size=characteristic.subgroup_size,
@@ -324,9 +367,9 @@ async def get_capability(
         normality_test=result.normality_test,
         is_normal=result.is_normal,
         calculated_at=result.calculated_at.isoformat(),
-        usl=characteristic.usl,
-        lsl=characteristic.lsl,
-        target=characteristic.target_value,
+        usl=eff_usl,
+        lsl=eff_lsl,
+        target=eff_target,
         sigma_within=sigma_within,
         short_run_mode=characteristic.short_run_mode,
         sigma_source=sigma_source_within,
@@ -397,11 +440,18 @@ async def save_capability_snapshot(
     plant_id = await resolve_plant_id_for_characteristic(char_id, session)
     check_plant_role(user, plant_id, "engineer")
 
-    characteristic, values, sigma_within, subgroup_count = await _get_char_and_values(
+    data = await _get_char_and_values(
         char_id, session, window_size, material_id=material_id,
     )
+    characteristic = data.characteristic
+    values = data.values
+    sigma_within = data.sigma_within
+    subgroup_count = data.subgroup_count
+    eff_usl = data.eff_usl
+    eff_lsl = data.eff_lsl
+    eff_target = data.eff_target
 
-    if characteristic.usl is None and characteristic.lsl is None:
+    if eff_usl is None and eff_lsl is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one specification limit (USL or LSL) must be set on the characteristic",
@@ -421,9 +471,9 @@ async def save_capability_snapshot(
 
         nn_result = calculate_capability_nonnormal(
             values=values,
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
             method=dist_method,
             distribution_params=dist_params,
@@ -444,9 +494,9 @@ async def save_capability_snapshot(
     else:
         result = calculate_capability(
             values=values,
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
             subgroup_count=subgroup_count,
             subgroup_size=characteristic.subgroup_size,
@@ -461,7 +511,7 @@ async def save_capability_snapshot(
     )
     await session.commit()
 
-    cp_unavailable_reason = _get_cp_unavailable_reason(characteristic)
+    cp_unavailable_reason = _get_cp_unavailable_reason(eff_usl, eff_lsl)
     sigma_source_within = "within_subgroup" if sigma_within is not None else None
     sigma_method_str = _infer_sigma_method(characteristic)
     dist_method_applied = dist_method if (dist_method and dist_method != "normal") else "normal"
@@ -483,9 +533,9 @@ async def save_capability_snapshot(
             normality_test=result.normality_test,
             is_normal=result.is_normal,
             calculated_at=result.calculated_at.isoformat(),
-            usl=characteristic.usl,
-            lsl=characteristic.lsl,
-            target=characteristic.target_value,
+            usl=eff_usl,
+            lsl=eff_lsl,
+            target=eff_target,
             sigma_within=sigma_within,
             sigma_source=sigma_source_within,
             sigma_method=sigma_method_str,

@@ -6,7 +6,7 @@ POST /api/v1/characteristics/{id}/diagnose — returns 6M variance breakdown.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,14 +51,21 @@ async def diagnose_characteristic(
     plant_id = await resolve_plant_id_for_characteristic(characteristic_id, db)
     check_plant_role(current_user, plant_id, "engineer")
 
-    # Parse optional dates
+    # Parse optional dates.  SQLite strips tzinfo on storage, so a naive
+    # datetime parsed from an ISO string will silently produce wrong rows
+    # when compared against stored timestamps.  Normalize to UTC to match
+    # the pattern used by correlation.py.
     start_date: datetime | None = None
     end_date: datetime | None = None
     try:
         if body.start_date:
             start_date = datetime.fromisoformat(body.start_date)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
         if body.end_date:
             end_date = datetime.fromisoformat(body.end_date)
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

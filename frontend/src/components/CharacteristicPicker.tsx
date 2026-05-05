@@ -133,19 +133,30 @@ export function CharacteristicPicker({ plantId, value, onChange, characteristics
               filteredChars.length === 0 ? (
                 <p className="text-muted-foreground px-2 py-3 text-center text-xs">No matches</p>
               ) : (
-                filteredChars.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => handleSelect(c.id)}
-                    className={cn(
-                      'w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted',
-                      value === c.id && 'bg-primary/10 text-primary font-medium',
-                    )}
-                  >
-                    {c.name}
-                  </button>
-                ))
+                filteredChars.map((c) => {
+                  // Characteristic names are NOT unique across hierarchies —
+                  // always show the breadcrumb path so the operator can
+                  // disambiguate (per CLAUDE.md rule).
+                  const hierarchyPath = (c as { hierarchy_path?: string }).hierarchy_path
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelect(c.id)}
+                      className={cn(
+                        'flex w-full flex-col items-start rounded px-2 py-1.5 text-left text-xs hover:bg-muted',
+                        value === c.id && 'bg-primary/10 text-primary font-medium',
+                      )}
+                    >
+                      <span className="truncate">{c.name}</span>
+                      {hierarchyPath && (
+                        <span className="text-muted-foreground truncate text-[10px]">
+                          {hierarchyPath}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })
               )
             ) : (
               /* Tree view */
@@ -162,20 +173,29 @@ export function CharacteristicPicker({ plantId, value, onChange, characteristics
                   />
                 ))
               ) : (
-                /* Flat fallback if no tree */
-                characteristics.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => handleSelect(c.id)}
-                    className={cn(
-                      'w-full rounded px-2 py-1.5 text-left text-xs hover:bg-muted',
-                      value === c.id && 'bg-primary/10 text-primary font-medium',
-                    )}
-                  >
-                    {c.name}
-                  </button>
-                ))
+                /* Flat fallback if no tree — show hierarchy_path when
+                   available so non-unique names remain disambiguated */
+                characteristics.map((c) => {
+                  const hierarchyPath = (c as { hierarchy_path?: string }).hierarchy_path
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelect(c.id)}
+                      className={cn(
+                        'flex w-full flex-col items-start rounded px-2 py-1.5 text-left text-xs hover:bg-muted',
+                        value === c.id && 'bg-primary/10 text-primary font-medium',
+                      )}
+                    >
+                      <span className="truncate">{c.name}</span>
+                      {hierarchyPath && (
+                        <span className="text-muted-foreground truncate text-[10px]">
+                          {hierarchyPath}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })
               )
             )}
           </div>
@@ -253,7 +273,7 @@ function PickerNode({
               type="button"
               onClick={() => onSelect(char.id)}
               className={cn(
-                'flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-xs hover:bg-muted',
+                'flex w-full items-start gap-1.5 rounded px-1 py-1 text-left text-xs hover:bg-muted',
                 selectedId === char.id && 'bg-primary/10 text-primary font-medium',
               )}
               style={{ paddingLeft: `${(level + 1) * 14 + 4}px` }}
@@ -261,11 +281,18 @@ function PickerNode({
               <span className="w-3 shrink-0" />
               <div
                 className={cn(
-                  'h-1.5 w-1.5 rounded-full shrink-0',
-                  char.in_control ? 'bg-green-500' : 'bg-red-500',
+                  'mt-1 h-1.5 w-1.5 shrink-0 rounded-full',
+                  char.in_control ? 'bg-success' : 'bg-destructive',
                 )}
               />
-              <span className="truncate">{char.name}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate">{char.name}</span>
+                {char.hierarchy_path && (
+                  <span className="text-muted-foreground truncate text-[10px]">
+                    {char.hierarchy_path}
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </>
