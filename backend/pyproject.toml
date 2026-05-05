@@ -78,6 +78,10 @@ cluster = [
 mcp = [
     "mcp>=1.0",
 ]
+test-containerized = [
+    "testcontainers[postgres,mysql,mssql,redis]>=4.5",
+    "aiomqtt>=2.3",
+]
 desktop = [
     "cassini[windows,tray]",
 ]
@@ -109,6 +113,8 @@ markers = [
     "syw: Show Your Work contract tests (display value == explain value)",
     "nist: NIST reference dataset validation tests",
     "validation: Statistical validation tests against certified values",
+    "containerized: tests that spin Docker containers via testcontainers (opt-in)",
+    "live_broker: tests that require a live MQTT broker container (subset of containerized)",
 ]
 
 [tool.ruff]

@@ -1,0 +1,227 @@
+# Full-stack Cassini test harness.
+#
+# Brings up every external dependency Cassini speaks to (databases, broker,
+# MQTT, OPC-UA simulator) plus the Cassini backend and a Vite preview of the
+# frontend, so end-to-end tests can exercise the whole platform.
+#
+# Usage:
+#   docker compose -f apps/cassini/docker-compose.full.yml up -d --wait
+#   docker compose -f apps/cassini/docker-compose.full.yml down -v
+#
+# Pick a database dialect for the backend at startup time:
+#   CASSINI_DB_DIALECT=sqlite       (default — in-container file)
+#   CASSINI_DB_DIALECT=postgresql
+#   CASSINI_DB_DIALECT=mysql
+#   CASSINI_DB_DIALECT=mssql
+#
+# The backend's CASSINI_DATABASE_URL is selected based on that variable. All
+# DB containers are started regardless so other tests can target them.
+#
+# Validate the file without spinning anything up:
+#   docker compose -f apps/cassini/docker-compose.full.yml config
+
+x-default-healthcheck: &default-healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 10
+  start_period: 5s
+
+x-db-urls:
+  # The compose file selects one of these via ${CASSINI_DB_DIALECT}.
+  # Connection strings use the in-network service hostname, not localhost.
+  sqlite: &db-url-sqlite "sqlite+aiosqlite:///./data/cassini.db"
+  postgresql: &db-url-postgresql "postgresql+asyncpg://cassini:cassini@cassini-postgres:5432/cassini"
+  mysql: &db-url-mysql "mysql+asyncmy://cassini:cassini@cassini-mysql:3306/cassini"
+  mssql: &db-url-mssql "mssql+aioodbc://cassini:Cassini%23Test1@cassini-mssql:1433/cassini?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+
+services:
+  cassini-postgres:
+    image: postgres:16-alpine
+    container_name: cassini-postgres
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_USER: cassini
+      POSTGRES_PASSWORD: cassini
+      POSTGRES_DB: cassini
+    volumes:
+      - cassini-test-postgres:/var/lib/postgresql/data
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U cassini -d cassini"]
+    networks: [cassini-test-net]
+
+  cassini-mysql:
+    image: mysql:8.4
+    container_name: cassini-mysql
+    ports: ["3306:3306"]
+    environment:
+      MYSQL_ROOT_PASSWORD: cassini
+      MYSQL_USER: cassini
+      MYSQL_PASSWORD: cassini
+      MYSQL_DATABASE: cassini
+    volumes:
+      - cassini-test-mysql:/var/lib/mysql
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ucassini", "-pcassini"]
+      start_period: 20s
+    networks: [cassini-test-net]
+
+  cassini-mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: cassini-mssql
+    ports: ["1433:1433"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Cassini#Test1"
+      MSSQL_PID: Developer
+    volumes:
+      # mssql-init.sh is shared with docker-compose.test-dbs.yml — single source of truth.
+      - ./backend/scripts/mssql-init.sh:/usr/src/mssql-init.sh:ro
+      - cassini-test-mssql:/var/opt/mssql
+    entrypoint: /bin/bash -c "/usr/src/mssql-init.sh & /opt/mssql/bin/sqlservr"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Cassini#Test1' -C -d cassini -Q 'SELECT 1' -b"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    networks: [cassini-test-net]
+
+  cassini-valkey:
+    image: valkey/valkey:8-alpine
+    container_name: cassini-valkey
+    ports: ["6379:6379"]
+    healthcheck:
+      <<: *default-healthcheck
+      test: ["CMD", "valkey-cli", "ping"]
+    networks: [cassini-test-net]
+
+  cassini-mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: cassini-mosquitto
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+    volumes:
+      - ./testing/harness/compose/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./testing/harness/compose/passwd:/mosquitto/config/passwd:ro
+      - ./testing/harness/compose/certs:/mosquitto/certs:ro
+      - cassini-test-mosquitto:/mosquitto/data
+    healthcheck:
+      # The image ships with mosquitto_sub/_pub. A successful subscribe-and-exit
+      # against the local listener proves auth + listener are wired correctly.
+      test:
+        - CMD-SHELL
+        - "mosquitto_sub -h 127.0.0.1 -p 1883 -u cassini -P cassini -t healthcheck -C 1 -W 2 -E || true; mosquitto_pub -h 127.0.0.1 -p 1883 -u cassini -P cassini -t healthcheck -m ok"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    networks: [cassini-test-net]
+
+  cassini-opcua-sim:
+    build:
+      context: ./testing/harness/opcua_sim
+      dockerfile: Dockerfile
+    image: cassini-opcua-sim:test
+    container_name: cassini-opcua-sim
+    ports: ["4840:4840"]
+    networks: [cassini-test-net]
+    # Healthcheck declared in the Dockerfile — keep it there so the simulator
+    # can be reused outside the harness without re-declaring the probe.
+
+  cassini-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cassini-backend:test
+    container_name: cassini-backend
+    ports: ["8001:8000"]
+    environment:
+      CASSINI_DB_DIALECT: ${CASSINI_DB_DIALECT:-sqlite}
+      CASSINI_DATABASE_URL: >-
+        ${CASSINI_DATABASE_URL:-${CASSINI_DB_DIALECT_URL_OVERRIDE:-sqlite+aiosqlite:///./data/cassini.db}}
+      CASSINI_HOST: 0.0.0.0
+      CASSINI_PORT: "8000"
+      CASSINI_JWT_SECRET: ${CASSINI_JWT_SECRET:-test-harness-jwt-secret-change-me}
+      CASSINI_ADMIN_PASSWORD: ${CASSINI_ADMIN_PASSWORD:-cassini}
+      CASSINI_COOKIE_SECURE: "false"
+      CASSINI_DEV_TIER: ${CASSINI_DEV_TIER:-enterprise}
+      CASSINI_DEV_MODE: "true"
+      # Broker (Valkey) — for cluster-mode tests. Backend falls back to local
+      # in-memory broker if VALKEY_URL / broker_url are unset, so this stays
+      # opt-in.
+      VALKEY_URL: redis://cassini-valkey:6379/0
+    volumes:
+      - cassini-test-backend-data:/app/data
+    depends_on:
+      cassini-postgres:
+        condition: service_healthy
+      cassini-mysql:
+        condition: service_healthy
+      cassini-mssql:
+        condition: service_healthy
+      cassini-valkey:
+        condition: service_healthy
+      cassini-mosquitto:
+        condition: service_healthy
+      cassini-opcua-sim:
+        condition: service_healthy
+    healthcheck:
+      <<: *default-healthcheck
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health').status==200 else 1)\""
+      start_period: 30s
+      retries: 12
+    networks: [cassini-test-net]
+
+  cassini-frontend:
+    image: node:22-slim
+    container_name: cassini-frontend
+    working_dir: /app
+    # Vite preview serves the production bundle on :4173. We expose 5174
+    # externally to match the harness spec while leaving the dev server's
+    # default 5173 free for `pnpm dev`.
+    command:
+      - sh
+      - -c
+      - >-
+        set -e &&
+        if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi &&
+        npm run build &&
+        npx vite preview --host 0.0.0.0 --port 4173 --strictPort
+    ports: ["5174:4173"]
+    environment:
+      VITE_BACKEND_PORT: "8000"
+      VITE_API_BASE_URL: http://cassini-backend:8000
+    volumes:
+      - ./frontend:/app
+      - cassini-test-frontend-node-modules:/app/node_modules
+    depends_on:
+      cassini-backend:
+        condition: service_healthy
+    healthcheck:
+      <<: *default-healthcheck
+      test:
+        - CMD-SHELL
+        - "node -e \"require('http').get('http://localhost:4173/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""
+      start_period: 60s
+      retries: 20
+    networks: [cassini-test-net]
+
+networks:
+  cassini-test-net:
+    name: cassini-test-net
+    driver: bridge
+
+volumes:
+  cassini-test-postgres:
+  cassini-test-mysql:
+  cassini-test-mssql:
+  cassini-test-mosquitto:
+  cassini-test-backend-data:
+  cassini-test-frontend-node-modules:
