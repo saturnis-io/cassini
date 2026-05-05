@@ -20,9 +20,9 @@ conditions:                                     # required, 2..N conditions
     rule: above_mean_consecutive
     count: 4
 action:                                         # required
-  violation: SHARED_ROOT_CAUSE_SUSPECTED        # violation code (free text)
-  severity: high                                # info | low | medium | high | critical
-  message: >-                                   # message routed to notifications
+  violation: SHARED_ROOT_CAUSE_SUSPECTED        # violation code (free text, max 120 chars)
+  severity: high                                # low | medium | high | critical
+  message: >-                                   # optional, max 500 chars, routed to notifications
     All stations on Line A drifting together — check shared inputs first.
 ```
 
@@ -30,16 +30,19 @@ A rule fires when **every condition** is true at least once inside the same `win
 
 ## Available conditions
 
+The full set of `CepConditionKind` values, mirroring Nelson semantics:
+
 | Rule | Description | Required fields |
 |------|-------------|-----------------|
 | `above_mean_consecutive` | N points in a row above the centerline. | `count` |
 | `below_mean_consecutive` | N points in a row below the centerline. | `count` |
+| `above_value` | N consecutive points above an absolute threshold. | `count`, `threshold` |
+| `below_value` | N consecutive points below an absolute threshold. | `count`, `threshold` |
+| `out_of_control` | Engine-flagged out-of-control points (Nelson rule violation). | `count` |
 | `increasing` | N points in a row each greater than the previous. | `count` |
 | `decreasing` | N points in a row each less than the previous. | `count` |
-| `above_value` | At least one point above an absolute threshold. | `count`, `threshold` |
-| `below_value` | At least one point below an absolute threshold. | `count`, `threshold` |
-| `nelson_rule` | A specific Nelson rule fires at least N times. | `count`, `nelson` (1-8) |
-| `oos_count` | At least N out-of-spec samples (above USL or below LSL). | `count` |
+
+`threshold` is required only for `above_value` and `below_value` (enforced by the schema model validator); other kinds reject it as an extra field.
 
 ## Window syntax
 

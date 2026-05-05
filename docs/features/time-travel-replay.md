@@ -35,48 +35,72 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Response
 
+The response is a flat `ReplaySnapshot` object — no `snapshot.{...}` wrapper. The shape mirrors `cassini.api.schemas.replay.ReplaySnapshot`:
+
 ```json
 {
   "resource_type": "characteristic",
   "resource_id": 42,
-  "plant_id": 1,
   "requested_at": "2026-03-14T14:00:00Z",
+  "generated_at": "2026-05-05T17:42:11.183Z",
+  "plant_id": 1,
+  "characteristic": {
+    "id": 42,
+    "name": "Bore Diameter",
+    "description": "Inner bore diameter, post-grind",
+    "chart_type": "xbar_r",
+    "subgroup_size": 5,
+    "subgroup_mode": "fixed",
+    "target_value": 10.00,
+    "usl": 10.05,
+    "lsl": 9.95,
+    "ucl": 10.034,
+    "lcl": 9.966,
+    "stored_sigma": 0.0114,
+    "stored_center_line": 10.001,
+    "decimal_precision": 4,
+    "data_type": "variable",
+    "attribute_chart_type": null,
+    "use_laney_correction": false,
+    "short_run_mode": null,
+    "sigma_method": "rbar_d2",
+    "limits_frozen": false,
+    "limits_frozen_at": null
+  },
+  "rules": [
+    { "rule_id": 1, "is_enabled": true, "require_acknowledgement": true, "parameters": null },
+    { "rule_id": 2, "is_enabled": true, "require_acknowledgement": false, "parameters": "{\"k\":9}" }
+  ],
+  "samples": [
+    {
+      "id": 10412,
+      "timestamp": "2026-03-14T13:55:12Z",
+      "batch_number": "B-2024-074",
+      "operator_id": "op17",
+      "is_excluded": false,
+      "actual_n": 5
+    }
+  ],
+  "signatures": [
+    {
+      "id": 91,
+      "timestamp": "2026-03-12T08:30:00Z",
+      "username": "qa.engineer",
+      "full_name": "QA Engineer",
+      "meaning_code": "approved",
+      "meaning_display": "Approved",
+      "resource_hash": "9c4b...e1",
+      "is_valid_at_replay": true,
+      "invalidated_at": null,
+      "invalidated_reason": null
+    }
+  ],
   "audit_event_count": 487,
-  "snapshot": {
-    "characteristic": {
-      "name": "Bore Diameter",
-      "lsl": 9.95,
-      "usl": 10.05,
-      "target": 10.00,
-      "subgroup_size": 5,
-      "chart_type": "xbar_r"
-    },
-    "limits": {
-      "ucl": 10.034,
-      "lcl": 9.966,
-      "centerline": 10.001,
-      "stored_sigma": 0.0114,
-      "calculated_at": "2026-03-12T08:00:00Z"
-    },
-    "rule_config": {
-      "rules": ["nelson_1", "nelson_2", "nelson_3", "nelson_4"],
-      "preset_name": "Nelson Strict"
-    },
-    "signatures": [
-      {
-        "id": 91,
-        "user": "qa.engineer",
-        "meaning": "Approved",
-        "signed_at": "2026-03-12T08:30:00Z",
-        "verified": true
-      }
-    ],
-    "samples": [
-      { "id": 10412, "timestamp": "2026-03-14T13:55:12Z", "values": [10.01, 10.02, 9.99, 10.00, 10.01] }
-    ]
-  }
+  "earliest_known_state_at": "2025-11-01T08:00:00Z"
 }
 ```
+
+> **What is and isn't historical (Phase 1 scope).** Sprint 15 ships the snapshot's UCL, LCL, center line, and signature validity reconstructed at the requested timestamp — those values are walked from the audit log. The remaining characteristic configuration fields (name, target, USL/LSL, sigma method, rule parameters, etc.) and per-sample fields reflect the **current** row state. Per-field reconstruction of every column from `audit_log.detail.body` is documented as Phase 2 in the design note. For audit / regulatory use today, treat limits, center line, and signature state as historical; treat config metadata as the row's present value.
 
 ## Error responses
 

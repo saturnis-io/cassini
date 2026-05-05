@@ -20,18 +20,18 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```json
 {
   "tables": [
-    { "name": "samples", "description": "Individual measurements with subgroup metadata." },
-    { "name": "violations", "description": "Nelson rule violations with characteristic context." },
-    { "name": "characteristics", "description": "Characteristic metadata and current limits." },
-    { "name": "capability_snapshots", "description": "Historical Cp/Cpk/Pp/Ppk values." },
-    { "name": "audit_log", "description": "Audit trail entries with hash-chain pointers." }
+    { "name": "samples", "description": "Subgroups with timestamps, batch numbers, and operator metadata." },
+    { "name": "measurements", "description": "Individual measurement values, joinable to samples by sample_id." },
+    { "name": "violations", "description": "Nelson rule violations with characteristic, sample, and rule context." },
+    { "name": "characteristics", "description": "Characteristic configuration — limits, chart type, sigma method, current state." },
+    { "name": "plants", "description": "Plant metadata for the plants the calling identity can access." }
   ],
   "formats": ["json", "csv", "parquet", "arrow"],
-  "rate_limit": "60/minute"
+  "rate_limit": "10/minute"
 }
 ```
 
-The exact tables and columns are versioned: a `schema_version` column accompanies each export so downstream consumers can detect schema changes.
+The whitelist is enforced server-side — any table name outside this set returns 404. Column-level changes are additive (new columns appended); column removals or type changes would be a contract break and would ship in a `/v2/lakehouse/...` route.
 
 ## Export format selection
 
@@ -52,8 +52,8 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 # CSV (for Excel / SQL Server BULK INSERT)
 curl -H "Authorization: Bearer $TOKEN" \
-  "https://cassini.example.com/api/v1/lakehouse/audit_log?format=csv&from=2026-03-01" \
-  -o audit.csv
+  "https://cassini.example.com/api/v1/lakehouse/measurements?format=csv&from=2026-03-01" \
+  -o measurements.csv
 ```
 
 ## Query parameters
@@ -72,7 +72,6 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```text
 X-Lakehouse-Row-Count: 142357
 X-Lakehouse-Truncated: false
-X-Lakehouse-Schema-Version: 2
 ```
 
 `X-Lakehouse-Truncated: true` means the result hit the `limit` parameter or the 1,000,000-row safety ceiling — paginate by narrowing the timestamp window.
@@ -148,4 +147,4 @@ Every export is recorded in the audit log with the table name, format, row count
 
 ## Rate limit
 
-Default: 60 exports per minute per identity. Configure via `CASSINI_RATE_LIMIT_EXPORT` (e.g. `30/minute`). Hitting the limit returns 429 with `Retry-After`.
+Default: 10 exports per minute per identity. Configure via `CASSINI_RATE_LIMIT_EXPORT` (e.g. `30/minute`). Hitting the limit returns 429 with `Retry-After`.

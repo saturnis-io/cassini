@@ -21,11 +21,13 @@ The Sprint 15 release is a hardening + capability sprint. The headline themes:
   [docs/features/time-travel-replay.md](docs/features/time-travel-replay.md).
 
 - **Cassini Lakehouse (Pro)** — `GET /api/v1/lakehouse/{table}` exports curated
-  read-only data products (`samples`, `violations`, `characteristics`,
-  `capability_snapshots`, `audit_log`) as JSON, CSV, Parquet, or Arrow IPC for
-  notebook / BI / warehouse consumption. Plant-scoped, audited, rate-limited,
-  with stable schema versioning so downstream consumers can detect contract
-  changes. See [docs/features/lakehouse.md](docs/features/lakehouse.md).
+  read-only data products (`samples`, `measurements`, `violations`,
+  `characteristics`, `plants`) as JSON, CSV, Parquet, or Arrow IPC for
+  notebook / BI / warehouse consumption. Plant-scoped, audited, and
+  rate-limited (10/minute by default; configurable via
+  `CASSINI_RATE_LIMIT_EXPORT`). Column additions are non-breaking; column
+  removals or type changes would ship in a `/v2/lakehouse/...` route.
+  See [docs/features/lakehouse.md](docs/features/lakehouse.md).
 
 - **Streaming CEP rules (Enterprise)** — `GET/POST/PUT/DELETE /api/v1/cep_rules`
   introduces a multi-stream complex-event-processing engine. Rules are authored
@@ -45,15 +47,23 @@ The Sprint 15 release is a hardening + capability sprint. The headline themes:
     pick up the new claims; no operator action needed unless your portal is
     customized.
 
-- **`CASSINI_DEV_MODE=true` and `CASSINI_JWT_SECRET=dev-secret` are now refused
-  at startup when `CASSINI_ENVIRONMENT=production`**
-  - The intent of dev-mode is to make local iteration fast (no password
-    enforcement, default JWT secret). Production deployments accidentally
-    inheriting this setup is a security incident class. The startup check now
-    fails loudly with a clear error rather than silently weakening security.
+- **Production guards on `CASSINI_DEV_MODE` and `CASSINI_JWT_SECRET`**
+  - `CASSINI_DEV_MODE=true` is now force-disabled at startup with a structured
+    warning when the bind address is non-loopback in production
+    (`CASSINI_ENVIRONMENT=production`). On a loopback bind, dev-mode is still
+    allowed in production with a warning, so a developer can run a local
+    prod-mode build for smoke testing without the toggle being silently
+    weakened on a network-exposed deployment. The same loopback-only rule
+    applies to `CASSINI_DEV_TIER`.
+  - `CASSINI_JWT_SECRET` must be set (≥32 characters) when running in
+    production with a non-loopback bind. The startup check refuses to start
+    with a clear error rather than silently auto-generating a `.jwt_secret`
+    file. Secrets shorter than 32 characters are also refused. There is no
+    literal-value check (e.g. the string `dev-secret` is not specifically
+    blacklisted) — short secrets and missing secrets are caught generically.
   - **Action required**: production deployments must set
-    `CASSINI_ENVIRONMENT=production`, set a strong `CASSINI_JWT_SECRET`, and
-    leave `CASSINI_DEV_MODE` unset (or `false`).
+    `CASSINI_ENVIRONMENT=production`, set a strong `CASSINI_JWT_SECRET`
+    (≥32 characters), and leave `CASSINI_DEV_MODE` unset (or `false`).
 
 - **Plant-scope checks added to detail / list / history / audit paths**
   - Several detail (`/{id}`), list (`/?plant_id=...`), history, and audit
@@ -134,8 +144,10 @@ The Sprint 15 release is a hardening + capability sprint. The headline themes:
   - The audit middleware now enqueues to an in-memory ring buffer; a separate
     writer task batch-flushes to the database. Mutating endpoint p99 latency
     drops by 30-60ms depending on dialect.
-  - The writer applies back-pressure on overflow rather than dropping events,
-    and the queue depth is exposed via `/api/v1/health` for ops visibility.
+  - Default queue size is 10,000 events. Under sustained ingestion bursts
+    that exceed the queue, events are dropped with a `audit_queue_full_dropping_event`
+    structured log so operators can alert on the condition. Queue depth is
+    exposed via `/api/v1/health` for ops visibility.
 
 - **ControlChart polling gated on WebSocket**
   - The frontend control chart no longer issues background polling requests
@@ -157,7 +169,7 @@ The Sprint 15 release is a hardening + capability sprint. The headline themes:
   pytest marker — default `pytest` runs never touch Docker. Skips gracefully
   when Docker isn't reachable.
 
-- **Dialect-agnostic seed library** — `cassini.scripts.seed_e2e_unified`
+- **Dialect-agnostic seed library** — `backend/scripts/seed_e2e_unified.py`
   produces an identical fixture set across SQLite / PostgreSQL / MySQL / MSSQL.
   Same plants, characteristics, samples, expected violation counts. Powers the
   multi-DB CI matrix.
@@ -182,19 +194,20 @@ The Sprint 15 release is a hardening + capability sprint. The headline themes:
 | Change | Action required |
 |--------|-----------------|
 | License JWT requires `iss`, `aud`, `exp` | Re-issue license files from the portal if customized. |
-| `CASSINI_DEV_MODE=true` refused in production | Set `CASSINI_ENVIRONMENT=production` and unset `CASSINI_DEV_MODE`. |
-| `CASSINI_JWT_SECRET=dev-secret` refused in production | Set a strong production secret. |
+| `CASSINI_DEV_MODE=true` force-disabled in production on non-loopback bind | Unset `CASSINI_DEV_MODE` for production (loopback binds still allowed with a warning). |
+| `CASSINI_JWT_SECRET` required (≥32 chars) in production on non-loopback bind | Set a strong production secret (≥32 characters). |
 | Violation acknowledge endpoints reject `user` body field | Drop the `user` field from third-party integrations. |
 | Activation / deactivation file v2 envelope | Re-issue any saved unsigned files. |
 | `.signature_key` resolved against `CASSINI_DATA_DIR` | Move existing key into the data directory. |
 | `xlsx` package replaced with `exceljs` | None — UI unchanged. |
 
-### Schema versions
+### Schema stability
 
-The lakehouse export carries an `X-Lakehouse-Schema-Version` response header.
-Sprint 15 ships schema version **2** for `samples`, **1** for the rest. Schema
-version is monotonic and only increments on backwards-incompatible column
-changes. Column additions don't bump it.
+Lakehouse exports follow an additive contract: new columns may be appended
+without a version bump, and consumers should ignore unknown columns. Column
+removals or type changes would be a contract break and would ship in a
+`/v2/lakehouse/...` route, never silently in `/v1/`. The current export
+emits `X-Lakehouse-Row-Count` and `X-Lakehouse-Truncated` response headers.
 
 ---
 

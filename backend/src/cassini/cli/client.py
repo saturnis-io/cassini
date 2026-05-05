@@ -243,3 +243,84 @@ class CassiniClient:
         if plant_id is not None:
             params["plant_id"] = plant_id
         return await self._get("/doe/studies", params=params)
+
+    # ── Replay (Pro) ──────────────────────────────────────────────────
+
+    async def replay_get(
+        self, resource_type: str, resource_id: int, at: str
+    ) -> dict[str, Any]:
+        return await self._get(
+            f"/replay/{resource_type}/{resource_id}", params={"at": at}
+        )
+
+    # ── Lakehouse (Pro) ───────────────────────────────────────────────
+
+    async def lakehouse_tables(self) -> dict[str, Any]:
+        return await self._get("/lakehouse/tables")
+
+    async def lakehouse_export(
+        self,
+        table: str,
+        format: str = "json",
+        plant_id: int | None = None,
+        columns: str | None = None,
+        from_: str | None = None,
+        to: str | None = None,
+        limit: int | None = None,
+    ) -> Any:
+        params: dict[str, Any] = {"format": format}
+        if plant_id is not None:
+            params["plant_id"] = plant_id
+        if columns is not None:
+            params["columns"] = columns
+        if from_ is not None:
+            params["from"] = from_
+        if to is not None:
+            params["to"] = to
+        if limit is not None:
+            params["limit"] = limit
+        # JSON exports return a {metadata, rows} body. Binary formats
+        # (parquet/arrow/csv) are not exposed via MCP — the agent surface
+        # returns only structured JSON.
+        if format != "json":
+            raise ValueError(
+                f"lakehouse_export via MCP only supports format='json' "
+                f"(got {format!r}). Use the REST endpoint directly for "
+                f"parquet / arrow / csv."
+            )
+        return await self._get(f"/lakehouse/{table}", params=params)
+
+    # ── CEP rules (Enterprise) ────────────────────────────────────────
+
+    async def cep_rules_list(self, plant_id: int | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if plant_id is not None:
+            params["plant_id"] = plant_id
+        return await self._get("/cep_rules", params=params)
+
+    async def cep_rules_validate(self, yaml_text: str) -> dict[str, Any]:
+        return await self._post("/cep_rules/validate", json={"yaml_text": yaml_text})
+
+    async def cep_rules_create(
+        self, plant_id: int, yaml_text: str, enabled: bool = True
+    ) -> dict[str, Any]:
+        return await self._post(
+            "/cep_rules",
+            json={"plant_id": plant_id, "yaml_text": yaml_text, "enabled": enabled},
+        )
+
+    async def cep_rules_update(
+        self,
+        rule_id: int,
+        yaml_text: str | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if yaml_text is not None:
+            body["yaml_text"] = yaml_text
+        if enabled is not None:
+            body["enabled"] = enabled
+        client = self._ensure_client()
+        resp = await client.put(f"/cep_rules/{rule_id}", json=body)
+        self._check_response(resp)
+        return resp.json()

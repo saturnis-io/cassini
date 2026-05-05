@@ -108,6 +108,86 @@ _READ_TOOLS: dict[str, dict[str, Any]] = {
         "description": "Check Cassini license status and tier",
         "properties": {},
     },
+    "cassini_replay_get": {
+        "description": (
+            "(Pro) Time-travel SPC snapshot — reconstruct a resource's state "
+            "at a historical UTC timestamp from the hash-chained audit log."
+        ),
+        "properties": {
+            "resource_type": {
+                "type": "string",
+                "description": "Resource type (currently 'characteristic').",
+            },
+            "resource_id": {
+                "type": "integer",
+                "description": "Numeric resource ID.",
+            },
+            "at": {
+                "type": "string",
+                "description": "ISO-8601 UTC timestamp to replay (e.g. '2026-03-14T14:00:00Z').",
+            },
+        },
+        "required": ["resource_type", "resource_id", "at"],
+    },
+    "cassini_lakehouse_list": {
+        "description": "(Pro) List the available data product tables.",
+        "properties": {},
+    },
+    "cassini_lakehouse_export": {
+        "description": (
+            "(Pro) Export a lakehouse table as JSON. Other formats "
+            "(parquet/arrow/csv) are available via the REST endpoint directly."
+        ),
+        "properties": {
+            "table": {
+                "type": "string",
+                "description": "Table name — one of samples, measurements, violations, characteristics, plants.",
+            },
+            "plant_id": {
+                "type": "integer",
+                "description": "Restrict to a single plant.",
+            },
+            "columns": {
+                "type": "string",
+                "description": "Comma-separated subset of columns.",
+            },
+            "from": {
+                "type": "string",
+                "description": "Inclusive start ISO-8601 timestamp.",
+            },
+            "to": {
+                "type": "string",
+                "description": "Inclusive end ISO-8601 timestamp.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum row count (1M ceiling enforced server-side).",
+            },
+        },
+        "required": ["table"],
+    },
+    "cassini_cep_rules_list": {
+        "description": "(Enterprise) List CEP rules for a plant.",
+        "properties": {
+            "plant_id": {
+                "type": "integer",
+                "description": "Filter by plant ID.",
+            },
+        },
+    },
+    "cassini_cep_rules_validate": {
+        "description": (
+            "(Enterprise) Validate a YAML CEP rule definition without "
+            "persisting it. Returns line/column markers on failure."
+        ),
+        "properties": {
+            "yaml_text": {
+                "type": "string",
+                "description": "Full YAML rule source.",
+            },
+        },
+        "required": ["yaml_text"],
+    },
 }
 
 _WRITE_TOOLS: dict[str, dict[str, Any]] = {
@@ -167,6 +247,42 @@ _WRITE_TOOLS: dict[str, dict[str, Any]] = {
             },
         },
         "required": ["plant_id", "name"],
+    },
+    "cassini_cep_rules_create": {
+        "description": "(Enterprise) Create a CEP rule from YAML (engineer role required at the target plant).",
+        "properties": {
+            "plant_id": {
+                "type": "integer",
+                "description": "Plant ID the rule belongs to.",
+            },
+            "yaml_text": {
+                "type": "string",
+                "description": "Full YAML rule source.",
+            },
+            "enabled": {
+                "type": "boolean",
+                "description": "Whether the rule is active on creation (default true).",
+            },
+        },
+        "required": ["plant_id", "yaml_text"],
+    },
+    "cassini_cep_rules_update": {
+        "description": "(Enterprise) Update an existing CEP rule's YAML or enabled flag.",
+        "properties": {
+            "rule_id": {
+                "type": "integer",
+                "description": "Rule ID to update.",
+            },
+            "yaml_text": {
+                "type": "string",
+                "description": "New YAML source. Omit to leave unchanged.",
+            },
+            "enabled": {
+                "type": "boolean",
+                "description": "New enabled flag. Omit to leave unchanged.",
+            },
+        },
+        "required": ["rule_id"],
     },
 }
 
@@ -231,6 +347,28 @@ async def _dispatch_tool(
         return await client.audit_search(**params)
     elif name == "cassini_license_status":
         return await client.license_status()
+    elif name == "cassini_replay_get":
+        return await client.replay_get(
+            resource_type=args["resource_type"],
+            resource_id=args["resource_id"],
+            at=args["at"],
+        )
+    elif name == "cassini_lakehouse_list":
+        return await client.lakehouse_tables()
+    elif name == "cassini_lakehouse_export":
+        return await client.lakehouse_export(
+            table=args["table"],
+            format="json",
+            plant_id=args.get("plant_id"),
+            columns=args.get("columns"),
+            from_=args.get("from"),
+            to=args.get("to"),
+            limit=args.get("limit"),
+        )
+    elif name == "cassini_cep_rules_list":
+        return await client.cep_rules_list(plant_id=args.get("plant_id"))
+    elif name == "cassini_cep_rules_validate":
+        return await client.cep_rules_validate(yaml_text=args["yaml_text"])
     # Write tools (guarded)
     elif name == "cassini_samples_submit" and allow_writes:
         return await client.samples_submit(
@@ -251,6 +389,18 @@ async def _dispatch_tool(
         raise NotImplementedError(
             "cassini_characteristics_create is a placeholder — "
             "the Cassini API does not yet support single-call characteristic creation"
+        )
+    elif name == "cassini_cep_rules_create" and allow_writes:
+        return await client.cep_rules_create(
+            plant_id=args["plant_id"],
+            yaml_text=args["yaml_text"],
+            enabled=args.get("enabled", True),
+        )
+    elif name == "cassini_cep_rules_update" and allow_writes:
+        return await client.cep_rules_update(
+            rule_id=args["rule_id"],
+            yaml_text=args.get("yaml_text"),
+            enabled=args.get("enabled"),
         )
     elif name in _WRITE_TOOLS and not allow_writes:
         raise PermissionError(

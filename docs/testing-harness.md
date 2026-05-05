@@ -135,16 +135,16 @@ To trigger an opt-in job on a PR without waiting for nightly, add the correspond
 
 ## Multi-dialect dialect-agnostic seed
 
-The seed library at `backend/src/cassini/scripts/seed_e2e_unified.py` produces an identical fixture set across SQLite, PostgreSQL, MySQL, and MSSQL. Same plants, same characteristics, same sample distributions, same expected violation count. Run it manually:
+The seed script at `backend/scripts/seed_e2e_unified.py` produces an identical fixture set across SQLite, PostgreSQL, MySQL, and MSSQL. Same plants, same characteristics, same sample distributions, same expected violation count. Run it manually from the backend directory (the script lives at `backend/scripts/`, not on the `cassini.scripts` import path):
 
 ```bash
 cd backend
-python -m cassini.scripts.seed_e2e_unified --db-url "sqlite+aiosqlite:///./test.db"
-python -m cassini.scripts.seed_e2e_unified --db-url "postgresql+asyncpg://cassini:cassini@localhost/cassini_test"
-python -m cassini.scripts.seed_e2e_unified --db-url "mysql+aiomysql://cassini:cassini@localhost/cassini_test"
+python scripts/seed_e2e_unified.py --db-url "sqlite+aiosqlite:///./test-e2e.db"
+python scripts/seed_e2e_unified.py --db-url "postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test"
+python scripts/seed_e2e_unified.py --db-url "mysql+aiomysql://cassini:cassini@localhost:3306/cassini_test"
 ```
 
-This is what the CI multi-DB matrix uses, so any test that passes locally against SQLite should pass against the others — and vice versa.
+This is the exact invocation `frontend/e2e/global-setup.ts` uses, so any test that passes locally against SQLite should pass against the others — and vice versa.
 
 ## OPC-UA simulator
 

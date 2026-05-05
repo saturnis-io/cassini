@@ -74,7 +74,7 @@ export CASSINI_API_KEY=cassini_abc123...
 | `cassini_samples_submit` | Submit a sample with full SPC evaluation. |
 | `cassini_plants_create` | Create a plant. |
 | `cassini_users_create` | Create a user. |
-| `cassini_characteristics_create` | Create a characteristic. |
+| `cassini_characteristics_create` | Create a characteristic. *(stub — not yet wired; the API does not yet support single-call characteristic creation. Calls return an error.)* |
 | `cassini_cep_rules_create` | **(Enterprise)** Create a CEP rule (engineer role required). |
 | `cassini_cep_rules_update` | **(Enterprise)** Update an existing CEP rule. |
 
@@ -132,7 +132,7 @@ Defaults (configurable in TOML / env):
 |----------------|---------|
 | Auth (`/auth/login`, refresh) | 10 / minute |
 | Sample submit | 600 / minute |
-| Lakehouse export | 60 / minute |
+| Lakehouse export | 10 / minute |
 | Default for everything else | 300 / minute |
 
 Hitting a limit returns 429 with a `Retry-After` header. Scoped API keys can override the default per key.

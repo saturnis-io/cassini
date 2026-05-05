@@ -370,7 +370,7 @@ Full reference: [docs/features/time-travel-replay.md](docs/features/time-travel-
 
 ### Cassini Lakehouse
 
-A read-only data product API for analytics workloads. Curated tables (`samples`, `violations`, `characteristics`, `capability_snapshots`, `audit_log`) exported as JSON, CSV, Parquet, or Arrow IPC — plant-scoped, audited, rate-limited, schema-versioned.
+A read-only data product API for analytics workloads. Curated tables (`samples`, `measurements`, `violations`, `characteristics`, `plants`) exported as JSON, CSV, Parquet, or Arrow IPC — plant-scoped, audited, and rate-limited (10 exports/minute by default).
 
 ```python
 import io, pyarrow.ipc as ipc, pandas as pd, requests
@@ -674,7 +674,7 @@ cassini cluster status
 │                    React Frontend                              │
 │  TanStack Query · Zustand · ECharts 6 · Zod · Tailwind CSS     │
 │                                                                │
-│  22 pages · 200+ components · 240+ React Query hooks           │
+│  24 pages · 200+ components · 240+ React Query hooks           │
 │  PWA with push notifications and offline queue                 │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -707,7 +707,7 @@ flowchart LR
     end
 
     subgraph Consumers["Consumers"]
-        UI[React frontend<br/>22 pages, 200+ components]
+        UI[React frontend<br/>24 pages, 200+ components]
         WS[WebSocket clients<br/>kiosks + dashboards]
         Agent[MCP agents<br/>Claude Code, Cursor]
         BI[BI / notebooks<br/>via Lakehouse API]
