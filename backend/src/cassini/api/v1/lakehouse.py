@@ -244,13 +244,17 @@ def _serialize(
             headers=headers,
         )
     if fmt is LakehouseFormat.ARROW:
+        # Verify pyarrow is importable BEFORE returning StreamingResponse,
+        # otherwise the import error fires lazily inside the async generator
+        # and the client sees a 200 OK followed by a stream-level failure.
         try:
-            iterator = lakehouse_service.stream_arrow_chunks(export)
+            lakehouse_service.ensure_pyarrow_available()
         except lakehouse_service.LakehouseDependencyError as e:
             raise HTTPException(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail=str(e),
             )
+        iterator = lakehouse_service.stream_arrow_chunks(export)
         headers["Content-Disposition"] = (
             f'attachment; filename="{filename_base}.arrow"'
         )

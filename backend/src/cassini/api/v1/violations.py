@@ -554,21 +554,28 @@ async def batch_acknowledge(
                 )
             )
             successful += 1
-        except HTTPException as e:
+        except HTTPException:
+            # Generic message — never leak per-plant role detail or
+            # row-existence detail to callers, which would let an attacker
+            # enumerate IDs by distinguishing "not found" from "no role
+            # at plant N" (IDOR information leak).
             results.append(
                 AcknowledgeResultItem(
                     violation_id=violation_id,
                     success=False,
-                    error=e.detail,
+                    error="Violation not accessible",
                 )
             )
             failed += 1
-        except ValueError as e:
+        except ValueError:
+            # Validation errors (e.g., already-acknowledged) are state-derived,
+            # not access-derived; we still avoid surfacing the raw exception
+            # text per the project rule against passing str(e) to clients.
             results.append(
                 AcknowledgeResultItem(
                     violation_id=violation_id,
                     success=False,
-                    error=str(e),
+                    error="Acknowledgement rejected",
                 )
             )
             failed += 1

@@ -120,6 +120,7 @@ _PRO_ROUTERS = [
     api_keys_router,
     push_router,
     lakehouse_router,
+    replay_router,
 ]
 
 # Enterprise routers -- available to Enterprise licenses ONLY
@@ -657,7 +658,9 @@ app.include_router(license_router)
 app.include_router(audit_router)
 app.include_router(cluster_router)
 app.include_router(explain_router)
-app.include_router(replay_router)
+# replay_router is registered lazily via _PRO_ROUTERS so that
+# LicenseEnforcementMiddleware enforces the Pro+ tier check at the router
+# mount, in addition to the in-endpoint has_feature() guard.
 
 # Commercial routers are registered lazily via activate_commercial_features()
 # when a valid commercial license is present at startup or uploaded at runtime.

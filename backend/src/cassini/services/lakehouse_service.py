@@ -4,10 +4,12 @@ Reads whitelisted Cassini tables via SQLAlchemy, applies plant-scoped
 filtering, and serializes the result to one of the supported formats
 (Arrow IPC stream, Parquet, CSV, JSON).
 
-DuckDB acts as the analytical engine for ad-hoc transforms. When DuckDB
-is not installed we fall back to executing the underlying SQLAlchemy
-query directly — every test exercises this path so the service degrades
-gracefully on minimal installs.
+The query path is SQLAlchemy-backed against the configured Cassini DB —
+SQLite, PostgreSQL, MySQL, or MSSQL via the standard dialect layer.
+pyarrow is required only for the Arrow / Parquet output paths and is
+surfaced as an optional ``[lakehouse]`` extra; CSV and JSON work without
+it. A future iteration may layer DuckDB for ad-hoc analytical pushdown,
+but the current implementation does not use it.
 
 Multi-tenancy contract
 ----------------------
@@ -320,6 +322,17 @@ class LakehouseDependencyError(RuntimeError):
     The router maps this to HTTP 501 Not Implemented so clients can
     surface a clean error rather than a 500.
     """
+
+
+def ensure_pyarrow_available() -> None:
+    """Verify pyarrow is importable; raise ``LakehouseDependencyError`` if not.
+
+    Public wrapper around the import shim. Routers should call this BEFORE
+    returning a ``StreamingResponse`` for Arrow IPC, otherwise the dependency
+    error fires lazily inside the generator and the client sees a 200 OK
+    followed by a stream-level failure.
+    """
+    _require_pyarrow()
 
 
 def _require_pyarrow():  # pragma: no cover - import shim
