@@ -81,6 +81,7 @@ Normality testing:
     Ref: D'Agostino & Stephens (1986), Ch. 9; Bulmer (1979).
 """
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import math
@@ -850,3 +851,85 @@ def _round_or_none(value: float | None, decimals: int = 4) -> float | None:
     if value is None:
         return None
     return round(value, decimals)
+
+
+# ---------------------------------------------------------------------------
+# Async wrappers — offload CPU-bound work to the default thread pool executor
+#
+# These wrappers allow FastAPI async route handlers to call the capability
+# engine without blocking the event loop.  The underlying sync functions are
+# preserved for use in non-async contexts (tests, distributions.py, scripts).
+#
+# asyncio.to_thread() is used (Python 3.9+, always available in the target
+# Python 3.11 environment).  It runs the callable in a thread-pool worker,
+# releasing the GIL for the duration so other coroutines continue to run.
+#
+# Bottlenecks addressed:
+#   C16 — scipy_stats.shapiro() inside calculate_capability() blocks
+#          200-800ms at n=5000 while holding the GIL.
+#   H14 — compute_capability_confidence_intervals() builds a (2000, n)
+#          float64 matrix (~160MB at n=10000) synchronously; all numpy
+#          ops are GIL-releasing but the allocations still serialize other
+#          coroutines waiting for the thread.
+# ---------------------------------------------------------------------------
+
+async def calculate_capability_async(
+    values: list[float],
+    usl: float | None,
+    lsl: float | None,
+    target: float | None = None,
+    sigma_within: float | None = None,
+    collector: ExplanationCollector | None = None,
+    *,
+    subgroup_count: int | None = None,
+    subgroup_size: int | None = None,
+) -> CapabilityResult:
+    """Async wrapper for :func:`calculate_capability`.
+
+    Offloads the CPU-bound Shapiro-Wilk test and statistical computation to a
+    worker thread so the event loop remains responsive during the 200-800ms
+    blocking window at large n.
+
+    Args and return value are identical to :func:`calculate_capability`.
+    """
+    return await asyncio.to_thread(
+        calculate_capability,
+        values,
+        usl,
+        lsl,
+        target,
+        sigma_within,
+        collector,
+        subgroup_count=subgroup_count,
+        subgroup_size=subgroup_size,
+    )
+
+
+async def compute_capability_confidence_intervals_async(
+    measurements: list[float],
+    usl: float | None,
+    lsl: float | None,
+    target: float | None = None,
+    sigma_within: float | None = None,
+    n_bootstrap: int = 2000,
+    confidence: float = 0.95,
+) -> dict[str, tuple[float, float]]:
+    """Async wrapper for :func:`compute_capability_confidence_intervals`.
+
+    Offloads the bootstrap resampling matrix build (~160MB float64 at
+    n=10000) and all downstream numpy percentile operations to a worker
+    thread.
+
+    Args and return value are identical to
+    :func:`compute_capability_confidence_intervals`.
+    """
+    return await asyncio.to_thread(
+        compute_capability_confidence_intervals,
+        measurements,
+        usl,
+        lsl,
+        target,
+        sigma_within,
+        n_bootstrap,
+        confidence,
+    )

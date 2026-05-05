@@ -25,7 +25,9 @@ from cassini.api.schemas.capability import (
 from cassini.core.capability import (
     CapabilityResult,
     calculate_capability,
+    calculate_capability_async,
     compute_capability_confidence_intervals,
+    compute_capability_confidence_intervals_async,
 )
 from cassini.core.distributions import calculate_capability_nonnormal
 from cassini.db.models.characteristic import Characteristic
@@ -262,7 +264,7 @@ async def get_capability(
     # Compute bootstrap confidence intervals if requested
     ci_fields: dict = {}
     if include_ci:
-        bootstrap_cis = compute_capability_confidence_intervals(
+        bootstrap_cis = await compute_capability_confidence_intervals_async(
             measurements=values,
             usl=eff_usl,
             lsl=eff_lsl,
@@ -336,7 +338,7 @@ async def get_capability(
 
     # Pass subgroup structure for correct Cp CI degrees of freedom.
     # ISO 22514-2:2017 §7.2.3: df = k*(m-1) when sigma is within-subgroup.
-    result = calculate_capability(
+    result = await calculate_capability_async(
         values=values,
         usl=eff_usl,
         lsl=eff_lsl,
@@ -492,7 +494,7 @@ async def save_capability_snapshot(
             calculated_at=nn_result.calculated_at,
         )
     else:
-        result = calculate_capability(
+        result = await calculate_capability_async(
             values=values,
             usl=eff_usl,
             lsl=eff_lsl,
