@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react'
 import { useValidateCep } from '@/api/hooks/cep'
+import { useTheme } from '@/providers/ThemeProvider'
 import type { CepValidationError } from '@/api/cep.api'
 
 const _DEFAULT_TEMPLATE = `# CEP rule — multi-stream pattern that fires a violation when every
@@ -49,6 +50,10 @@ export function CepRuleEditor({
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const validate = useValidateCep()
   const [errors, setErrors] = useState<CepValidationError[]>([])
+  // Resolve Monaco's color theme from the app's theme so light-mode users
+  // do not get a dark editor pane mid-page.
+  const { resolvedTheme } = useTheme()
+  const monacoTheme = resolvedTheme === 'dark' ? 'vs-dark' : 'vs-light'
 
   // Debounced server-side validation — re-fired on each value change.
   useEffect(() => {
@@ -111,10 +116,24 @@ export function CepRuleEditor({
       <Editor
         height={height}
         defaultLanguage="yaml"
-        theme="vs-dark"
+        theme={monacoTheme}
         value={value}
         onChange={(next) => onChange(next ?? '')}
         onMount={onMount}
+        loading={
+          // Monaco's bundle is ~2-3MB; show a textarea-shaped skeleton on
+          // first paint so the layout does not collapse while it loads.
+          <div
+            data-ui="cep-editor-skeleton"
+            className="bg-muted/40 flex h-full w-full animate-pulse flex-col gap-2 p-3"
+          >
+            <div className="bg-muted h-3 w-1/3 rounded" />
+            <div className="bg-muted h-3 w-2/3 rounded" />
+            <div className="bg-muted h-3 w-1/2 rounded" />
+            <div className="bg-muted h-3 w-3/4 rounded" />
+            <div className="bg-muted h-3 w-2/5 rounded" />
+          </div>
+        }
         options={{
           readOnly,
           minimap: { enabled: false },

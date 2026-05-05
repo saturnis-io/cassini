@@ -150,7 +150,7 @@ export function CharacteristicPicker({ plantId, value, onChange, characteristics
                     >
                       <span className="truncate">{c.name}</span>
                       {hierarchyPath && (
-                        <span className="text-muted-foreground truncate text-[10px]">
+                        <span className="text-muted-foreground truncate text-xs">
                           {hierarchyPath}
                         </span>
                       )}
@@ -189,7 +189,7 @@ export function CharacteristicPicker({ plantId, value, onChange, characteristics
                     >
                       <span className="truncate">{c.name}</span>
                       {hierarchyPath && (
-                        <span className="text-muted-foreground truncate text-[10px]">
+                        <span className="text-muted-foreground truncate text-xs">
                           {hierarchyPath}
                         </span>
                       )}
@@ -288,7 +288,7 @@ function PickerNode({
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{char.name}</span>
                 {char.hierarchy_path && (
-                  <span className="text-muted-foreground truncate text-[10px]">
+                  <span className="text-muted-foreground truncate text-xs">
                     {char.hierarchy_path}
                   </span>
                 )}

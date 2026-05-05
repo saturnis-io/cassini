@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, X, Save } from 'lucide-react'
+import { Loader2, Plus, Save, Trash2, Workflow, X } from 'lucide-react'
 import { usePlant } from '@/providers/PlantProvider'
 import {
   useCepRules,
@@ -96,7 +96,9 @@ export function CepRulesPage() {
         setSelectedRuleId(created.id)
         setDraftDirty(false)
       } catch {
-        // Toast already surfaced by hook.
+        // Toast surfaced by useCreateCepRule.onError -> handleMutationError
+        // (see api/hooks/cep.ts). Swallow here so the throw does not bubble
+        // into the unhandled-rejection logger.
       }
       return
     }
@@ -112,7 +114,8 @@ export function CepRulesPage() {
         setSelectedRuleId(updated.id)
         setDraftDirty(false)
       } catch {
-        // Toast already surfaced by hook.
+        // Toast surfaced by useUpdateCepRule.onError -> handleMutationError
+        // (see api/hooks/cep.ts).
       }
     }
   }
@@ -142,13 +145,18 @@ export function CepRulesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="border-border flex items-center justify-between border-b px-6 py-4">
-        <div>
-          <h1 className="text-xl font-semibold">Streaming CEP Rules</h1>
-          <p className="text-muted-foreground text-sm">
-            Multi-stream pattern detection. Combine Nelson rules across
-            characteristics within a sliding window.
-          </p>
+      <header className="border-border bg-card flex items-center justify-between gap-4 border-b px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 rounded-lg p-2">
+            <Workflow className="text-primary h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Streaming CEP Rules</h1>
+            <p className="text-muted-foreground text-sm">
+              Multi-stream pattern detection. Combine Nelson rules across
+              characteristics within a sliding window.
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -160,14 +168,19 @@ export function CepRulesPage() {
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      {/* Responsive layout: stack rule list above editor on mobile;
+          side-by-side on md+ so the editor keeps a usable width. */}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Rule list */}
         <aside
           data-ui="cep-rules-list"
-          className="border-border w-72 shrink-0 overflow-y-auto border-r"
+          className="border-border max-h-64 w-full shrink-0 overflow-y-auto border-b md:max-h-none md:w-72 md:border-r md:border-b-0"
         >
           {rulesQuery.isLoading ? (
-            <div className="text-muted-foreground p-4 text-sm">Loading…</div>
+            <div className="text-muted-foreground flex items-center gap-2 p-4 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading
+            </div>
           ) : rules.length === 0 ? (
             <div className="text-muted-foreground p-4 text-sm">
               No CEP rules yet. Click "New Rule" to draft your first pattern.

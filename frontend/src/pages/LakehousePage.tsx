@@ -22,7 +22,11 @@ const FORMATS: { value: LakehouseFormat; label: string; helper: string }[] = [
 ]
 
 export function LakehousePage() {
-  const { tier, isProOrAbove, loaded } = useLicense()
+  // The /lakehouse route is wrapped in <RequiresTier tier="pro"> in App.tsx,
+  // so non-Pro users never reach this component. We still call useLicense()
+  // for the initial-load gate so we don't fire the catalog query before the
+  // license has been resolved.
+  const { isProOrAbove, loaded } = useLicense()
   const { selectedPlant } = usePlant()
 
   const [format, setFormat] = useState<LakehouseFormat>('parquet')
@@ -67,26 +71,12 @@ export function LakehousePage() {
   const curlText = curlSnippet(exportParams, baseUrl)
   const pythonText = pythonSnippet(exportParams, baseUrl)
 
-  if (!loaded) {
+  if (!loaded || !isProOrAbove) {
+    // The route-level <RequiresTier> guards the page, so this branch only
+    // covers the brief window before useLicense() resolves.
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
-      </div>
-    )
-  }
-
-  if (!isProOrAbove) {
-    return (
-      <div className="mx-auto max-w-2xl p-6">
-        <div className="border-border bg-card rounded-lg border p-8 text-center">
-          <Database className="text-muted-foreground mx-auto mb-3 h-10 w-10" />
-          <h1 className="mb-2 text-xl font-semibold">Cassini Lakehouse</h1>
-          <p className="text-muted-foreground mb-4 text-sm">
-            The Lakehouse data product is available on Pro and Enterprise tiers. Upgrade to
-            export Cassini tables as Arrow, Parquet, CSV, or JSON for downstream analytics.
-          </p>
-          <p className="text-muted-foreground text-xs">Current tier: {tier}</p>
-        </div>
       </div>
     )
   }
@@ -151,22 +141,34 @@ export function LakehousePage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-foreground text-sm font-medium">Format</label>
-          <div className="grid grid-cols-2 gap-2">
-            {FORMATS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setFormat(f.value)}
-                className={
-                  format === f.value
-                    ? 'border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm font-medium'
-                    : 'border-input bg-background text-foreground hover:bg-accent rounded-md border px-3 py-2 text-sm'
-                }
-              >
-                {f.label}
-              </button>
-            ))}
+          <label className="text-foreground text-sm font-medium" id="lakehouse-format-label">
+            Format
+          </label>
+          <div
+            role="radiogroup"
+            aria-labelledby="lakehouse-format-label"
+            className="grid grid-cols-2 gap-2"
+          >
+            {FORMATS.map((f) => {
+              const selected = format === f.value
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  aria-label={`${f.label} format`}
+                  onClick={() => setFormat(f.value)}
+                  className={
+                    selected
+                      ? 'border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm font-medium'
+                      : 'border-input bg-background text-foreground hover:bg-accent rounded-md border px-3 py-2 text-sm'
+                  }
+                >
+                  {f.label}
+                </button>
+              )
+            })}
           </div>
           <p className="text-muted-foreground text-xs">
             {FORMATS.find((f) => f.value === format)?.helper}
