@@ -42,14 +42,16 @@ async def get_license_status(
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
         try:
-            from cassini.core.auth.jwt import decode_access_token
+            from cassini.core.auth.jwt import verify_access_token
             from cassini.db.database import get_database
             from cassini.db.models.user import User as UserModel, UserRole
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
 
             token = auth_header.split(" ", 1)[1]
-            payload = decode_access_token(token)
+            payload = verify_access_token(token)
+            if not payload:
+                raise ValueError("invalid_token")
             user_id = int(payload.get("sub", 0))
             if user_id:
                 db = get_database()
@@ -91,9 +93,17 @@ async def activate_license(
     try:
         license_service.activate_from_token(body.key)
     except ValueError as e:
+        # Never leak internal exception text (file paths, JWT decode errors)
+        # to API clients. Log full detail server-side; return a generic message.
+        logger.warning(
+            "license_activation_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="License could not be activated",
         )
 
     # Activate commercial features if this is the first valid license
@@ -176,9 +186,16 @@ async def get_activation_file(
     try:
         data = license_service.generate_activation_file()
     except ValueError as e:
+        # Don't surface raw exception text — log server-side, return generic.
+        logger.warning(
+            "activation_file_generation_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail="Activation file could not be generated",
         )
     return ActivationFileResponse(**data)
 
