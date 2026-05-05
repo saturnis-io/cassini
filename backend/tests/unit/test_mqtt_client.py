@@ -21,6 +21,9 @@ class TestMQTTConfig:
         assert config.port == 1883
         assert config.username is None
         assert config.password is None
+        # NOTE: "openspc-server" is the legacy default client_id, retained for
+        # backward compatibility with existing broker ACLs / Sparkplug edge nodes.
+        # See cassini.mqtt.client.MQTTConfig and cassini.mqtt.sparkplug.SparkplugAdapter.
         assert config.client_id == "openspc-server"
         assert config.keepalive == 60
         assert config.max_reconnect_delay == 30

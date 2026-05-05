@@ -1,7 +1,24 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
+import { getAuthToken, API_BASE, apiGet } from './helpers/api'
+import { getManifest } from './helpers/manifest'
 
 test.describe('Audit Log', () => {
+  let token: string
+  let phaseCharId: number | null = null
+  let hasSprint13: boolean = false
+
+  test.beforeAll(async ({ request }) => {
+    token = await getAuthToken(request)
+    try {
+      const manifest = getManifest()
+      phaseCharId = manifest.sprint13?.phase_char_id ?? null
+      hasSprint13 = phaseCharId !== null
+    } catch {
+      hasSprint13 = false
+    }
+  })
+
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
   })
@@ -116,5 +133,139 @@ test.describe('Audit Log', () => {
       body: await page.screenshot({ fullPage: true }),
       contentType: 'image/png',
     })
+  })
+
+  // ----------------------------------------------------------------
+  // Audit log API: freeze/unfreeze actions captured by middleware
+  // (ported from sprint13-audit.spec.ts)
+  // ----------------------------------------------------------------
+  test('audit log captures freeze/unfreeze actions via API', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    // Trigger freeze + unfreeze to ensure middleware captures them.
+    await request.post(`${API_BASE}/characteristics/${phaseCharId}/freeze-limits`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    })
+    await request.post(`${API_BASE}/characteristics/${phaseCharId}/unfreeze-limits`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    })
+
+    // Query audit log for freeze actions
+    const auditLogs = await apiGet(request, `/audit/logs?action=freeze&limit=10`, token)
+    expect(auditLogs.items).toBeDefined()
+    expect(Array.isArray(auditLogs.items)).toBe(true)
+    expect(auditLogs.items.length).toBeGreaterThan(0)
+
+    const freezeEntry = auditLogs.items[0]
+    expect(freezeEntry.action).toBe('freeze')
+    expect(freezeEntry.resource_type).toBe('characteristic')
+    expect(freezeEntry.username).toBeTruthy()
+    expect(freezeEntry.timestamp).toBeTruthy()
+
+    const unfreezeAudit = await apiGet(request, `/audit/logs?action=unfreeze&limit=10`, token)
+    expect(unfreezeAudit.items.length).toBeGreaterThan(0)
+    expect(unfreezeAudit.items[0].action).toBe('unfreeze')
+  })
+
+  // ----------------------------------------------------------------
+  // Audit health endpoint
+  // ----------------------------------------------------------------
+  test('audit health endpoint returns healthy status', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/audit/health`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.ok()).toBeTruthy()
+    const health = await res.json()
+    expect(health.status).toBeDefined()
+    expect(['healthy', 'degraded']).toContain(health.status)
+    expect(health.failure_count).toBeDefined()
+    expect(typeof health.failure_count).toBe('number')
+  })
+
+  // ----------------------------------------------------------------
+  // Username recycling blocked: deactivated username returns 409
+  // ----------------------------------------------------------------
+  test('creating user with deactivated username returns 409', async ({ request }) => {
+    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+
+    const res = await request.post(`${API_BASE}/users/`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { username: 's13-deactivated', password: 'NewPassword123!' },
+    })
+
+    expect(res.status()).toBe(409)
+    const errorBody = await res.json()
+    expect(errorBody.detail).toBeTruthy()
+  })
+
+  // ----------------------------------------------------------------
+  // Audit log API: 21 CFR Part 11 fields present
+  // ----------------------------------------------------------------
+  test('audit log entries have required fields via API', async ({ request }) => {
+    const auditLogs = await apiGet(request, `/audit/logs?limit=5`, token)
+    expect(auditLogs.items).toBeDefined()
+    expect(auditLogs.items.length).toBeGreaterThan(0)
+
+    const entry = auditLogs.items[0]
+    expect(entry.id).toBeDefined()
+    expect(entry.action).toBeDefined()
+    expect(entry.timestamp).toBeDefined()
+  })
+
+  // ----------------------------------------------------------------
+  // CSV export: validate response shape, headers, content
+  // ----------------------------------------------------------------
+  test('audit log CSV export downloads with expected shape', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/audit/logs/export?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.ok()).toBeTruthy()
+
+    const contentType = res.headers()['content-type']
+    expect(contentType).toContain('text/csv')
+
+    const disposition = res.headers()['content-disposition']
+    expect(disposition).toContain('attachment')
+    expect(disposition).toContain('audit_log.csv')
+
+    const csvBody = await res.text()
+    const lines = csvBody.trim().split('\n')
+    expect(lines.length).toBeGreaterThan(1)
+
+    const header = lines[0].toLowerCase()
+    expect(header).toContain('timestamp')
+    expect(header).toContain('username')
+    expect(header).toContain('action')
+  })
+
+  // ----------------------------------------------------------------
+  // Integrity verification endpoint
+  // ----------------------------------------------------------------
+  test('audit integrity verification returns valid result', async ({ request }) => {
+    const res = await request.get(`${API_BASE}/audit/verify-integrity`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.ok()).toBeTruthy()
+    const integrity = await res.json()
+    expect(integrity.verified_count).toBeDefined()
+    expect(typeof integrity.verified_count).toBe('number')
+    expect(integrity.valid).toBeDefined()
+    expect(typeof integrity.valid).toBe('boolean')
+    expect(integrity.message).toBeTruthy()
+  })
+
+  // ----------------------------------------------------------------
+  // Stats endpoint returns event counts
+  // ----------------------------------------------------------------
+  test('audit stats endpoint returns event counts', async ({ request }) => {
+    const stats = await apiGet(request, '/audit/stats', token)
+    expect(stats.total_events).toBeDefined()
+    expect(typeof stats.total_events).toBe('number')
+    expect(stats.total_events).toBeGreaterThan(0)
+    expect(stats.events_by_action).toBeDefined()
+    expect(typeof stats.events_by_action).toBe('object')
   })
 })
