@@ -147,6 +147,7 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     # Replay endpoint: extract the numeric resource_id (not the type segment)
     # so audit rows correctly point at the replayed characteristic.
     (re.compile(r"/api/v1/replay/\w+/(\d+)"), "replay"),
+    (re.compile(r"/api/v1/lakehouse/[\w-]+"), "lakehouse"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)

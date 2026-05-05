@@ -78,6 +78,9 @@ const GuidePage = lazy(() =>
 const PlantComparisonView = lazy(() =>
   import('@/components/PlantComparisonView').then((m) => ({ default: m.PlantComparisonView })),
 )
+const LakehousePage = lazy(() =>
+  import('@/pages/LakehousePage').then((m) => ({ default: m.LakehousePage })),
+)
 
 // Lazy-loaded settings sub-pages
 const AppearanceSettings = lazy(() =>
@@ -502,6 +505,20 @@ function App() {
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
                             <DOEPage />
+                          </Suspense>
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    </RequiresTier>
+                  }
+                />
+                <Route
+                  path="lakehouse"
+                  element={
+                    <RequiresTier tier="pro" fallback={<UpgradePage />}>
+                      <ProtectedRoute requiredRole="engineer">
+                        <ErrorBoundary>
+                          <Suspense fallback={<PageSpinner />}>
+                            <LakehousePage />
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>

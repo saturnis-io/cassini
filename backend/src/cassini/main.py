@@ -49,6 +49,7 @@ from cassini.api.v1.fai import router as fai_router
 from cassini.api.v1.gage_bridges import router as gage_bridges_router
 from cassini.api.v1.import_router import router as import_router
 from cassini.api.v1.ishikawa import router as ishikawa_router
+from cassini.api.v1.lakehouse import router as lakehouse_router
 from cassini.api.v1.msa import router as msa_router
 from cassini.api.v1.hierarchy import router as hierarchy_router
 from cassini.api.v1.notifications import router as notifications_router
@@ -117,6 +118,7 @@ _PRO_ROUTERS = [
     report_analytics_router,
     api_keys_router,
     push_router,
+    lakehouse_router,
 ]
 
 # Enterprise routers -- available to Enterprise licenses ONLY

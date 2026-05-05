@@ -56,6 +56,7 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   '/fai': 'engineer',
   '/analytics': 'engineer',
   '/doe': 'engineer',
+  '/lakehouse': 'engineer',
 
   // Settings — accessible to all (personal tabs), role-guarded per sub-route
   '/settings': 'operator',

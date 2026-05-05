@@ -65,6 +65,7 @@ const ACTION_LABELS: Record<string, string> = {
   unlock_roles: 'Unlock Roles',
   create_delta: 'Create Delta',
   replay: 'Time Travel Replay',
+  lakehouse_export: 'Lakehouse Export',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -109,6 +110,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   notification: 'Notification',
   license: 'License',
   replay: 'Replay Snapshot',
+  lakehouse: 'Lakehouse',
 }
 
 function ActionBadge({ action }: { action: string }) {
