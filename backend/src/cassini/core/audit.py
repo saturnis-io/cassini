@@ -344,7 +344,6 @@ async def _resolve_plant_for_resource(
     if resource_type == "retention":
         # PurgeCompletedEvent uses plant_id as resource_id
         return resource_id
-<<<<<<< HEAD
     if resource_type == "replay":
         # Replay's resource_id is the underlying characteristic id;
         # resolve through the same path as a characteristic.
@@ -356,14 +355,15 @@ async def _resolve_plant_for_resource(
                 sa_select(Hierarchy.plant_id)
                 .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
                 .where(Characteristic.id == resource_id)
-=======
+            )
+        ).first()
+        return row[0] if row else None
     if resource_type == "cep_rule":
         from cassini.db.models.cep_rule import CepRule
 
         row = (
             await session.execute(
                 sa_select(CepRule.plant_id).where(CepRule.id == resource_id)
->>>>>>> feat/streaming-cep-rules
             )
         ).first()
         return row[0] if row else None
