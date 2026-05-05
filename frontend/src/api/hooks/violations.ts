@@ -37,9 +37,18 @@ export function useAcknowledgeViolation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, reason, user }: { id: number; reason: string; user: string }) =>
-      violationApi.acknowledge(id, { reason, user }),
-    onMutate: async ({ id, reason, user }) => {
+    // The acknowledging user is derived server-side from the authenticated
+    // principal (21 CFR Part 11 §11.50). The optional `optimisticUser` field
+    // here is ONLY used for optimistic UI updates and is NOT sent to the API.
+    mutationFn: ({
+      id,
+      reason,
+    }: {
+      id: number
+      reason: string
+      optimisticUser?: string
+    }) => violationApi.acknowledge(id, { reason }),
+    onMutate: async ({ id, reason, optimisticUser }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.violations.all })
       const previousLists = queryClient.getQueriesData({ queryKey: queryKeys.violations.all })
       queryClient.setQueriesData({ queryKey: queryKeys.violations.all }, (old: unknown) => {
@@ -52,7 +61,7 @@ export function useAcknowledgeViolation() {
               ? {
                   ...v,
                   acknowledged: true,
-                  ack_user: user,
+                  ack_user: optimisticUser,
                   ack_reason: reason,
                   ack_timestamp: new Date().toISOString(),
                 }
@@ -84,10 +93,11 @@ export function useBatchAcknowledgeViolation() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    // The acknowledging user is derived server-side from the authenticated
+    // principal (21 CFR Part 11 §11.50).
     mutationFn: (data: {
       violation_ids: number[]
       reason: string
-      user: string
       exclude_sample?: boolean
     }) => violationApi.batchAcknowledge(data),
     onSuccess: (data) => {

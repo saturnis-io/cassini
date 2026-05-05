@@ -421,10 +421,13 @@ class SignatureWorkflowEngine:
         # Verify password with lockout tracking
         if not verify_password(password, user.hashed_password):
             user.failed_login_count = (user.failed_login_count or 0) + 1
-            # Check lockout policy
+            # Check lockout policy — MUST be plant-scoped. A multi-plant
+            # install with different policies per plant otherwise picks
+            # whichever policy SQLite happens to return first, governing
+            # the wrong site.
             from cassini.db.models.signature import PasswordPolicy
             policy_result = await self._session.execute(
-                select(PasswordPolicy).limit(1)
+                select(PasswordPolicy).where(PasswordPolicy.plant_id == plant_id)
             )
             policy = policy_result.scalar_one_or_none()
             if (
@@ -633,9 +636,10 @@ class SignatureWorkflowEngine:
 
         if not verify_password(password, user.hashed_password):
             user.failed_login_count = (user.failed_login_count or 0) + 1
+            # Plant-scoped lockout policy lookup — see sign() for rationale.
             from cassini.db.models.signature import PasswordPolicy
             policy_result = await self._session.execute(
-                select(PasswordPolicy).limit(1)
+                select(PasswordPolicy).where(PasswordPolicy.plant_id == plant_id)
             )
             policy = policy_result.scalar_one_or_none()
             if (
@@ -737,6 +741,11 @@ class SignatureWorkflowEngine:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is temporarily locked due to too many failed attempts",
             )
+
+        # Check password expiry before authenticating — rejection is a
+        # signed action under 21 CFR Part 11 and MUST require a current
+        # password, just like sign() and sign_standalone().
+        await self._check_password_expiry(user, plant_id)
 
         if not verify_password(password, user.hashed_password):
             raise HTTPException(
@@ -934,21 +943,117 @@ class SignatureWorkflowEngine:
         }
 
 
+def _get_signature_key_path() -> Path:
+    """Return the absolute path to the signature HMAC key file.
+
+    Resolved relative to the stable data directory (CASSINI_DATA_DIR or
+    the default `<backend>/data` dir) — NEVER relative to CWD.
+
+    Resolving relative to CWD (the previous behaviour) created a 21 CFR
+    Part 11 §11.10(e) compliance hole: starting uvicorn from a different
+    directory caused a fresh key to be generated, permanently invalidating
+    every prior signature (`is_tamper_free=False` on all historical
+    records).
+    """
+    from cassini.core.config import get_data_dir
+
+    return get_data_dir() / ".signature_key"
+
+
+# Module-level cache so the path is resolved once and stays consistent
+# even if CWD changes mid-process.
+_signature_key_cache: bytes | None = None
+_signature_key_path_cache: Path | None = None
+
+
 def _get_signature_key() -> bytes:
     """Load or generate the server-side signature HMAC key.
 
-    Stored in `.signature_key` file, similar to `.jwt_secret` pattern.
+    Stored in the stable data directory at `.signature_key`. Once resolved,
+    the path is cached for the life of the process — preventing the
+    CWD-relative regeneration bug that would silently invalidate all
+    historical signatures.
     """
-    key_file = Path(".signature_key")
+    global _signature_key_cache, _signature_key_path_cache
+
+    if _signature_key_cache is not None:
+        return _signature_key_cache
+
+    key_file = _get_signature_key_path()
+    _signature_key_path_cache = key_file
+
     if key_file.exists():
-        return key_file.read_bytes().strip()
+        # NOTE: legacy keys may have trailing whitespace from a previous
+        # implementation that wrote bytes naively; strip only newline
+        # whitespace, NOT arbitrary bytes that happen to be 0x0d / 0x09.
+        # We persist as base64 below to avoid this category of bug.
+        raw = key_file.read_bytes()
+        # If the file looks like base64 (length % 4 == 0 of ascii chars),
+        # decode it. Otherwise treat as legacy raw bytes (decode failed -> use as-is).
+        try:
+            text = raw.decode("ascii").strip()
+            import base64
+
+            _signature_key_cache = base64.b64decode(text, validate=True)
+        except (UnicodeDecodeError, ValueError):
+            _signature_key_cache = raw  # legacy raw-byte file
+        return _signature_key_cache
+
+    # First-time generation: ensure the data dir exists, write the key,
+    # and lock down permissions where the OS supports it. Persist as
+    # base64 ASCII so the file is robust to whitespace stripping and
+    # easy to inspect/back up by operators.
+    import base64
+
+    key_file.parent.mkdir(parents=True, exist_ok=True)
     key = secrets.token_bytes(32)
-    key_file.write_bytes(key)
+    key_file.write_bytes(base64.b64encode(key) + b"\n")
     try:
         key_file.chmod(0o600)
     except OSError:
+        # chmod isn't always available on Windows
         pass
+
+    logger.info(
+        "signature_key_generated",
+        path=str(key_file),
+        msg="Signature HMAC key generated. Back this file up — losing it "
+            "permanently invalidates every historical electronic signature.",
+    )
+    _signature_key_cache = key
     return key
+
+
+def verify_signature_key_path(*, signatures_exist: bool) -> Path:
+    """Verify the signature key file is readable and consistent.
+
+    Called at app startup (see ``cassini.main``). Behaviour:
+
+    * Logs the resolved key path so operators can confirm it.
+    * If signatures already exist in the database but the key file is
+      missing, raise RuntimeError so uvicorn fails fast with a clear
+      error rather than silently regenerating a fresh key (which would
+      mark every historical signature as tampered).
+    * If the key file is missing AND no signatures exist yet, this is
+      a fresh install: do nothing — the key will be generated lazily on
+      the first sign() call.
+
+    Returns the resolved key path.
+    """
+    key_file = _get_signature_key_path()
+    logger.info("signature_key_path_resolved", path=str(key_file))
+
+    if signatures_exist and not key_file.exists():
+        raise RuntimeError(
+            f"Cassini signature HMAC key not found at {key_file} but "
+            "historical electronic signatures exist in the database. "
+            "Auto-regenerating the key would mark every prior signature "
+            "as tampered (21 CFR Part 11 §11.10(e) violation). Restore "
+            "the original .signature_key file from backup, or set "
+            "CASSINI_DATA_DIR to point at the directory containing it. "
+            "Refusing to start."
+        )
+    return key_file
 
 
 def compute_resource_hash(resource_type: str, resource_data: dict) -> str:

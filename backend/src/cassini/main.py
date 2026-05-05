@@ -340,6 +340,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Audit trail service initialized (all tiers)")
 
     # -----------------------------------------------------------------------
+    # Signature HMAC key — fail-fast verification (21 CFR Part 11 §11.10(e))
+    #
+    # The key file is resolved relative to a STABLE data directory
+    # (CASSINI_DATA_DIR or `<backend>/data`), NEVER relative to CWD. If
+    # the file is missing AND the database already contains historical
+    # signatures, refuse to start so a silent regeneration cannot mark
+    # every prior signature as tampered.
+    # -----------------------------------------------------------------------
+    try:
+        from cassini.core.signature_engine import verify_signature_key_path
+        from cassini.db.models.signature import ElectronicSignature
+        from sqlalchemy import func, select
+
+        async with db.session() as session:
+            result = await session.execute(
+                select(func.count()).select_from(ElectronicSignature)
+            )
+            sig_count = result.scalar_one() or 0
+        verify_signature_key_path(signatures_exist=sig_count > 0)
+    except RuntimeError:
+        # Re-raise to abort startup with a clean traceback
+        raise
+    except Exception as e:
+        # Database not yet migrated, table missing on fresh install, etc.
+        # In that case there are no signatures by definition — log and
+        # continue. The key will be generated lazily on first sign().
+        logger.debug(
+            "signature_key_precheck_skipped",
+            reason=type(e).__name__,
+        )
+
+    # -----------------------------------------------------------------------
     # Commercial-only services -- gated behind license
     # -----------------------------------------------------------------------
     if license_service.is_commercial:

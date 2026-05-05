@@ -266,8 +266,14 @@ export function SampleInspectorModal({
 
   const handleAcknowledge = useCallback(() => {
     if (!ackViolationId || !ackReason.trim()) return
+    // Server derives ack_user from the authenticated principal (Part 11 §11.50).
+    // optimisticUser is only used for the local UI cache update.
     acknowledgeViolation.mutate(
-      { id: ackViolationId, reason: ackReason.trim(), user: user?.username ?? '' },
+      {
+        id: ackViolationId,
+        reason: ackReason.trim(),
+        optimisticUser: user?.username ?? '',
+      },
       {
         onSuccess: () => {
           setAckViolationId(null)

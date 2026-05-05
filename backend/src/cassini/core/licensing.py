@@ -3,9 +3,18 @@
 Validates Ed25519-signed JWT license files for Commercial edition features.
 Community edition (no license) provides core SPC functionality.
 Commercial edition (valid license AND not expired) unlocks enterprise features.
+
+Activation and deactivation files (machine -> portal) are signed with a
+per-instance Ed25519 keypair (21 CFR Part 11 §11.10(e) integrity). The
+machine's public key and the bundled license JWT are embedded in each
+file so the portal can verify both the file's tamper-evident signature
+and the chain of trust back to the portal-issued license.
 """
 
+import base64
+import json as _json
 import os
+import secrets
 import socket
 import structlog
 import uuid
@@ -14,6 +23,17 @@ from enum import Enum
 from pathlib import Path
 
 import jwt
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    NoEncryption,
+    PrivateFormat,
+    PublicFormat,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -100,8 +120,16 @@ class LicenseService:
 
     @property
     def _data_dir(self) -> Path:
-        """Compute the data directory path for license and instance files."""
-        return Path(__file__).resolve().parent.parent.parent.parent / "data"
+        """Compute the data directory path for license and instance files.
+
+        Resolves through ``cassini.core.config.get_data_dir`` so the
+        location is configurable via ``CASSINI_DATA_DIR`` and shared with
+        the signature engine — preventing the CWD-relative regeneration
+        bug that would otherwise invalidate historical signatures.
+        """
+        from cassini.core.config import get_data_dir
+
+        return get_data_dir()
 
     @property
     def instance_id(self) -> str | None:
@@ -278,33 +306,125 @@ class LicenseService:
             instance_id=self._instance_id,
         )
 
+    # ------------------------------------------------------------------
+    # Activation / deactivation signing keys (21 CFR Part 11 §11.10(e))
+    # ------------------------------------------------------------------
+    #
+    # Activation/deactivation files flow machine -> operator -> portal.
+    # To prevent forgery (a malicious portal cannot deactivate a slot
+    # without a real machine signature; a MITM cannot tamper en route),
+    # each file is Ed25519-signed by a per-instance keypair generated on
+    # first use and stored in the stable data directory.
+    #
+    # The signed envelope carries:
+    #   - payload (typed dict: type, version, licenseId, instanceId, timestamp)
+    #   - signature (base64 Ed25519 signature over canonical JSON of payload)
+    #   - publicKey (PEM, embedded so the portal can verify without out-of-band exchange)
+    #
+    # Schema version is bumped to 2 to signal the new format. Portal-side
+    # verification rejects v<2 unsigned files. This is a breaking change
+    # documented in the changelog.
+    ACTIVATION_FILE_VERSION = 2
+
+    def _activation_key_path(self) -> Path:
+        """Path to the per-instance Ed25519 private key file."""
+        return self._data_dir / ".activation_key"
+
+    def _load_or_create_activation_key(self) -> Ed25519PrivateKey:
+        """Load the per-instance signing key, generating one on first use."""
+        key_path = self._activation_key_path()
+        if key_path.exists():
+            try:
+                pem_bytes = key_path.read_bytes()
+                from cryptography.hazmat.primitives.serialization import (
+                    load_pem_private_key,
+                )
+
+                private = load_pem_private_key(pem_bytes, password=None)
+                if isinstance(private, Ed25519PrivateKey):
+                    return private
+                logger.warning(
+                    "activation_key_wrong_type — regenerating",
+                )
+            except Exception:
+                logger.warning(
+                    "activation_key_unreadable — regenerating",
+                )
+
+        # Generate fresh keypair and persist.
+        self._data_dir.mkdir(parents=True, exist_ok=True)
+        private = Ed25519PrivateKey.generate()
+        pem = private.private_bytes(
+            Encoding.PEM, PrivateFormat.PKCS8, NoEncryption(),
+        )
+        key_path.write_bytes(pem)
+        try:
+            key_path.chmod(0o600)
+        except OSError:
+            pass
+        logger.info("activation_key_generated", path=str(key_path))
+        return private
+
+    def _public_key_pem(self, private: Ed25519PrivateKey) -> str:
+        """Return the Ed25519 public key as a PEM string."""
+        pub_bytes = private.public_key().public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo,
+        )
+        return pub_bytes.decode("ascii")
+
+    def _sign_envelope(self, payload: dict) -> dict:
+        """Wrap a payload dict in a signed Ed25519 envelope.
+
+        The signature is computed over a deterministic JSON serialization
+        of the payload (sorted keys, no whitespace), so the verifier can
+        reconstruct the exact bytes that were signed.
+        """
+        private = self._load_or_create_activation_key()
+        canonical = _json.dumps(
+            payload, sort_keys=True, separators=(",", ":"),
+        ).encode("utf-8")
+        signature = private.sign(canonical)
+        return {
+            **payload,
+            "signature": base64.b64encode(signature).decode("ascii"),
+            "publicKey": self._public_key_pem(private),
+            "signatureAlgorithm": "Ed25519",
+        }
+
     def generate_activation_file(self) -> dict:
-        """Generate activation file content for offline portal registration."""
+        """Generate signed activation file content for offline portal registration.
+
+        21 CFR Part 11 §11.10(e): the file is Ed25519-signed by a
+        per-instance key so the portal can detect tampering or forgery.
+        """
         if not self.is_commercial or not self._instance_id:
             raise ValueError("No active license to generate activation file")
-        return {
+        payload = {
             "type": "cassini-activation",
-            "version": 1,
+            "version": self.ACTIVATION_FILE_VERSION,
             "licenseId": self._claims.get("sub", ""),
             "instanceId": self._instance_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        return self._sign_envelope(payload)
 
     def generate_deactivation_file(self) -> dict | None:
-        """Generate deactivation file content before license removal.
+        """Generate signed deactivation file content before license removal.
 
         Must be called BEFORE clear() since clear() resets claims.
         Returns None if no active license or no instance ID.
+        21 CFR Part 11 §11.10(e): Ed25519-signed (see ``generate_activation_file``).
         """
         if not self._valid or not self._instance_id or not self._claims:
             return None
-        return {
+        payload = {
             "type": "cassini-deactivation",
-            "version": 1,
+            "version": self.ACTIVATION_FILE_VERSION,
             "licenseId": self._claims.get("sub", ""),
             "instanceId": self._instance_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        return self._sign_envelope(payload)
 
     @property
     def raw_key(self) -> str | None:
@@ -340,6 +460,80 @@ class LicenseService:
         self._valid = False
         self._instance_id = None
         logger.info("License cleared, reverted to Community Edition")
+
+    @staticmethod
+    def verify_activation_file(envelope: dict) -> dict:
+        """Verify an Ed25519-signed activation/deactivation envelope.
+
+        Re-derives the canonical payload, decodes the embedded public key
+        and signature, and checks that the signature is valid.
+
+        Returns the inner payload dict on success.
+        Raises ValueError on:
+          - missing signature/publicKey fields (legacy unsigned file)
+          - version < 2 (legacy unsigned format)
+          - wrong algorithm
+          - invalid signature
+          - malformed envelope
+        """
+        if not isinstance(envelope, dict):
+            raise ValueError("Activation envelope must be a JSON object")
+
+        # Reject legacy unsigned files
+        version = envelope.get("version")
+        if not isinstance(version, int) or version < 2:
+            raise ValueError(
+                "Activation file is unsigned (version < 2). 21 CFR Part 11 "
+                "compliance requires signed activation files."
+            )
+
+        signature_b64 = envelope.get("signature")
+        public_key_pem = envelope.get("publicKey")
+        algorithm = envelope.get("signatureAlgorithm")
+
+        if not signature_b64 or not public_key_pem:
+            raise ValueError("Activation file is missing signature or public key")
+        if algorithm != "Ed25519":
+            raise ValueError(
+                f"Unsupported signature algorithm: {algorithm!r}; expected 'Ed25519'"
+            )
+
+        # Reconstruct payload (envelope minus signature fields)
+        payload = {
+            k: v for k, v in envelope.items()
+            if k not in ("signature", "publicKey", "signatureAlgorithm")
+        }
+        canonical = _json.dumps(
+            payload, sort_keys=True, separators=(",", ":"),
+        ).encode("utf-8")
+
+        # Decode signature
+        try:
+            signature = base64.b64decode(signature_b64, validate=True)
+        except (ValueError, TypeError):
+            raise ValueError("Activation file signature is not valid base64")
+
+        # Load embedded public key
+        try:
+            from cryptography.hazmat.primitives.serialization import (
+                load_pem_public_key,
+            )
+
+            public_key = load_pem_public_key(public_key_pem.encode("ascii"))
+        except Exception:
+            raise ValueError("Activation file public key is malformed")
+
+        if not isinstance(public_key, Ed25519PublicKey):
+            raise ValueError(
+                "Activation file public key is not an Ed25519 public key"
+            )
+
+        try:
+            public_key.verify(signature, canonical)
+        except InvalidSignature:
+            raise ValueError("Activation file signature is invalid")
+
+        return payload
 
     def status(self) -> dict:
         """Return license status for the API endpoint."""

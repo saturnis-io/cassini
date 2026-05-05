@@ -89,11 +89,13 @@ export function ViolationContextModal({
 
   const handleAcknowledge = () => {
     if (!ackReason.trim()) return
+    // Server derives ack_user from the authenticated principal (Part 11 §11.50).
+    // optimisticUser is only used for the local UI cache update.
     acknowledgeMutation.mutate(
       {
         id: violationId,
         reason: ackReason.trim(),
-        user: user?.username ?? 'Unknown',
+        optimisticUser: user?.username ?? 'Unknown',
       },
       {
         onSuccess: () => {

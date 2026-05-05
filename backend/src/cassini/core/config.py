@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     cookie_secure: bool = True
 
+    # Stable data directory — holds files that MUST survive uvicorn restarts
+    # regardless of CWD: signature key, license key, instance ID, etc.
+    # Empty string means "auto-resolve" (sibling of the cassini package, the
+    # `data/` dir already used by LicenseService).
+    data_dir: str = ""
+
     # Admin bootstrap
     admin_username: str = "admin"
     admin_password: str = ""
@@ -129,3 +135,27 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return the cached application settings singleton."""
     return Settings()
+
+
+def get_data_dir():
+    """Resolve the stable data directory for files that must survive restarts.
+
+    Resolution order:
+      1. CASSINI_DATA_DIR env var (via Settings)
+      2. Default: <cassini package parent>/data — the same `data/` dir
+         already used by LicenseService for license.key and instance-id.
+
+    Returns a Path. The caller is responsible for `.mkdir(parents=True,
+    exist_ok=True)` if it needs the directory to exist.
+    """
+    from pathlib import Path
+
+    settings = get_settings()
+    if settings.data_dir:
+        return Path(settings.data_dir).expanduser().resolve()
+
+    # Default: <repo>/apps/cassini/backend/data, mirroring LicenseService._data_dir
+    # which lives at: <package>/cassini/core/licensing.py -> .../data
+    # config.py is at: <package>/cassini/core/config.py
+    # parent.parent.parent = <package root> (e.g. .../src), so .parent = backend
+    return Path(__file__).resolve().parent.parent.parent.parent / "data"

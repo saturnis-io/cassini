@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { useBatchAcknowledgeViolation, useReasonCodes } from '@/api/hooks'
-import { useAuth } from '@/providers/AuthProvider'
 
 interface BulkAcknowledgeDialogProps {
   violationIds: number[]
@@ -18,7 +17,6 @@ export function BulkAcknowledgeDialog({
   const [notes, setNotes] = useState('')
   const [excludeSample, setExcludeSample] = useState(false)
 
-  const { user } = useAuth()
   const { data: reasonCodes, isLoading: loadingCodes } = useReasonCodes()
   const batchMutation = useBatchAcknowledgeViolation()
 
@@ -29,11 +27,12 @@ export function BulkAcknowledgeDialog({
   const handleSubmit = () => {
     const reason = notes.trim() ? `${selectedReason}: ${notes.trim()}` : selectedReason
 
+    // Server derives the acknowledging user from the authenticated principal
+    // (21 CFR Part 11 §11.50). Do NOT pass a `user` field here.
     batchMutation.mutate(
       {
         violation_ids: violationIds,
         reason,
-        user: user?.username ?? 'Unknown',
         exclude_sample: excludeSample,
       },
       { onSuccess: () => onClose() },
