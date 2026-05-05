@@ -111,8 +111,20 @@ export function useChartData(
     refetchInterval?: number | false
     /** Override enabled flag. When false, disables the query entirely (e.g. when data is passed as a prop). */
     enabled?: boolean
+    /** When true, WebSocket is delivering live updates so polling is redundant.
+     *  Takes precedence over refetchInterval — sets refetchInterval to false. */
+    wsConnected?: boolean
   },
 ) {
+  // When WS is connected, real-time updates flow via WebSocketProvider invalidations,
+  // so background polling is redundant. Explicit refetchInterval still wins if provided.
+  const refetchInterval =
+    config?.refetchInterval !== undefined
+      ? config.refetchInterval
+      : config?.wsConnected
+        ? false
+        : CHART_DATA_REFETCH_MS
+
   return useQuery({
     queryKey: queryKeys.characteristics.chartData(
       id,
@@ -124,7 +136,7 @@ export function useChartData(
     ),
     queryFn: () => characteristicApi.getChartData(id, options),
     enabled: (config?.enabled ?? true) && id > 0,
-    refetchInterval: config?.refetchInterval ?? CHART_DATA_REFETCH_MS,
+    refetchInterval,
   })
 }
 

@@ -6,6 +6,7 @@ import { useDashboardStore, MAX_PINNED_CHARACTERISTICS } from '@/stores/dashboar
 import { useChartData, useCapability, useCharacteristic } from '@/api/hooks'
 import { useECharts } from '@/hooks/useECharts'
 import { useChartColors } from '@/hooks/useChartColors'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 /**
@@ -18,8 +19,11 @@ function PinnedMiniChart({ characteristicId }: { characteristicId: number }) {
   const setSelectedCharacteristicId = useDashboardStore((state) => state.setSelectedCharacteristicId)
   const setViewMode = useDashboardStore((state) => state.setViewMode)
 
+  // When WS is connected, real-time updates flow via WebSocketProvider invalidations,
+  // so polling all 10 mini-charts every 30s is redundant
+  const { isConnected: wsConnected } = useWebSocketContext()
   const { data: characteristic } = useCharacteristic(characteristicId)
-  const { data: chartData } = useChartData(characteristicId, { limit: 50 })
+  const { data: chartData } = useChartData(characteristicId, { limit: 50 }, { wsConnected })
   const { data: capability } = useCapability(characteristicId)
   const colors = useChartColors()
 

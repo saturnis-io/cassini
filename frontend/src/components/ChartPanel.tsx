@@ -9,6 +9,7 @@ import { ViolationParetoChart } from './ViolationParetoChart'
 import { DistributionHistogram } from './DistributionHistogram'
 import { ErrorBoundary } from './ErrorBoundary'
 import { useChartData } from '@/api/hooks'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import type { HistogramPosition } from '@/stores/dashboardStore'
 import type { ChartTypeId } from '@/types/charts'
 import type { RegionSelection } from '@/components/RegionActionModal'
@@ -145,8 +146,12 @@ export function ChartPanel({
     [chartOptions, chartType],
   )
 
+  // When WS is connected, real-time updates flow via WebSocketProvider invalidations,
+  // so polling is redundant — read wsConnected from context rather than threading from above
+  const { isConnected: wsConnected } = useWebSocketContext()
+
   // Fetch chart data to calculate shared Y-axis domain for alignment
-  const { data: chartData } = useChartData(characteristicId, chartDataOptions)
+  const { data: chartData } = useChartData(characteristicId, chartDataOptions, { wsConnected })
 
   // Histogram only applies to standard Shewhart charts (not CUSUM/EWMA/attribute)
   const isHistogramApplicable =

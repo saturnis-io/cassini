@@ -4,11 +4,19 @@ import { hierarchyApi } from '../plants.api'
 import { queryKeys } from './queryKeys'
 import { handleMutationError } from './utils'
 
+/**
+ * Hierarchy data is essentially static — it changes only when an admin
+ * adds/renames/deletes a node. Bump staleTime away from the 10s global
+ * default so window focus doesn't trigger redundant refetches.
+ */
+const HIERARCHY_STALE_TIME_MS = 5 * 60_000
+
 // Hierarchy hooks
 export function useHierarchyTree() {
   return useQuery({
     queryKey: queryKeys.hierarchy.tree(),
     queryFn: hierarchyApi.getTree,
+    staleTime: HIERARCHY_STALE_TIME_MS,
   })
 }
 
@@ -17,6 +25,7 @@ export function useHierarchyTreeByPlant(plantId: number) {
     queryKey: queryKeys.hierarchy.treeByPlant(plantId),
     queryFn: () => hierarchyApi.getTreeByPlant(plantId),
     enabled: plantId > 0,
+    staleTime: HIERARCHY_STALE_TIME_MS,
   })
 }
 

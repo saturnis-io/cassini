@@ -12,6 +12,7 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { useChartColors } from '@/hooks/useChartColors'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useDateFormat } from '@/hooks/useDateFormat'
+import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { applyFormat } from '@/lib/date-format'
 import { ViolationLegend } from './ViolationLegend'
 import { useChartHoverSync } from '@/stores/chartHoverStore'
@@ -98,10 +99,13 @@ export function ControlChart({
   onGridTop,
   chartData: externalChartData,
 }: ControlChartProps) {
+  // When WebSocket is connected, live updates flow via invalidations — polling is redundant.
+  // ControlChart reads wsConnected directly from context so callers don't need to thread it.
+  const { isConnected: wsConnected } = useWebSocketContext()
   const { data: fetchedChartData, isLoading: fetchLoading } = useChartData(
     characteristicId,
     chartOptions ?? { limit: 50 },
-    { enabled: !externalChartData },
+    { enabled: !externalChartData, wsConnected },
   )
   const chartData = externalChartData ?? fetchedChartData
   const isLoading = externalChartData ? false : fetchLoading
