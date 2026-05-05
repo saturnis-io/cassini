@@ -64,6 +64,7 @@ const ACTION_LABELS: Record<string, string> = {
   lock_roles: 'Lock Roles',
   unlock_roles: 'Unlock Roles',
   create_delta: 'Create Delta',
+  replay: 'Time Travel Replay',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -107,6 +108,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   report_schedule: 'Report Schedule',
   notification: 'Notification',
   license: 'License',
+  replay: 'Replay Snapshot',
 }
 
 function ActionBadge({ action }: { action: string }) {
@@ -146,6 +148,7 @@ function ActionBadge({ action }: { action: string }) {
     profile_updated: 'bg-primary/10 text-primary',
     lock_roles: 'bg-warning/10 text-warning',
     unlock_roles: 'bg-warning/10 text-warning',
+    replay: 'bg-secondary text-secondary-foreground',
   }
   return (
     <span

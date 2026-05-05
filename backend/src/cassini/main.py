@@ -64,6 +64,7 @@ from cassini.api.v1.material_overrides import router as material_overrides_route
 from cassini.api.v1.providers import router as providers_router
 from cassini.api.v1.retention import router as retention_router
 from cassini.api.v1.rule_presets import router as rule_presets_router
+from cassini.api.v1.replay import router as replay_router
 from cassini.api.v1.report_analytics import router as report_analytics_router
 from cassini.api.v1.scheduled_reports import router as scheduled_reports_router
 from cassini.api.v1.samples import router as samples_router
@@ -603,6 +604,7 @@ app.include_router(license_router)
 app.include_router(audit_router)
 app.include_router(cluster_router)
 app.include_router(explain_router)
+app.include_router(replay_router)
 
 # Commercial routers are registered lazily via activate_commercial_features()
 # when a valid commercial license is present at startup or uploaded at runtime.

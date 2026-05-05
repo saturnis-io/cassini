@@ -144,6 +144,9 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/auth/update-profile"), "auth"),
     (re.compile(r"/api/v1/scheduled-reports(?:/(\d+))?"), "report_schedule"),
     (re.compile(r"/api/v1/reports/analytics(?:/|$)"), "report_analytics"),
+    # Replay endpoint: extract the numeric resource_id (not the type segment)
+    # so audit rows correctly point at the replayed characteristic.
+    (re.compile(r"/api/v1/replay/\w+/(\d+)"), "replay"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -162,6 +165,8 @@ def _parse_resource(path: str) -> tuple[Optional[str], Optional[int]]:
 
 def _method_to_action(method: str, path: str) -> str:
     """Map HTTP method + path to an action string."""
+    if "/replay/" in path:
+        return "replay"
     if "recalculate" in path:
         return "recalculate"
     if "acknowledge" in path:
@@ -334,6 +339,20 @@ async def _resolve_plant_for_resource(
     if resource_type == "retention":
         # PurgeCompletedEvent uses plant_id as resource_id
         return resource_id
+    if resource_type == "replay":
+        # Replay's resource_id is the underlying characteristic id;
+        # resolve through the same path as a characteristic.
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
+
+        row = (
+            await session.execute(
+                sa_select(Hierarchy.plant_id)
+                .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+                .where(Characteristic.id == resource_id)
+            )
+        ).first()
+        return row[0] if row else None
     return None
 
 

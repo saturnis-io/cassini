@@ -26,7 +26,9 @@ import { downloadChartAsPng } from '@/lib/export-utils'
 import { formatDisplayKey } from '@/lib/display-key'
 import { useWebSocketContext } from '@/providers/WebSocketProvider'
 import { useAuth } from '@/providers/AuthProvider'
+import { useLicense } from '@/hooks/useLicense'
 import { canPerformAction } from '@/lib/roles'
+import { ReplayScrubber } from '@/components/replay/ReplayScrubber'
 import { DUAL_CHART_TYPES, recommendChartType } from '@/lib/chart-registry'
 import type { ChartTypeId } from '@/types/charts'
 import { cn } from '@/lib/utils'
@@ -137,6 +139,10 @@ export function OperatorDashboard() {
   const [annotationMode, setAnnotationMode] = useState<'point' | 'period'>('period')
   const [annotationSampleId, setAnnotationSampleId] = useState<number | undefined>(undefined)
   const [annotationSampleLabel, setAnnotationSampleLabel] = useState<string | undefined>(undefined)
+  // Time-travel replay state — Pro+ only. Scrubber/banner remain hidden for
+  // non-Pro tiers via the `useLicense().isProOrAbove` gate at render time.
+  const { isProOrAbove } = useLicense()
+  const [replayAt, setReplayAt] = useState<string | null>(null)
   // Sample Inspector modal state
   const [sampleInspectorOpen, setSampleInspectorOpen] = useState(false)
   const [sampleInspectorSampleId, setSampleInspectorSampleId] = useState<number>(0)
@@ -533,6 +539,15 @@ export function OperatorDashboard() {
           <PinnedChartsView />
         ) : selectedId ? (
             <>
+              {/* ── Time-travel replay (Pro+) ── */}
+              {isProOrAbove && (
+                <ReplayScrubber
+                  characteristicId={selectedId}
+                  value={replayAt}
+                  onChange={setReplayAt}
+                />
+              )}
+
               {/* ── Toolbar ── */}
               <ChartToolbar
                 characteristicId={selectedId}
