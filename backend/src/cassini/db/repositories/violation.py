@@ -143,6 +143,7 @@ class ViolationRepository(BaseRepository[Violation]):
     async def list_violations(
         self,
         plant_id: int | None = None,
+        plant_ids: list[int] | None = None,
         characteristic_id: int | None = None,
         sample_id: int | None = None,
         acknowledged: bool | None = None,
@@ -187,7 +188,7 @@ class ViolationRepository(BaseRepository[Violation]):
 
         # Determine which joins we need
         need_sample_join = start_date is not None or end_date is not None
-        need_plant_join = plant_id is not None
+        need_plant_join = plant_id is not None or plant_ids is not None
 
         # Build base query - load sample and its characteristic for context
         stmt = (
@@ -208,6 +209,11 @@ class ViolationRepository(BaseRepository[Violation]):
         filters = []
         if plant_id is not None:
             filters.append(Hierarchy.plant_id == plant_id)
+        if plant_ids is not None:
+            # Empty access list = user has no plants — return no rows.
+            if not plant_ids:
+                return [], 0
+            filters.append(Hierarchy.plant_id.in_(plant_ids))
         if characteristic_id is not None:
             filters.append(Violation.char_id == characteristic_id)
         if sample_id is not None:

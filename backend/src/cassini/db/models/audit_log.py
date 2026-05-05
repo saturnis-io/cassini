@@ -32,6 +32,7 @@ class AuditLog(Base):
         Index("ix_audit_log_user_id_timestamp", "user_id", "timestamp"),
         Index("ix_audit_log_resource", "resource_type", "resource_id"),
         Index("ix_audit_log_action", "action"),
+        Index("ix_audit_log_plant_id", "plant_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -43,6 +44,16 @@ class AuditLog(Base):
     resource_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     resource_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     resource_display: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    plant_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("plant.id", ondelete="SET NULL"),
+        nullable=True,
+        doc=(
+            "Plant the audited resource belongs to. Required for tenant-scoped "
+            "audit-log queries; nullable for system events that aren't tied to "
+            "a specific plant (logins, license changes, etc.)."
+        ),
+    )
     detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)

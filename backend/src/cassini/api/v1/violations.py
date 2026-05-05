@@ -11,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
     check_plant_role,
+    get_accessible_plant_ids,
     get_alert_manager,
     get_current_user,
     get_db_session,
     get_violation_repo,
     resolve_plant_id_for_characteristic,
+    user_is_global_admin,
 )
 from cassini.db.models.sample import Sample
 from cassini.db.models.user import User
@@ -111,8 +113,19 @@ async def list_violations(
     if page is not None:
         offset = (page - 1) * limit
 
+    # Plant-scoped authorization. Caller may filter to a single plant_id, but
+    # MUST have access to it. Otherwise we constrain to the user's accessible
+    # plants — admins (any plant) skip filtering.
+    is_admin = user_is_global_admin(_user)
+    if plant_id is not None and not is_admin:
+        check_plant_role(_user, plant_id, "operator")
+    accessible: list[int] | None = None
+    if not is_admin and plant_id is None:
+        accessible = list(get_accessible_plant_ids(_user))
+
     violations, total = await repo.list_violations(
         plant_id=plant_id,
+        plant_ids=accessible,
         characteristic_id=characteristic_id,
         sample_id=sample_id,
         acknowledged=acknowledged,
@@ -266,6 +279,7 @@ async def get_reason_codes(
 async def get_violation(
     violation_id: int,
     repo: ViolationRepository = Depends(get_violation_repo),
+    session: AsyncSession = Depends(get_db_session),
     _user: User = Depends(get_current_user),
 ) -> ViolationResponse:
     """Get violation details.
@@ -279,22 +293,8 @@ async def get_violation(
         Violation details
 
     Raises:
-        HTTPException 404: If violation doesn't exist
-
-    Example Response:
-        ```json
-        {
-            "id": 1,
-            "sample_id": 42,
-            "rule_id": 1,
-            "rule_name": "Outlier",
-            "severity": "CRITICAL",
-            "acknowledged": true,
-            "ack_user": "john.doe",
-            "ack_reason": "Tool Change",
-            "ack_timestamp": "2025-01-15T10:30:00Z"
-        }
-        ```
+        HTTPException 404: If violation doesn't exist or caller is not
+            authorized for the violation's plant
     """
     violation = await repo.get_by_id(violation_id)
     if violation is None:
@@ -302,6 +302,22 @@ async def get_violation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Violation {violation_id} not found",
         )
+
+    # Plant-scoped authorization. 404 instead of 403 to avoid leaking that the
+    # violation exists at another plant.
+    char_id = violation.char_id
+    if char_id is None:
+        char_id = (await session.execute(
+            select(Sample.char_id).where(Sample.id == violation.sample_id)
+        )).scalar_one_or_none()
+    if char_id is not None and not user_is_global_admin(_user):
+        plant_id = await resolve_plant_id_for_characteristic(char_id, session)
+        if plant_id not in get_accessible_plant_ids(_user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Violation {violation_id} not found",
+            )
+
     return ViolationResponse.model_validate(violation)
 
 

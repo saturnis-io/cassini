@@ -17,12 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cassini.api.deps import (
     check_plant_role,
+    get_accessible_plant_ids,
     get_characteristic_repo as get_char_repo,
     get_current_user,
     get_db_session,
     get_sample_repo,
     get_violation_repo,
     resolve_plant_id_for_characteristic,
+    resolve_plant_id_for_sample,
+    user_is_global_admin,
 )
 from cassini.db.models.user import User
 from cassini.api.schemas.common import PaginatedResponse, PaginationParams
@@ -180,12 +183,32 @@ async def list_samples(
     # Build base query with filters pushed to SQL
     from sqlalchemy import func as sa_func, select
     from sqlalchemy.orm import selectinload
+    from cassini.db.models.characteristic import Characteristic as _Characteristic
+    from cassini.db.models.hierarchy import Hierarchy as _Hierarchy
     from cassini.db.models.sample import Sample
 
     base_stmt = select(Sample)
 
+    # Plant-scoped filtering: a non-admin user must only see samples for plants
+    # they have a role at. Admins (any plant) see all plants. If the caller
+    # filters by characteristic_id, that endpoint already implies a single
+    # plant — verify access explicitly to avoid leaking other plants' data.
     if characteristic_id is not None:
+        plant_id = await resolve_plant_id_for_characteristic(
+            characteristic_id, sample_repo.session
+        )
+        check_plant_role(_user, plant_id, "operator")
         base_stmt = base_stmt.where(Sample.char_id == characteristic_id)
+    elif not user_is_global_admin(_user):
+        accessible = get_accessible_plant_ids(_user)
+        if not accessible:
+            return PaginatedResponse(items=[], total=0, offset=offset, limit=limit)
+        base_stmt = (
+            base_stmt
+            .join(_Characteristic, Sample.char_id == _Characteristic.id)
+            .join(_Hierarchy, _Characteristic.hierarchy_id == _Hierarchy.id)
+            .where(_Hierarchy.plant_id.in_(accessible))
+        )
     if start_date is not None:
         base_stmt = base_stmt.where(Sample.timestamp >= start_date)
     if end_date is not None:
@@ -529,6 +552,18 @@ async def get_sample(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Sample {sample_id} not found",
         )
+
+    # Plant-scoped authorization. Use 404 (not 403) for cross-plant access so
+    # we do not reveal that the sample exists in some other plant.
+    plant_id = await resolve_plant_id_for_characteristic(
+        sample.char_id, sample_repo.session
+    )
+    if not user_is_global_admin(_user):
+        if plant_id not in get_accessible_plant_ids(_user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
 
     # Calculate statistics
     measurements = [m.value for m in sample.measurements]
@@ -1059,6 +1094,16 @@ async def get_sample_edit_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Sample {sample_id} not found",
         )
+
+    # Plant-scoped authorization. 404 instead of 403 to avoid leaking that the
+    # sample exists at another plant.
+    plant_id = await resolve_plant_id_for_characteristic(sample.char_id, session)
+    if not user_is_global_admin(_user):
+        if plant_id not in get_accessible_plant_ids(_user):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Sample {sample_id} not found",
+            )
 
     # Query edit history
     from sqlalchemy import select

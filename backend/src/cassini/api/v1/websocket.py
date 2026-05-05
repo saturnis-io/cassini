@@ -39,6 +39,32 @@ class WSConnection:
     last_heartbeat: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+async def _user_ids_with_plant_access(plant_id: int) -> set[int]:
+    """Return user IDs that have any role at the given plant.
+
+    Used to restrict ``broadcast_to_all`` so cross-plant subscribers don't
+    receive events tied to a specific plant (e.g. ack_update). On lookup
+    failure returns an empty set rather than raising — this is best-effort
+    fan-out and we prefer dropping a notification over leaking it.
+    """
+    from cassini.db.database import get_database
+    from cassini.db.models.user import UserPlantRole
+    from sqlalchemy import select as sa_select
+
+    try:
+        db = get_database()
+        async with db.session() as session:
+            rows = await session.execute(
+                sa_select(UserPlantRole.user_id).where(
+                    UserPlantRole.plant_id == plant_id
+                )
+            )
+            return {row[0] for row in rows.all()}
+    except Exception:
+        logger.warning("ws_plant_user_lookup_failed", plant_id=plant_id)
+        return set()
+
+
 class ConnectionManager:
     """Manages WebSocket connections and subscriptions.
 
@@ -200,16 +226,31 @@ class ConnectionManager:
         for conn_id in dead_connections:
             await self.disconnect(conn_id)
 
-    async def broadcast_to_all(self, message: dict[str, Any]) -> None:
+    async def broadcast_to_all(
+        self, message: dict[str, Any], plant_id: int | None = None
+    ) -> None:
         """Send a message to all connected clients.
+
+        When ``plant_id`` is provided, only connections whose user has any role
+        at that plant receive the message — this prevents cross-plant fan-out
+        for events that aren't tied to a specific characteristic subscription
+        (e.g. ack_update).
 
         Dead connections are automatically disconnected and cleaned up.
 
         Args:
             message: Message dictionary to send as JSON
+            plant_id: If set, restrict delivery to subscribers with role at this plant.
         """
+        allowed_user_ids: set[int] | None = None
+        if plant_id is not None:
+            allowed_user_ids = await _user_ids_with_plant_access(plant_id)
+
         dead_connections = []
         for conn_id, conn in self._connections.items():
+            if allowed_user_ids is not None:
+                if conn.user_id is None or conn.user_id not in allowed_user_ids:
+                    continue
             try:
                 await conn.websocket.send_json(message)
             except Exception:

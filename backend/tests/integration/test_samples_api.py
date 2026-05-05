@@ -160,7 +160,12 @@ def mock_user() -> MagicMock:
 
 @pytest.fixture(autouse=True)
 def _bypass_plant_auth():
-    """Bypass plant-scoped authorization for integration tests."""
+    """Bypass plant-scoped authorization for integration tests.
+
+    Also stubs out the multi-tenant helpers introduced for IDOR fixes — these
+    tests call endpoint functions directly without injecting a real user, so
+    the helpers must short-circuit to admin-everywhere semantics.
+    """
     with (
         patch(
             "cassini.api.v1.samples.resolve_plant_id_for_characteristic",
@@ -168,6 +173,8 @@ def _bypass_plant_auth():
             return_value=1,
         ),
         patch("cassini.api.v1.samples.check_plant_role"),
+        patch("cassini.api.v1.samples.user_is_global_admin", return_value=True),
+        patch("cassini.api.v1.samples.get_accessible_plant_ids", return_value={1}),
     ):
         yield
 

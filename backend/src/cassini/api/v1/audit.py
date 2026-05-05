@@ -14,7 +14,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cassini.api.deps import get_current_admin, get_db_session
+from cassini.api.deps import (
+    get_admin_plant_ids,
+    get_current_admin,
+    get_db_session,
+)
 from cassini.api.schemas.audit import (
     AuditIntegrityResult,
     AuditLogEntry,
@@ -124,8 +128,15 @@ def _build_audit_query(
     resource_type: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    plant_ids: Optional[list[int]] = None,
 ):
-    """Build a filtered SELECT for audit_log rows."""
+    """Build a filtered SELECT for audit_log rows.
+
+    ``plant_ids`` is a tenant-scoping allow-list. When provided, rows are
+    constrained to either a matching ``plant_id`` OR ``plant_id IS NULL``
+    (system-level events such as logins are not plant-scoped and remain
+    visible). Pass ``None`` to disable plant filtering (admin-everywhere).
+    """
     stmt = select(AuditLog)
     if user_id is not None:
         stmt = stmt.where(AuditLog.user_id == user_id)
@@ -137,6 +148,19 @@ def _build_audit_query(
         stmt = stmt.where(AuditLog.timestamp >= start_date)
     if end_date is not None:
         stmt = stmt.where(AuditLog.timestamp <= end_date)
+    if plant_ids is not None:
+        from sqlalchemy import or_
+
+        if not plant_ids:
+            # Caller has no plants: only see plant-agnostic system rows.
+            stmt = stmt.where(AuditLog.plant_id.is_(None))
+        else:
+            stmt = stmt.where(
+                or_(
+                    AuditLog.plant_id.in_(plant_ids),
+                    AuditLog.plant_id.is_(None),
+                )
+            )
     return stmt
 
 
@@ -154,8 +178,16 @@ async def list_audit_logs(
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
 ) -> AuditLogListResponse:
-    """List audit log entries with optional filtering and pagination. Admin-only."""
-    base = _build_audit_query(user_id, action, resource_type, start_date, end_date)
+    """List audit log entries with optional filtering and pagination. Admin-only.
+
+    Plant-scoped: results are constrained to plants the caller is *admin* at
+    (plus plant-agnostic system rows like login events). Cross-plant audit
+    access requires an explicit admin role at each target plant.
+    """
+    plant_ids = list(get_admin_plant_ids(_admin))
+    base = _build_audit_query(
+        user_id, action, resource_type, start_date, end_date, plant_ids=plant_ids
+    )
 
     # Count total matching
     count_stmt = select(func.count()).select_from(base.subquery())
@@ -270,8 +302,14 @@ async def export_audit_logs(
     session: AsyncSession = Depends(get_db_session),
     _admin: User = Depends(get_current_admin),
 ) -> StreamingResponse:
-    """Export audit log entries as CSV. Admin-only. Same filters as list endpoint."""
-    base = _build_audit_query(user_id, action, resource_type, start_date, end_date)
+    """Export audit log entries as CSV. Admin-only. Same filters as list endpoint.
+
+    Plant-scoped to plants the caller is admin at (plus plant-agnostic rows).
+    """
+    plant_ids = list(get_admin_plant_ids(_admin))
+    base = _build_audit_query(
+        user_id, action, resource_type, start_date, end_date, plant_ids=plant_ids
+    )
     stmt = base.order_by(AuditLog.timestamp.desc()).limit(limit)
     rows = (await session.execute(stmt)).scalars().all()
 

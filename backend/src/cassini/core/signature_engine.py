@@ -449,6 +449,18 @@ class SignatureWorkflowEngine:
                 detail="Workflow instance not found",
             )
 
+        # Tenant isolation: the caller's claimed plant_id MUST match the
+        # workflow's plant. Without this check a caller with role at Plant A
+        # could pass plant_id=A while signing a workflow created for Plant B,
+        # because the role check below uses the *claimed* plant. Treat
+        # mismatch as 404 to avoid revealing that the workflow exists at
+        # another plant.
+        if instance.workflow.plant_id != plant_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow instance not found",
+            )
+
         if instance.status not in ("pending", "in_progress"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

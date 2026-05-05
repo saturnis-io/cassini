@@ -239,6 +239,88 @@ def _sanitize_body(body: dict) -> dict:
     return {k: v for k, v in body.items() if k.lower() not in _SENSITIVE_KEYS}
 
 
+async def _resolve_plant_for_resource(
+    session, resource_type: str, resource_id: int
+) -> Optional[int]:
+    """Best-effort plant_id lookup for an audit-row's resource pair.
+
+    Returns ``None`` for resources that are not plant-scoped (logins, license,
+    cluster operations, etc.) or when the lookup fails. Callers must tolerate
+    a NULL result.
+    """
+    from sqlalchemy import select as sa_select
+
+    if resource_type == "plant":
+        return resource_id
+    if resource_type == "characteristic":
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
+
+        row = (
+            await session.execute(
+                sa_select(Hierarchy.plant_id)
+                .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+                .where(Characteristic.id == resource_id)
+            )
+        ).first()
+        return row[0] if row else None
+    if resource_type == "sample":
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
+        from cassini.db.models.sample import Sample
+
+        row = (
+            await session.execute(
+                sa_select(Hierarchy.plant_id)
+                .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+                .join(Sample, Sample.char_id == Characteristic.id)
+                .where(Sample.id == resource_id)
+            )
+        ).first()
+        return row[0] if row else None
+    if resource_type == "violation":
+        from cassini.db.models.characteristic import Characteristic
+        from cassini.db.models.hierarchy import Hierarchy
+        from cassini.db.models.violation import Violation
+
+        row = (
+            await session.execute(
+                sa_select(Hierarchy.plant_id)
+                .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
+                .join(Violation, Violation.char_id == Characteristic.id)
+                .where(Violation.id == resource_id)
+            )
+        ).first()
+        return row[0] if row else None
+    if resource_type == "hierarchy":
+        from cassini.db.models.hierarchy import Hierarchy
+
+        # Walk to root to find plant_id (parent chain may have it set on a
+        # mid-level node rather than the leaf).
+        current_id: Optional[int] = resource_id
+        # Bound the walk to avoid infinite loops on bad data.
+        for _ in range(50):
+            if current_id is None:
+                break
+            row = (
+                await session.execute(
+                    sa_select(Hierarchy.plant_id, Hierarchy.parent_id).where(
+                        Hierarchy.id == current_id
+                    )
+                )
+            ).first()
+            if row is None:
+                return None
+            if row[0] is not None:
+                return row[0]
+            current_id = row[1]
+        return None
+    if resource_type == "retention":
+        # PurgeCompletedEvent uses plant_id as resource_id
+        return resource_id
+    return None
+
+
 class AuditService:
     """Central audit logging service.
 
@@ -287,12 +369,17 @@ class AuditService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         resource_display: Optional[str] = None,
+        plant_id: Optional[int] = None,
     ) -> None:
         """Create an audit log entry.
 
         If *resource_display* is not supplied but *resource_type* and
         *resource_id* are present, the display name is resolved at write
         time so it survives resource deletion.
+
+        If ``plant_id`` is not supplied it is best-effort resolved from the
+        resource (characteristic/sample/violation/plant/hierarchy) so audit
+        list/export queries can scope to the caller's accessible plants.
         """
         try:
             async with self._session_factory() as session:
@@ -317,6 +404,20 @@ class AuditService:
                             resource_id=resource_id,
                         )
 
+                # Resolve plant_id when not supplied. Best-effort — a failure
+                # leaves plant_id NULL, which still preserves the audit row.
+                if plant_id is None and resource_type and resource_id:
+                    try:
+                        plant_id = await _resolve_plant_for_resource(
+                            session, resource_type, resource_id
+                        )
+                    except Exception:
+                        logger.debug(
+                            "audit_plant_resolve_failed",
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                        )
+
                 from datetime import datetime, timezone
 
                 # Retry loop: on IntegrityError (duplicate sequence_number from
@@ -335,6 +436,7 @@ class AuditService:
                             resource_type=resource_type,
                             resource_id=resource_id,
                             resource_display=resource_display,
+                            plant_id=plant_id,
                             detail=detail,
                             ip_address=ip_address,
                             user_agent=user_agent,
