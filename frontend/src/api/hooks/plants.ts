@@ -5,11 +5,18 @@ import { queryKeys } from './queryKeys'
 import { handleMutationError } from './utils'
 import type { PlantCreate, PlantUpdate } from '@/types'
 
+/**
+ * Plants list is stable — admins create/disable plants infrequently.
+ * Bump staleTime above the 10s global default to avoid focus-driven refetches.
+ */
+const PLANTS_STALE_TIME_MS = 60_000
+
 // Plant hooks
 export function usePlants(activeOnly?: boolean) {
   return useQuery({
     queryKey: queryKeys.plants.list(activeOnly),
     queryFn: () => plantApi.list(activeOnly),
+    staleTime: PLANTS_STALE_TIME_MS,
   })
 }
 
@@ -18,6 +25,7 @@ export function usePlant(id: number) {
     queryKey: queryKeys.plants.detail(id),
     queryFn: () => plantApi.get(id),
     enabled: id > 0,
+    staleTime: PLANTS_STALE_TIME_MS,
   })
 }
 

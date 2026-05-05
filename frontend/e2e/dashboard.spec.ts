@@ -228,4 +228,51 @@ test.describe('Dashboard', () => {
       contentType: 'image/png',
     })
   })
+
+  // ------------------------------------------------------------------
+  // Perf regression: ControlChart must NOT poll chart-data when WS is
+  // delivering live updates. Defaults would refetch every 30s; with WS
+  // connected, refetchInterval is set to false so we expect zero
+  // periodic chart-data requests over a 35s window.
+  // ------------------------------------------------------------------
+  test('ControlChart does not poll chart-data when WebSocket is connected', async ({ page }) => {
+    // Track every /chart-data network call
+    const chartDataRequests: { url: string; t: number }[] = []
+    page.on('request', (req) => {
+      const url = req.url()
+      if (url.includes('/chart-data')) {
+        chartDataRequests.push({ url, t: Date.now() })
+      }
+    })
+
+    await selectTestChar(page)
+    // Wait for chart canvas + initial chart-data fetch to settle
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+    await page.waitForTimeout(2000)
+
+    // Verify the WebSocket actually connected — gating the assertion below
+    const wsConnected = await page.evaluate(() => {
+      return performance
+        .getEntriesByType('resource')
+        .some((r) => r.name.includes('ws://') || r.name.includes('wss://'))
+    })
+    expect(wsConnected).toBeTruthy()
+
+    // Take a snapshot of request count after the initial load.
+    const initialCount = chartDataRequests.length
+    expect(initialCount).toBeGreaterThan(0) // initial fetch must happen
+
+    // Watch for 35s — longer than the 30s default refetch interval. If
+    // polling were still on we'd see at least one extra request in this
+    // window. With WS connected, none should occur.
+    await page.waitForTimeout(35_000)
+
+    const periodicRequests = chartDataRequests.slice(initialCount)
+    // Filter out user-driven mutations (which trigger invalidation refetches);
+    // we did nothing here so any request would be a polling refetch.
+    expect(
+      periodicRequests,
+      `Expected no chart-data polling while WS is connected, but saw ${periodicRequests.length} requests`,
+    ).toHaveLength(0)
+  })
 })
