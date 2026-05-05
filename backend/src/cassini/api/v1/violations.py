@@ -399,10 +399,15 @@ async def acknowledge_violation(
                 detail="supervisor or higher privileges required",
             )
 
+    # 21 CFR Part 11 §11.50: attribution MUST come from the authenticated
+    # principal, never from the request body. Operator Alice cannot
+    # acknowledge as supervisor Bob.
+    acknowledging_user = _user.username
+
     try:
         violation = await manager.acknowledge(
             violation_id=violation_id,
-            user=data.user,
+            user=acknowledging_user,
             reason=data.reason,
             exclude_sample=data.exclude_sample,
         )
@@ -412,7 +417,7 @@ async def acknowledge_violation(
 
         await event_bus.publish(ViolationAcknowledgedEvent(
             violation_id=violation_id,
-            user=data.user,
+            user=acknowledging_user,
             reason=data.reason,
         ))
 
@@ -423,7 +428,7 @@ async def acknowledge_violation(
             "summary": f"Violation #{violation_id} acknowledged — {data.reason}",
             "fields": {
                 "reason": data.reason,
-                "acknowledged_by": data.user,
+                "acknowledged_by": acknowledging_user,
                 "exclude_sample": data.exclude_sample,
                 "rule_id": violation_obj.rule_id,
                 "rule_name": violation_obj.rule_name,
@@ -475,11 +480,15 @@ async def batch_acknowledge(
         ```json
         {
             "violation_ids": [1, 2, 3],
-            "user": "john.doe",
             "reason": "Tool Change",
             "exclude_sample": false
         }
         ```
+
+    Note:
+        The acknowledging user is derived from the authenticated principal
+        (21 CFR Part 11 §11.50). Any "user" field in the request body is
+        ignored and rejected by the schema.
 
     Example Response:
         ```json
@@ -507,6 +516,10 @@ async def batch_acknowledge(
         }
         ```
     """
+    # 21 CFR Part 11 §11.50: attribution MUST come from the authenticated
+    # principal, never from the request body.
+    acknowledging_user = _user.username
+
     results: list[AcknowledgeResultItem] = []
     successful = 0
     failed = 0
@@ -529,7 +542,7 @@ async def batch_acknowledge(
 
             await manager.acknowledge(
                 violation_id=violation_id,
-                user=body.user,
+                user=acknowledging_user,
                 reason=body.reason,
                 exclude_sample=body.exclude_sample,
             )
@@ -574,7 +587,7 @@ async def batch_acknowledge(
             "violation_ids": body.violation_ids,
             "count": successful,
             "reason": body.reason,
-            "acknowledged_by": body.user,
+            "acknowledged_by": acknowledging_user,
             "failed": failed,
         },
     }

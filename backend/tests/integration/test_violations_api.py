@@ -417,7 +417,6 @@ async def test_acknowledge_violation(
     violation_id = sample_data["violations"][0].id
 
     data = ViolationAcknowledge(
-        user="test_user",
         reason="Tool Change",
         exclude_sample=False,
     )
@@ -434,6 +433,7 @@ async def test_acknowledge_violation(
 
     assert result.id == violation_id
     assert result.acknowledged
+    # ack_user comes from the authenticated principal, not the body
     assert result.ack_user == "test_user"
     assert result.ack_reason == "Tool Change"
     assert result.ack_timestamp is not None
@@ -452,7 +452,6 @@ async def test_acknowledge_violation_with_exclude(
     sample_id = sample_data["samples"][0].id
 
     data = ViolationAcknowledge(
-        user="test_user",
         reason="Measurement Error",
         exclude_sample=True,
     )
@@ -484,7 +483,6 @@ async def test_acknowledge_violation_not_found(
     manager = AlertManager(violation_repo, sample_repo)
 
     data = ViolationAcknowledge(
-        user="test_user",
         reason="Tool Change",
         exclude_sample=False,
     )
@@ -511,7 +509,6 @@ async def test_acknowledge_violation_already_acknowledged(
     violation_id = sample_data["violations"][2].id  # Already acknowledged
 
     data = ViolationAcknowledge(
-        user="test_user",
         reason="Tool Change",
         exclude_sample=False,
     )
@@ -543,7 +540,6 @@ async def test_batch_acknowledge_success(
             sample_data["violations"][1].id,
             sample_data["violations"][3].id,
         ],
-        user="batch_user",
         reason="Process Adjustment",
         exclude_sample=False,
     )
@@ -577,7 +573,6 @@ async def test_batch_acknowledge_partial_success(
             sample_data["violations"][3].id,
             9999,  # Non-existent
         ],
-        user="batch_user",
         reason="Process Adjustment",
         exclude_sample=False,
     )
@@ -617,7 +612,6 @@ async def test_batch_acknowledge_with_exclude(
             sample_data["violations"][0].id,
             sample_data["violations"][1].id,
         ],
-        user="batch_user",
         reason="Measurement Error",
         exclude_sample=True,
     )

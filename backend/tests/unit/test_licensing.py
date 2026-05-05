@@ -237,14 +237,16 @@ class TestInstanceId:
         }
 
     def test_data_dir_property_returns_correct_path(self):
-        """_data_dir should resolve to the backend data/ directory."""
+        """_data_dir should resolve to the backend data/ directory.
+
+        The path is now resolved via cassini.core.config.get_data_dir, but
+        the default location remains the same: <backend>/data.
+        """
         svc = LicenseService(license_path=None, public_key=b"unused")
-        expected = Path(__file__).resolve().parent.parent.parent / "src" / "cassini" / "core"
-        # _data_dir is 4 parents up from licensing.py, then / "data"
-        # licensing.py is at src/cassini/core/licensing.py
-        # 4 parents up = backend/, then / "data" = backend/data
-        from cassini.core import licensing
-        expected = Path(licensing.__file__).resolve().parent.parent.parent.parent / "data"
+        # Default: <backend>/data — same path the legacy literal used.
+        from cassini.core import config
+
+        expected = Path(config.__file__).resolve().parent.parent.parent.parent / "data"
         assert svc._data_dir == expected
 
     def test_instance_id_none_before_license_loaded(self):
@@ -422,19 +424,26 @@ class TestActivationFile:
         }
 
     def test_activation_file_structure(self, make_license, valid_claims, patch_data_dir):
-        """Activation file should contain correct type, version, licenseId, instanceId, timestamp."""
+        """Activation file should contain correct type, version, licenseId, instanceId, timestamp.
+
+        Files are now Ed25519-signed (version >= 2) per 21 CFR Part 11 §11.10(e).
+        """
         path, pub = make_license(valid_claims)
         svc = LicenseService(license_path=str(path), public_key=pub)
 
         result = svc.generate_activation_file()
 
         assert result["type"] == "cassini-activation"
-        assert result["version"] == 1
+        assert result["version"] >= 2
         assert result["licenseId"] == "acme-corp"
         assert result["instanceId"] == svc.instance_id
         assert "timestamp" in result
         # Verify timestamp is valid ISO format
         datetime.fromisoformat(result["timestamp"])
+        # Signed envelope fields
+        assert result["signatureAlgorithm"] == "Ed25519"
+        assert "signature" in result and result["signature"]
+        assert "publicKey" in result and "BEGIN PUBLIC KEY" in result["publicKey"]
 
     def test_activation_file_raises_for_community(self):
         """Activation file generation should raise ValueError for community edition."""
@@ -467,7 +476,10 @@ class TestActivationFile:
             svc.generate_activation_file()
 
     def test_deactivation_file_structure(self, make_license, valid_claims, patch_data_dir):
-        """Deactivation file should contain correct type, version, licenseId, instanceId, timestamp."""
+        """Deactivation file should contain correct type, version, licenseId, instanceId, timestamp.
+
+        Files are now Ed25519-signed (version >= 2) per 21 CFR Part 11 §11.10(e).
+        """
         path, pub = make_license(valid_claims)
         svc = LicenseService(license_path=str(path), public_key=pub)
 
@@ -475,11 +487,15 @@ class TestActivationFile:
 
         assert result is not None
         assert result["type"] == "cassini-deactivation"
-        assert result["version"] == 1
+        assert result["version"] >= 2
         assert result["licenseId"] == "acme-corp"
         assert result["instanceId"] == svc.instance_id
         assert "timestamp" in result
         datetime.fromisoformat(result["timestamp"])
+        # Signed envelope fields
+        assert result["signatureAlgorithm"] == "Ed25519"
+        assert "signature" in result and result["signature"]
+        assert "publicKey" in result and "BEGIN PUBLIC KEY" in result["publicKey"]
 
     def test_deactivation_file_none_for_community(self):
         """Deactivation file should return None for community edition (not valid)."""

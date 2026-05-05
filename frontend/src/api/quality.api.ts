@@ -66,7 +66,9 @@ export const violationApi = {
     return fetchApi<ViolationStats>(`/violations/stats${query ? `?${query}` : ''}`)
   },
 
-  acknowledge: (id: number, data: { reason: string; user: string }) =>
+  // 21 CFR Part 11 §11.50: server derives the acknowledging user from the
+  // authenticated principal. Do NOT pass `user` here — backend rejects extras.
+  acknowledge: (id: number, data: { reason: string; exclude_sample?: boolean }) =>
     fetchApi<Violation>(`/violations/${id}/acknowledge`, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -75,7 +77,6 @@ export const violationApi = {
   batchAcknowledge: (data: {
     violation_ids: number[]
     reason: string
-    user: string
     exclude_sample?: boolean
   }) =>
     fetchApi<{

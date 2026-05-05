@@ -25,12 +25,22 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   return fetchApi<LicenseStatus>('/license/status')
 }
 
+/**
+ * Signed activation/deactivation envelope (21 CFR Part 11 §11.10(e)).
+ *
+ * `version` is bumped to 2 when the file is signed. The portal MUST reject
+ * version<2 envelopes as legacy unsigned and re-issue from the new client.
+ */
 export interface ActivationFile {
   type: 'cassini-activation' | 'cassini-deactivation'
   version: number
   licenseId: string
   instanceId: string
   timestamp: string
+  // Signature envelope (v2+)
+  signature: string
+  publicKey: string
+  signatureAlgorithm: string
 }
 
 export interface LicenseRemoveResponse {

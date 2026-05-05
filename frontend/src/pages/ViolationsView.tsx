@@ -262,7 +262,9 @@ export function ViolationsView() {
       {
         id: ackViolationId,
         reason: ackReason.trim(),
-        user: user?.username ?? 'Unknown',
+        // Optimistic UI only — server derives actual ack_user from the
+        // authenticated principal (21 CFR Part 11 §11.50).
+        optimisticUser: user?.username ?? 'Unknown',
       },
       {
         onSuccess: () => {

@@ -49,13 +49,19 @@ class ViolationResponse(BaseModel):
 class ViolationAcknowledge(BaseModel):
     """Schema for acknowledging a violation.
 
+    Note: The acknowledging user is derived from the authenticated principal
+    server-side. 21 CFR Part 11 §11.50 requires that signed records include
+    the actual identity of the signer, never a body-supplied value.
+    Extra fields are forbidden so a forged "user" field is rejected with 422
+    rather than silently ignored.
+
     Attributes:
-        user: User acknowledging the violation
         reason: Explanation for the violation or corrective action taken
         exclude_sample: Whether to also exclude the sample from control calculations
     """
 
-    user: str = Field(..., min_length=1, description="User acknowledging the violation")
+    model_config = ConfigDict(extra="forbid")
+
     reason: str = Field(..., min_length=1, description="Reason or corrective action")
     exclude_sample: bool = Field(
         default=False,
@@ -109,15 +115,21 @@ class AcknowledgeResultItem(BaseModel):
 class BatchAcknowledgeRequest(BaseModel):
     """Schema for batch acknowledgment request.
 
+    Note: The acknowledging user is derived from the authenticated principal
+    server-side. 21 CFR Part 11 §11.50 requires that signed records include
+    the actual identity of the signer, never a body-supplied value.
+    Extra fields are forbidden so a forged "user" field is rejected with 422
+    rather than silently ignored.
+
     Attributes:
         violation_ids: List of violation IDs to acknowledge
-        user: User acknowledging the violations
         reason: Reason for acknowledgment
         exclude_sample: Whether to exclude associated samples
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     violation_ids: list[int] = Field(..., min_length=1)
-    user: str = Field(..., min_length=1)
     reason: str = Field(..., min_length=1)
     exclude_sample: bool = Field(default=False)
 
