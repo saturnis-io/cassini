@@ -16,8 +16,7 @@ const BACKEND_URL_MAP: Record<DbDialect, string> = {
   mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test',
 }
 
-/** Alembic migration URLs (async drivers — env.py uses async_engine_from_config).
- *  For the PG seed script (psycopg2), we derive a sync URL at call-site. */
+/** Alembic migration URLs (async drivers — env.py uses async_engine_from_config). */
 const ALEMBIC_URL_MAP: Record<DbDialect, string> = {
   postgresql:
     'postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test',
@@ -25,11 +24,13 @@ const ALEMBIC_URL_MAP: Record<DbDialect, string> = {
   mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes',
 }
 
-/** Sync driver URL for seeding scripts (psycopg2, pymysql, pyodbc). */
+/** URLs passed to the unified seed script. The seed script accepts any
+ *  SQLAlchemy URL (sync or async driver) and converts internally. We use
+ *  the same async URLs as the backend to avoid divergence. */
 const SEED_URL_MAP: Record<DbDialect, string> = {
-  postgresql: 'postgresql://cassini:cassini@localhost:5432/cassini_test',
-  mysql: 'mysql://cassini:cassini@localhost:3306/cassini_test',
-  mssql: 'mssql+pyodbc://sa:CassiniTest1!@localhost:1433/cassini_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes',
+  postgresql: 'postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test',
+  mysql: 'mysql+aiomysql://cassini:cassini@localhost:3306/cassini_test',
+  mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes',
 }
 
 /** Python one-liner connectivity checks per dialect. */
@@ -78,11 +79,12 @@ function setupSQLite() {
   }
   console.log(`[global-setup] Migrations complete (${fs.statSync(TEST_DB).size} bytes)`)
 
-  // Seed test data directly into SQLite (no API calls, no throttling)
-  console.log('[global-setup] Seeding test data...')
+  // Seed test data via the dialect-agnostic unified seed script.
+  console.log('[global-setup] Seeding test data via unified seed...')
+  const sqliteUrl = `sqlite+aiosqlite:///${TEST_DB.replace(/\\/g, '/')}`
   try {
     const output = execSync(
-      `python scripts/seed_e2e.py --db "${TEST_DB}" --manifest "${MANIFEST}"`,
+      `python scripts/seed_e2e_unified.py --db-url "${sqliteUrl}" --manifest "${MANIFEST}"`,
       {
         cwd: BACKEND_DIR,
         env: { ...process.env },
@@ -162,34 +164,26 @@ function setupExternalDb(dialect: DbDialect) {
     throw err
   }
 
-  // Step 3: Seed test data
-  if (dialect === 'postgresql') {
-    const seedUrl = SEED_URL_MAP[dialect]
-    console.log(`[global-setup] Seeding ${dialect} via seed_e2e_pg.py...`)
-    try {
-      const output = execSync(
-        `python scripts/seed_e2e_pg.py --url "${seedUrl}" --manifest "${MANIFEST}"`,
-        {
-          cwd: BACKEND_DIR,
-          env: { ...process.env },
-          stdio: 'pipe',
-          timeout: 60000,
-        },
-      )
-      console.log(`[global-setup] ${output.toString().trim()}`)
-    } catch (err: unknown) {
-      const error = err as { stderr?: Buffer; stdout?: Buffer }
-      console.error(`[global-setup] PG Seed FAILED!`)
-      console.error(`stderr: ${error.stderr?.toString()}`)
-      console.error(`stdout: ${error.stdout?.toString()}`)
-      throw err
-    }
-  } else {
-    console.warn(
-      `[global-setup] WARNING: Skipping seed for ${dialect} — ` +
-        `seed script not yet available for this dialect. ` +
-        `Only SQLite and PostgreSQL are currently supported.`,
+  // Step 3: Seed test data via the dialect-agnostic unified seed script.
+  const seedUrl = SEED_URL_MAP[dialect]
+  console.log(`[global-setup] Seeding ${dialect} via seed_e2e_unified.py...`)
+  try {
+    const output = execSync(
+      `python scripts/seed_e2e_unified.py --db-url "${seedUrl}" --manifest "${MANIFEST}"`,
+      {
+        cwd: BACKEND_DIR,
+        env: { ...process.env },
+        stdio: 'pipe',
+        timeout: 120000,
+      },
     )
+    console.log(`[global-setup] ${output.toString().trim()}`)
+  } catch (err: unknown) {
+    const error = err as { stderr?: Buffer; stdout?: Buffer }
+    console.error(`[global-setup] ${dialect} seed FAILED!`)
+    console.error(`stderr: ${error.stderr?.toString()}`)
+    console.error(`stdout: ${error.stdout?.toString()}`)
+    throw err
   }
 
   console.log(`[global-setup] Setup complete for ${dialect}`)
