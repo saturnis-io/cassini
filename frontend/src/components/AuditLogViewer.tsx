@@ -66,6 +66,10 @@ const ACTION_LABELS: Record<string, string> = {
   create_delta: 'Create Delta',
   replay: 'Time Travel Replay',
   lakehouse_export: 'Lakehouse Export',
+  match: 'Match',
+  enable: 'Enable',
+  disable: 'Disable',
+  validate: 'Validate',
 }
 
 const RESOURCE_LABELS: Record<string, string> = {
@@ -111,6 +115,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   license: 'License',
   replay: 'Replay Snapshot',
   lakehouse: 'Lakehouse',
+  cep_rule: 'CEP Rule',
 }
 
 function ActionBadge({ action }: { action: string }) {

@@ -148,6 +148,8 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     # so audit rows correctly point at the replayed characteristic.
     (re.compile(r"/api/v1/replay/\w+/(\d+)"), "replay"),
     (re.compile(r"/api/v1/lakehouse/[\w-]+"), "lakehouse"),
+    (re.compile(r"/api/v1/cep_rules/validate"), "cep_rule"),
+    (re.compile(r"/api/v1/cep_rules(?:/(\d+))?"), "cep_rule"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -228,6 +230,8 @@ def _method_to_action(method: str, path: str) -> str:
         return "unlock"
     if "/cusum-reset" in path:
         return "reset"
+    if "cep_rules/validate" in path:
+        return "validate"
     if "/forecast" in path:
         return "forecast"
     if "/test" in path:
@@ -340,6 +344,7 @@ async def _resolve_plant_for_resource(
     if resource_type == "retention":
         # PurgeCompletedEvent uses plant_id as resource_id
         return resource_id
+<<<<<<< HEAD
     if resource_type == "replay":
         # Replay's resource_id is the underlying characteristic id;
         # resolve through the same path as a characteristic.
@@ -351,6 +356,14 @@ async def _resolve_plant_for_resource(
                 sa_select(Hierarchy.plant_id)
                 .join(Characteristic, Characteristic.hierarchy_id == Hierarchy.id)
                 .where(Characteristic.id == resource_id)
+=======
+    if resource_type == "cep_rule":
+        from cassini.db.models.cep_rule import CepRule
+
+        row = (
+            await session.execute(
+                sa_select(CepRule.plant_id).where(CepRule.id == resource_id)
+>>>>>>> feat/streaming-cep-rules
             )
         ).first()
         return row[0] if row else None

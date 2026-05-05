@@ -55,6 +55,7 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   '/msa': 'engineer',
   '/fai': 'engineer',
   '/analytics': 'engineer',
+  '/cep-rules': 'engineer',
   '/doe': 'engineer',
   '/lakehouse': 'engineer',
 

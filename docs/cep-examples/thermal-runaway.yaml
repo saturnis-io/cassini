@@ -1,0 +1,23 @@
+# Thermal runaway — coolant temperature climbing while diameter grows.
+#
+# Tooling on metal-cutting stations expands as it heats. When coolant
+# temperature trends increasing AND the cut diameter trends increasing
+# simultaneously, the operator should pause the line for a coolant
+# inspection rather than chasing per-part tool offsets.
+
+name: thermal-runaway
+description: Coolant temperature and cut diameter both trending up — pause for coolant check
+window: 2m
+conditions:
+  - characteristic: Plant 1 > Line A > Lathe 3 > Coolant Temp
+    rule: increasing
+    count: 6
+  - characteristic: Plant 1 > Line A > Lathe 3 > Cut Diameter
+    rule: increasing
+    count: 6
+action:
+  violation: THERMAL_RUNAWAY_SUSPECTED
+  severity: critical
+  message: >-
+    Coolant temperature and cut diameter are climbing together. Pause
+    the line and inspect coolant flow / chiller before the next cut.

@@ -1,0 +1,24 @@
+# Shaft / bore drift mismatch — assembly-fit risk indicator.
+#
+# Fires when the shaft outside diameter drifts above its centre line
+# while the mating bore diameter drifts below — the classic signature
+# of a brewing interference-fit problem before any single SPC chart
+# would catch it. Both signals must coincide inside a 30-second
+# window so spurious cross-process noise doesn't trip the alarm.
+
+name: shaft-bore-mismatch
+description: Shaft OD up while bore ID drifts down within 30s — assembly fit risk
+window: 30s
+conditions:
+  - characteristic: Plant 1 > Line A > Lathe 3 > Shaft OD
+    rule: above_mean_consecutive
+    count: 5
+  - characteristic: Plant 1 > Line A > Mill 2 > Bore ID
+    rule: below_mean_consecutive
+    count: 5
+action:
+  violation: ASSEMBLY_DRIFT_RISK
+  severity: high
+  message: >-
+    Mating fit drift detected. Inspect the next assembly batch before
+    further parts are committed.

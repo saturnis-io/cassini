@@ -22,6 +22,7 @@ import {
   ChevronDown,
   X,
   Building2,
+  Workflow,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
@@ -209,6 +210,13 @@ export function Sidebar({ className }: SidebarProps) {
       icon: <Database className="h-5 w-5" />,
       requiredRole: 'engineer',
       requiredTier: 'pro',
+    },
+    {
+      path: '/cep-rules',
+      labelKey: 'cepRules',
+      icon: <Workflow className="h-5 w-5" />,
+      requiredRole: 'engineer',
+      requiredTier: 'enterprise',
     },
     {
       path: '/connectivity',

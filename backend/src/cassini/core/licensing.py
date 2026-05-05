@@ -55,7 +55,7 @@ ENTERPRISE_FEATURES = frozenset({
     "gage-bridge", "electronic-signatures", "first-article-inspection",
     "multivariate-spc", "anomaly-detection", "predictive-analytics",
     "ai-analysis", "sso-oidc", "erp-connectors", "data-retention",
-    "database-admin", "async-spc", "dedicated-support",
+    "database-admin", "async-spc", "dedicated-support", "cep-rules",
 })
 
 # Bundled public key ships with Cassini — used to verify license JWTs from saturnis.io

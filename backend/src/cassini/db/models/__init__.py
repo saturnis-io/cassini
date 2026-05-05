@@ -7,6 +7,7 @@ from cassini.db.models.auth_token import EmailVerificationToken, PasswordResetTo
 from cassini.db.models.audit_log import AuditLog
 from cassini.db.models.broker import MQTTBroker
 from cassini.db.models.capability import CapabilityHistory
+from cassini.db.models.cep_rule import CepRule
 from cassini.db.models.characteristic import Characteristic, CharacteristicRule
 from cassini.db.models.collection_plan import (
     CollectionPlan,
@@ -79,6 +80,7 @@ __all__ = [
     "APIKey",
     "AuditLog",
     "CapabilityHistory",
+    "CepRule",
     "MQTTBroker",
     "NotificationPreference",
     "OIDCConfig",
