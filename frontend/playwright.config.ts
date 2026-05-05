@@ -1,8 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const isCI = !!process.env.CI
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const backendDir = path.resolve(__dirname, '..', 'backend')
 
-// Resolve database URL based on E2E_DB_DIALECT env var
 const dbDialect = process.env.E2E_DB_DIALECT
 const dbUrlMap: Record<string, string> = {
   postgresql: 'postgresql+asyncpg://cassini:cassini@localhost:5432/cassini_test',
@@ -82,13 +85,24 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `cmd /c "cd /d C:\\Users\\djbra\\Projects\\saturnis\\apps\\cassini\\backend && set CASSINI_DATABASE_URL=${cassiniDbUrl}&& set CASSINI_DEV_MODE=true&& set CASSINI_DEV_TIER=enterprise&& set CASSINI_SANDBOX=true&& set CASSINI_ADMIN_PASSWORD=admin&& python -m uvicorn cassini.main:app --port 8001"`,
+      command: 'python -m uvicorn cassini.main:app --port 8001',
+      cwd: backendDir,
+      env: {
+        CASSINI_DATABASE_URL: cassiniDbUrl,
+        CASSINI_DEV_MODE: 'true',
+        CASSINI_DEV_TIER: 'enterprise',
+        CASSINI_SANDBOX: 'true',
+        CASSINI_ADMIN_PASSWORD: 'admin',
+      },
       port: 8001,
       timeout: 60000,
       reuseExistingServer: !isCI,
     },
     {
-      command: 'cmd /c "set VITE_BACKEND_PORT=8001&& npx vite --port 5174"',
+      command: 'npx vite --port 5174',
+      env: {
+        VITE_BACKEND_PORT: '8001',
+      },
       port: 5174,
       timeout: 15000,
       reuseExistingServer: !isCI,
