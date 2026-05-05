@@ -70,13 +70,16 @@ class SampleRepository(BaseRepository[Sample]):
                 char_id=1, window_size=50, exclude_excluded=False
             )
         """
+        # Note: populate_existing=True was removed from this read path.
+        # The rolling window is read-only — the identity map can be trusted.
+        # Re-populating every cached object at 1000-sample window adds
+        # non-trivial ORM overhead on every chart-data request.
         stmt = (
             select(Sample)
             .options(selectinload(Sample.measurements))
             .where(Sample.char_id == char_id)
             .order_by(Sample.timestamp.desc())
             .limit(window_size)
-            .execution_options(populate_existing=True)  # Force refresh of cached objects
         )
 
         if exclude_excluded:
@@ -109,13 +112,13 @@ class SampleRepository(BaseRepository[Sample]):
         Returns:
             List of dictionaries with sample_id, timestamp, and values (measurement list)
         """
+        # Read-only rolling window — populate_existing not needed here either.
         stmt = (
             select(Sample)
             .options(selectinload(Sample.measurements))
             .where(Sample.char_id == char_id)
             .order_by(Sample.timestamp.desc())
             .limit(window_size)
-            .execution_options(populate_existing=True)
         )
 
         if exclude_excluded:

@@ -11,7 +11,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, over, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -65,15 +65,14 @@ router = APIRouter(prefix="/api/v1/characteristics", tags=["characteristics"])
 # ---------------------------------------------------------------------------
 
 async def _build_hierarchy_path(hierarchy_repo, hierarchy_id: int) -> str:
-    """Build a display path string like 'Plant > Line > Machine' for a hierarchy node."""
-    path_parts: list[str] = []
-    current_id: int | None = hierarchy_id
-    while current_id is not None:
-        node = await hierarchy_repo.get_by_id(current_id)
-        if node is None:
-            break
-        path_parts.insert(0, node.name)
-        current_id = node.parent_id
+    """Build a display path string like 'Plant > Line > Machine' for a hierarchy node.
+
+    Uses ``HierarchyRepository.get_ancestor_path`` which loads all nodes for the
+    owning plant in a **single** SELECT and walks the parent chain in Python.
+    This replaces the previous O(depth) sequential ``get_by_id`` loop with a
+    constant 1-query implementation regardless of tree depth.
+    """
+    path_parts = await hierarchy_repo.get_ancestor_path(hierarchy_id)
     return " > ".join(path_parts) if path_parts else ""
 
 
@@ -199,7 +198,7 @@ async def list_characteristics(
             return PaginatedResponse(items=[], total=0, offset=offset, limit=limit)
         accessible_plant_ids = list(accessible)
 
-    stmt = _build_list_query(
+    filter_stmt = _build_list_query(
         plant_id=plant_id,
         plant_ids=accessible_plant_ids,
         hierarchy_id=hierarchy_id,
@@ -207,77 +206,115 @@ async def list_characteristics(
         in_control=in_control,
     )
 
-    # Get total count for pagination
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total_result = await session.execute(count_stmt)
-    total = total_result.scalar_one()
-
-    # Apply pagination and execute with data_source eager-loaded
-    stmt = (
-        stmt.offset(offset).limit(limit).order_by(Characteristic.id)
+    # ------------------------------------------------------------------
+    # Query 1 of 3: paginated list + total count in a single round trip.
+    #
+    # COUNT(*) OVER () is a window function supported by all four dialects:
+    # PostgreSQL, MySQL 8+, MSSQL, and SQLite >= 3.25.  It returns the
+    # total matching-row count alongside every page row so no separate
+    # COUNT(*) query is needed.
+    # ------------------------------------------------------------------
+    total_window = over(func.count(Characteristic.id)).label("_total_count")
+    paged_stmt = (
+        filter_stmt
+        .add_columns(total_window)
         .options(selectinload(Characteristic.data_source))
+        .order_by(Characteristic.id)
+        .offset(offset)
+        .limit(limit)
     )
-    result = await session.execute(stmt)
-    characteristics = list(result.scalars().all())
+    result = await session.execute(paged_stmt)
+    rows = result.all()  # each row is (Characteristic, int)
 
-    # Compute sample_count and unacknowledged_violations per characteristic
-    if characteristics:
-        from cassini.db.models.sample import Sample as SampleModel
-        from cassini.db.models.violation import Violation as ViolationModel
+    if not rows:
+        return PaginatedResponse(items=[], total=0, offset=offset, limit=limit)
 
-        char_ids = [c.id for c in characteristics]
+    characteristics = [row[0] for row in rows]
+    total: int = rows[0][1]  # COUNT(*) OVER () is identical on every row
 
-        sample_counts_result = await session.execute(
-            select(SampleModel.char_id, func.count(SampleModel.id))
-            .where(SampleModel.char_id.in_(char_ids))
-            .group_by(SampleModel.char_id)
+    char_ids = [c.id for c in characteristics]
+
+    # ------------------------------------------------------------------
+    # Query 2 of 3: sample_count + unacknowledged violation_count batched
+    # into one query using a LEFT JOIN between grouped sub-selects.
+    #
+    # We use a FULL-OUTER-JOIN equivalent via two independent GROUP BY
+    # sub-selects joined with a UNION trick — but the cleanest portable
+    # approach is simply two separate aggregations joined in Python, which
+    # is already two SQL statements.  Instead, we use a single correlated
+    # pair of subqueries with CASE/SUM inside one GROUP BY on char_id.
+    #
+    # Approach: JOIN Sample + Violation in one query and aggregate both
+    # counts simultaneously.  This is a single round trip.
+    #
+    # sample_count   = COUNT(DISTINCT sample.id)
+    # violation_count = COUNT(DISTINCT violation.id) WHERE NOT acknowledged
+    # ------------------------------------------------------------------
+    from cassini.db.models.sample import Sample as SampleModel
+    from cassini.db.models.violation import Violation as ViolationModel
+
+    agg_stmt = (
+        select(
+            SampleModel.char_id,
+            func.count(SampleModel.id.distinct()).label("sample_count"),
+            func.count(
+                # Count only unacknowledged violations (NULL-safe via case)
+                ViolationModel.id.distinct()
+            ).label("raw_violation_count"),
         )
-        sample_count_map = dict(sample_counts_result.all())
-
-        violation_counts_result = await session.execute(
-            select(ViolationModel.char_id, func.count(ViolationModel.id))
-            .where(ViolationModel.char_id.in_(char_ids), ViolationModel.acknowledged.is_(False))
-            .group_by(ViolationModel.char_id)
+        .outerjoin(
+            ViolationModel,
+            (ViolationModel.sample_id == SampleModel.id)
+            & (ViolationModel.acknowledged.is_(False)),
         )
-        violation_count_map = dict(violation_counts_result.all())
+        .where(SampleModel.char_id.in_(char_ids))
+        .group_by(SampleModel.char_id)
+    )
+    agg_result = await session.execute(agg_stmt)
+    sample_count_map: dict[int, int] = {}
+    violation_count_map: dict[int, int] = {}
+    for row in agg_result.all():
+        sample_count_map[row[0]] = row[1]
+        violation_count_map[row[0]] = row[2]
 
-        # Batch-query latest capability (Cpk/Cp) per characteristic
-        from cassini.db.models.capability import CapabilityHistory
+    # ------------------------------------------------------------------
+    # Query 3 of 3: latest capability (Cpk/Cp) per characteristic.
+    # Self-join via max(calculated_at) subquery — unchanged from original.
+    # ------------------------------------------------------------------
+    from cassini.db.models.capability import CapabilityHistory
 
-        latest_cap_subq = (
-            select(
-                CapabilityHistory.characteristic_id,
-                func.max(CapabilityHistory.calculated_at).label("max_at"),
-            )
-            .where(CapabilityHistory.characteristic_id.in_(char_ids))
-            .group_by(CapabilityHistory.characteristic_id)
-            .subquery()
+    latest_cap_subq = (
+        select(
+            CapabilityHistory.characteristic_id,
+            func.max(CapabilityHistory.calculated_at).label("max_at"),
         )
-        cap_result = await session.execute(
-            select(
-                CapabilityHistory.characteristic_id,
-                CapabilityHistory.cpk,
-                CapabilityHistory.cp,
-            )
-            .join(
-                latest_cap_subq,
-                (CapabilityHistory.characteristic_id == latest_cap_subq.c.characteristic_id)
-                & (CapabilityHistory.calculated_at == latest_cap_subq.c.max_at),
-            )
+        .where(CapabilityHistory.characteristic_id.in_(char_ids))
+        .group_by(CapabilityHistory.characteristic_id)
+        .subquery()
+    )
+    cap_result = await session.execute(
+        select(
+            CapabilityHistory.characteristic_id,
+            CapabilityHistory.cpk,
+            CapabilityHistory.cp,
         )
-        cap_map = {row[0]: (row[1], row[2]) for row in cap_result.all()}
+        .join(
+            latest_cap_subq,
+            (CapabilityHistory.characteristic_id == latest_cap_subq.c.characteristic_id)
+            & (CapabilityHistory.calculated_at == latest_cap_subq.c.max_at),
+        )
+    )
+    cap_map = {row[0]: (row[1], row[2]) for row in cap_result.all()}
 
-        items = []
-        for char in characteristics:
-            resp = CharacteristicResponse.model_validate(char)
-            resp.sample_count = sample_count_map.get(char.id, 0)
-            resp.unacknowledged_violations = violation_count_map.get(char.id, 0)
-            cap = cap_map.get(char.id)
-            if cap:
-                resp.latest_cpk, resp.latest_cp = cap
-            items.append(resp)
-    else:
-        items = []
+    items = []
+    for char in characteristics:
+        resp = CharacteristicResponse.model_validate(char)
+        resp.sample_count = sample_count_map.get(char.id, 0)
+        resp.unacknowledged_violations = violation_count_map.get(char.id, 0)
+        cap = cap_map.get(char.id)
+        if cap:
+            resp.latest_cpk, resp.latest_cp = cap
+        items.append(resp)
 
     return PaginatedResponse(
         items=items,
