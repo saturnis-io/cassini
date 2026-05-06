@@ -46,7 +46,9 @@ Respond in JSON format with exactly these fields:
   "recommendations": ["List of actionable recommendations, each as a concise sentence"]
 }
 
-Be specific — reference actual values, time periods, and rule violations when describing patterns. Focus on actionable insights rather than generic advice."""
+Be specific — reference actual values, time periods, and rule violations when describing patterns. Focus on actionable insights rather than generic advice.
+
+Keep each list entry to a single concise sentence (max 25 words). Aim for 3-5 patterns, 2-4 risks, and 3-5 recommendations. Do not include any prose outside the JSON object."""
 
 
 def build_analysis_prompt(context: dict) -> str:

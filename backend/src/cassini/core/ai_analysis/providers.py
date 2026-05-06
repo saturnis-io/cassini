@@ -63,7 +63,7 @@ class ClaudeProvider(BaseLLMProvider):
         self,
         api_key: str,
         model: str = "claude-sonnet-4-20250514",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         base_url: str | None = None,
     ):
         self._api_key = api_key
@@ -186,7 +186,7 @@ class OpenAIProvider(BaseLLMProvider):
         self,
         api_key: str,
         model: str = "gpt-4o",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         base_url: str | None = None,
     ):
         self._api_key = api_key
@@ -278,7 +278,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self,
         base_url: str,
         model: str = "default",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         api_key: str | None = None,
     ):
         self._api_key = api_key
@@ -348,7 +348,7 @@ class AzureOpenAIProvider(BaseLLMProvider):
         resource_name: str,
         deployment_id: str,
         api_version: str = "2024-10-21",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
     ):
         self._api_key = api_key
         self._max_tokens = max_tokens
@@ -440,7 +440,7 @@ class GeminiProvider(BaseLLMProvider):
         self,
         api_key: str,
         model: str = "gemini-2.0-flash",
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         base_url: str | None = None,
     ):
         self._api_key = api_key
@@ -589,7 +589,7 @@ def create_provider(
     provider_type: str,
     api_key: str,
     model: str,
-    max_tokens: int = 1024,
+    max_tokens: int = 4096,
     *,
     base_url: str | None = None,
     azure_resource_name: str | None = None,

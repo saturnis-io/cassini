@@ -33,6 +33,7 @@ from cassini.core.ai_analysis.providers import (
 from cassini.core.ai_analysis.engine import (
     _analyze_with_tools,
     _parse_llm_response,
+    _response_is_complete_json,
     MAX_TOOL_ITERATIONS,
 )
 
@@ -427,11 +428,12 @@ class TestEngineToolLoop:
             stop_reason="end_turn",
         )
 
-        text, calls_made = await _analyze_with_tools(
+        text, calls_made, tokens = await _analyze_with_tools(
             provider, AsyncMock(), 1, "sys", "user"
         )
         assert text == '{"summary": "All good"}'
         assert calls_made == 0
+        assert tokens == 0
         provider.generate.assert_called_once()
 
     @pytest.mark.asyncio
@@ -469,11 +471,12 @@ class TestEngineToolLoop:
         mock_result.scalar_one_or_none.return_value = None
         session.execute.return_value = mock_result
 
-        text, calls_made = await _analyze_with_tools(
+        text, calls_made, tokens = await _analyze_with_tools(
             provider, session, 1, "sys", "user"
         )
         assert calls_made == 1
         assert text == '{"summary": "Cpk is 1.33"}'
+        assert tokens == 0
         assert provider.generate.call_count == 2
 
     @pytest.mark.asyncio
@@ -510,11 +513,12 @@ class TestEngineToolLoop:
         mock_result.scalar_one_or_none.return_value = None
         session.execute.return_value = mock_result
 
-        text, calls_made = await _analyze_with_tools(
+        text, calls_made, tokens = await _analyze_with_tools(
             provider, session, 1, "sys", "user"
         )
         assert calls_made == 3  # 1 + 2
         assert text == '{"summary": "Thorough analysis"}'
+        assert tokens == 0
 
     @pytest.mark.asyncio
     async def test_max_iterations_guard(self):
@@ -549,11 +553,12 @@ class TestEngineToolLoop:
         mock_result.scalars.return_value.all.return_value = []
         session.execute.return_value = mock_result
 
-        text, calls_made = await _analyze_with_tools(
+        text, calls_made, tokens = await _analyze_with_tools(
             provider, session, 1, "sys", "user"
         )
         # Should have stopped after MAX_TOOL_ITERATIONS
         assert calls_made == MAX_TOOL_ITERATIONS
+        assert tokens == 0
         # generate called: 1 initial + MAX_TOOL_ITERATIONS + 1 forced final
         assert provider.generate.call_count == MAX_TOOL_ITERATIONS + 2
         # The forced final response should produce text, not None
@@ -598,3 +603,99 @@ class TestParseLLMResponse:
         summary, patterns, risks, recs = _parse_llm_response("")
         assert summary == ""
         assert patterns == []
+
+    def test_truncated_json_falls_back(self):
+        """Deliberately-truncated JSON regresses to summary-only fallback.
+
+        This nails down the bug we just fixed: the parser returns the raw
+        text as ``summary`` and empty arrays for the structured fields.
+        That behavior is what makes the new ``_response_is_complete_json``
+        gate fire a retry instead of persisting an empty insight.
+        """
+        truncated = '{"summary": "Process drifting", "patterns": ["abc",'
+        summary, patterns, risks, recs = _parse_llm_response(truncated)
+        assert summary != ""
+        assert patterns == []
+        assert risks == []
+        assert recs == []
+
+
+# ---------------------------------------------------------------------------
+# Engine token accounting + JSON-completeness gate
+# ---------------------------------------------------------------------------
+
+
+class TestEngineTokenAccounting:
+    """Verify _analyze_with_tools sums token usage across every iteration
+    and the JSON-validity gate trips correctly on truncated responses.
+    """
+
+    @pytest.mark.asyncio
+    async def test_tokens_summed_across_iterations(self):
+        """Tokens from every provider.generate() call must accumulate."""
+        # First call: tool_use (100 in, 50 out)
+        tool_response = LLMResponse(
+            content=None,
+            input_tokens=100,
+            output_tokens=50,
+            stop_reason="tool_use",
+            tool_calls=[
+                ToolCall("get_capability", {}, "t1"),
+            ],
+            _raw_messages=[{"role": "user", "content": "x"}],
+        )
+        # Second call: end_turn (200 in, 120 out)
+        final_response = LLMResponse(
+            content='{"summary": "ok", "patterns": ["p"], "risks": [], "recommendations": []}',
+            input_tokens=200,
+            output_tokens=120,
+            stop_reason="end_turn",
+        )
+
+        provider = AsyncMock()
+        provider.generate.side_effect = [tool_response, final_response]
+
+        session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        session.execute.return_value = mock_result
+
+        text, calls_made, tokens = await _analyze_with_tools(
+            provider, session, 1, "sys", "user"
+        )
+        assert tokens == 100 + 50 + 200 + 120  # 470
+        assert calls_made == 1
+
+    def test_response_is_complete_json_clean(self):
+        """A populated structured JSON object is complete."""
+        content = json.dumps({
+            "summary": "Process stable",
+            "patterns": ["Trend up"],
+            "risks": ["Drift"],
+            "recommendations": ["Increase sampling"],
+        })
+        assert _response_is_complete_json(content) is True
+
+    def test_response_is_complete_json_truncated(self):
+        """A mid-array truncation cannot parse -> not complete."""
+        truncated = '{"summary": "X", "patterns": ["abc",'
+        assert _response_is_complete_json(truncated) is False
+
+    def test_response_is_complete_json_plain_text(self):
+        """Plain-text fallback (no JSON at all) -> not complete."""
+        assert _response_is_complete_json("Just a paragraph.") is False
+
+    def test_response_is_complete_json_empty(self):
+        """None and empty string -> not complete."""
+        assert _response_is_complete_json(None) is False
+        assert _response_is_complete_json("") is False
+
+    def test_response_is_complete_json_summary_only(self):
+        """JSON parsed but all arrays empty -> not complete (likely truncated)."""
+        summary_only = json.dumps({
+            "summary": "Looks fine",
+            "patterns": [],
+            "risks": [],
+            "recommendations": [],
+        })
+        assert _response_is_complete_json(summary_only) is False

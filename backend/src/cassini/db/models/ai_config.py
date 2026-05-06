@@ -54,7 +54,7 @@ class AIProviderConfig(Base):
         server_default="claude-sonnet-4-20250514",
     )
     max_tokens: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1024, server_default=sa.text("1024")
+        Integer, nullable=False, default=4096, server_default=sa.text("4096")
     )
     base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     azure_resource_name: Mapped[Optional[str]] = mapped_column(

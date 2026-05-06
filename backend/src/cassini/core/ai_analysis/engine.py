@@ -157,9 +157,35 @@ class AIAnalysisEngine:
                 azure_deployment_id=azure_deployment_id,
                 azure_api_version=azure_api_version,
             )
-            response_text, tool_calls_made = await _analyze_with_tools(
+            response_text, tool_calls_made, tokens_used = await _analyze_with_tools(
                 provider, session, char_id, SYSTEM_PROMPT, user_prompt
             )
+
+            # Bounded one-shot retry on incomplete-JSON responses.  This
+            # mitigates "the model got unlucky and stopped mid-array" --
+            # NOT a max_tokens problem (max_tokens is baked into the
+            # provider instance from config, retry uses the same budget).
+            # Skip for openai_compatible because local servers may
+            # legitimately not return JSON.  Hard cap: exactly one retry,
+            # never re-retry.
+            if (
+                provider_type != "openai_compatible"
+                and not _response_is_complete_json(response_text)
+            ):
+                logger.warning(
+                    "ai_analysis_retry_truncation",
+                    char_id=char_id,
+                    provider_type=provider_type,
+                )
+                retry_text, retry_calls, retry_tokens = await _analyze_with_tools(
+                    provider, session, char_id, SYSTEM_PROMPT, user_prompt
+                )
+                tokens_used += retry_tokens
+                tool_calls_made += retry_calls
+                # Take the retry response if it parses; otherwise stick
+                # with the original (no third attempt).
+                if _response_is_complete_json(retry_text):
+                    response_text = retry_text
         except Exception as e:
             logger.warning(
                 "ai_analysis_llm_error", char_id=char_id, error=str(e)
@@ -185,7 +211,7 @@ class AIAnalysisEngine:
             patterns=json.dumps(patterns),
             risks=json.dumps(risks),
             recommendations=json.dumps(recommendations),
-            tokens_used=0,  # Token tracking is per-turn; aggregate later if needed
+            tokens_used=tokens_used,
             latency_ms=latency_ms,
             tool_calls_made=tool_calls_made,
         )
@@ -265,7 +291,7 @@ async def _analyze_with_tools(
     char_id: int,
     system_prompt: str,
     user_prompt: str,
-) -> tuple[str | None, int]:
+) -> tuple[str | None, int, int]:
     """Run the LLM analysis with an agentic tool-use loop.
 
     The LLM may request tool calls (get_violations, get_capability, etc.)
@@ -274,7 +300,10 @@ async def _analyze_with_tools(
     we hit the iteration limit.
 
     Returns:
-        Tuple of (final_text_response, total_tool_calls_made).
+        Tuple of (final_text_response, total_tool_calls_made, total_tokens).
+        ``total_tokens`` sums ``input_tokens + output_tokens`` across every
+        provider.generate() call (initial + per tool-use iteration + any
+        forced final-without-tools call).
     """
     tools = ANALYSIS_TOOLS
     executor = ToolExecutor(session, char_id)
@@ -285,6 +314,7 @@ async def _analyze_with_tools(
 
     total_tool_calls = 0
     iterations = 0
+    total_tokens = response.input_tokens + response.output_tokens
 
     while response.stop_reason == "tool_use" and iterations < MAX_TOOL_ITERATIONS:
         # Execute all requested tools
@@ -309,6 +339,7 @@ async def _analyze_with_tools(
             tool_results=results,
             prior_messages=response._raw_messages,
         )
+        total_tokens += response.input_tokens + response.output_tokens
         iterations += 1
 
     if response.stop_reason == "tool_use":
@@ -320,8 +351,9 @@ async def _analyze_with_tools(
         )
         # Force a final text response without tools
         response = await provider.generate(system_prompt, user_prompt)
+        total_tokens += response.input_tokens + response.output_tokens
 
-    return response.content, total_tool_calls
+    return response.content, total_tool_calls, total_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +389,22 @@ def _parse_llm_response(
     except (json.JSONDecodeError, IndexError, KeyError):
         # Fallback: use raw text as summary
         return content[:2000], [], [], []
+
+
+def _response_is_complete_json(content: str | None) -> bool:
+    """Return True iff the LLM returned a parseable JSON object with at
+    least one populated structured array (patterns, risks, or recommendations).
+
+    A pure summary-only object is treated as incomplete -- the analysis
+    contract requires structured findings, and an empty-arrays response
+    almost always means the JSON was truncated mid-array.
+
+    Used to gate the bounded one-shot retry in ``analyze``.
+    """
+    if not content:
+        return False
+    _, patterns, risks, recommendations = _parse_llm_response(content)
+    return bool(patterns or risks or recommendations)
 
 
 def _insight_to_dict(insight: Any) -> dict:

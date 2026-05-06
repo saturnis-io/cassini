@@ -11,7 +11,7 @@ class AIConfigResponse(BaseModel):
     plant_id: int
     provider_type: str = "claude"
     model_name: str = "claude-sonnet-4-20250514"
-    max_tokens: int = 1024
+    max_tokens: int = 4096
     is_enabled: bool = False
     has_api_key: bool = False  # True if key is set, never expose actual key
     base_url: str | None = None
@@ -29,7 +29,7 @@ class AIConfigUpdate(BaseModel):
     )
     api_key: str | None = Field(None, min_length=1)  # Only set, never returned
     model_name: str | None = Field(None, max_length=100)
-    max_tokens: int | None = Field(None, ge=256, le=8192)
+    max_tokens: int | None = Field(None, ge=512, le=16384)
     is_enabled: bool | None = None
     base_url: str | None = Field(None, max_length=500)
     azure_resource_name: str | None = Field(None, max_length=100)
