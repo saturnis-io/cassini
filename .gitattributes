@@ -1,0 +1,6 @@
+# Force LF line endings for shell scripts and Dockerfiles. Without this,
+# Git's autocrlf on Windows converts to CRLF on checkout, which breaks
+# the shebang in Docker (`/bin/sh^M: bad interpreter`).
+*.sh text eol=lf
+Dockerfile* text eol=lf
+docker-entrypoint* text eol=lf
