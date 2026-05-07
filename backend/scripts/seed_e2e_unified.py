@@ -88,6 +88,7 @@ from cassini.db.models import (
     Violation,
     WebhookConfig,
 )
+from cassini.db.models.sop_doc import SopChunk, SopDoc
 
 
 # ── URL helpers ──────────────────────────────────────────────────────────
@@ -1341,6 +1342,80 @@ def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
                 for (user_id, uname, action, res_type, res_id, detail, ip) in audit_entries
             ]
             conn.execute(insert(AuditLog.__table__), audit_rows)
+
+            # 9h. SOP-RAG corpus: one indexed document with three chunks so
+            # the SOP-RAG screenshot tour can show a populated corpus.
+            # The actual Q/A flow requires ANTHROPIC_API_KEY at runtime —
+            # the screenshot test mocks the /query endpoint with page.route.
+            sd_table = SopDoc.__table__
+            sop_doc_existing = _scalar_or_none(
+                conn,
+                select(sd_table.c.id).where(
+                    sd_table.c.plant_id == tour_plant_id,
+                    sd_table.c.title == "M6 Bolt Assembly Procedure",
+                ),
+            )
+            if sop_doc_existing is None:
+                tour_sop_doc_id = insert_returning_id(
+                    conn,
+                    sd_table,
+                    {
+                        "plant_id": tour_plant_id,
+                        "title": "M6 Bolt Assembly Procedure",
+                        "filename": "m6-bolt-assembly.md",
+                        "content_type": "text/markdown",
+                        "storage_path": f"seed/sop/{tour_plant_id}/m6-bolt-assembly.md",
+                        "byte_size": 612,
+                        "char_count": 612,
+                        "chunk_count": 3,
+                        "embedding_model": "local",
+                        "status": "ready",
+                        "status_message": None,
+                        "pii_warning": False,
+                        "pii_match_summary": None,
+                        "uploaded_by": admin_id,
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                sop_chunks = [
+                    (
+                        0,
+                        "Tighten the M6 bolt to 12 Nm using the calibrated torque "
+                        "wrench. Apply Loctite 243 to the threads before assembly. "
+                        "Verify torque after 24 hours of cure time.",
+                        "section 1 / page 1",
+                    ),
+                    (
+                        1,
+                        "After the cure period the operator must sign the inspection "
+                        "sheet in section 3-B. Operator ID is logged with timestamp.",
+                        "section 3-B / page 2",
+                    ),
+                    (
+                        2,
+                        "Loctite 243 has a shelf life of 24 months from the manufacture "
+                        "date. Refrigerated storage extends this to 30 months.",
+                        "appendix A / page 3",
+                    ),
+                ]
+                for chunk_index, text, label in sop_chunks:
+                    conn.execute(
+                        insert(SopChunk.__table__),
+                        [
+                            {
+                                "doc_id": tour_sop_doc_id,
+                                "plant_id": tour_plant_id,
+                                "chunk_index": chunk_index,
+                                "text": text,
+                                "token_count": len(text.split()),
+                                "paragraph_label": label,
+                                "embedding": None,
+                                "embedding_dim": None,
+                                "created_at": now,
+                            }
+                        ],
+                    )
 
             manifest["screenshot_tour"] = {
                 **tour,

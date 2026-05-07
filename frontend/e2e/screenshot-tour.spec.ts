@@ -1,6 +1,11 @@
 import { test, expect } from './fixtures'
 import { loginAsAdmin } from './helpers/auth'
-import { switchToPlant, expandHierarchyToChar, collapseNavSection } from './helpers/seed'
+import {
+  switchToPlant,
+  expandHierarchyToChar,
+  expandSelectorToChar,
+  collapseNavSection,
+} from './helpers/seed'
 import { getManifest } from './helpers/manifest'
 import { docScreenshot } from './helpers/screenshot'
 
@@ -29,6 +34,32 @@ test.describe('Screenshot Tour', () => {
     await page.waitForTimeout(2000)
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
     await docScreenshot(page, 'core', 'dashboard-control-chart', testInfo)
+  })
+
+  // --- NEW: README hero + dashboard alias screenshots ---
+  // The README references `core/hero.png` (top hero shot) and
+  // `core/dashboard.png` (I-MR chart with control limits). Both are
+  // taken from the same loaded dashboard view so they stay in sync
+  // with the chart-control-chart test.
+  test('hero', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(2500)
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+    await docScreenshot(page, 'core', 'hero', testInfo)
+  })
+
+  test('dashboard', async ({ page }, testInfo) => {
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(2000)
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+    await docScreenshot(page, 'core', 'dashboard', testInfo)
   })
 
   // --- NEW: annotations screenshot ---
@@ -80,7 +111,23 @@ test.describe('Screenshot Tour', () => {
   test('reports', async ({ page }, testInfo) => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
-    await expect(page.locator('body')).toBeVisible()
+
+    // Pick a characteristic from the hierarchy selector so the report
+    // preview has data to render — otherwise the page shows only an
+    // empty state.
+    await expandSelectorToChar(page)
+
+    // Pick the "Characteristic Summary" template so the preview shows
+    // the control chart, statistics, and recent violations sections.
+    const templateSelect = page.getByRole('combobox', { name: 'Report template' })
+    await expect(templateSelect).toBeVisible({ timeout: 10000 })
+    await templateSelect.selectOption('characteristic-summary')
+
+    // Wait for the rendered report content to appear (chart canvas + sections).
+    const reportContent = page.locator('[data-ui="reports-content"]')
+    await expect(reportContent).toBeVisible({ timeout: 15000 })
+    await expect(reportContent.locator('canvas').first()).toBeVisible({ timeout: 15000 })
+
     await docScreenshot(page, 'core', 'reports', testInfo)
   })
 
@@ -127,17 +174,37 @@ test.describe('Screenshot Tour', () => {
     await expandHierarchyToChar(page)
     await page.getByText('Test Char').first().click()
     await page.waitForTimeout(2000)
-    // Enable Show Your Work mode if there's a toggle
-    const sywToggle = page.getByRole('button', { name: /show your work/i })
-    if (await sywToggle.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await sywToggle.click()
-      await page.waitForTimeout(1500)
-    }
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+
+    // Enable Show Your Work mode — header button toggles state. The
+    // title attribute switches between "Show Your Work: ON/OFF" so we
+    // match by title to avoid clicking another control with similar text.
+    const sywToggle = page.locator('button[title*="Show Your Work"]')
+    await expect(sywToggle).toBeVisible({ timeout: 5000 })
+    await sywToggle.click()
+
+    // After toggle, capability values (Cpk, Ppk) are wrapped in
+    // <Explainable> which adds the `explainable-value` class with a
+    // dotted underline. Click the first one to open ExplanationPanel.
+    const firstExplainable = page.locator('.explainable-value').first()
+    await expect(firstExplainable).toBeVisible({ timeout: 5000 })
+    await firstExplainable.click()
+
+    // Wait for the slide-out panel to render the explanation content.
+    const panel = page.locator('[data-ui="explanation-panel"]')
+    await expect(panel).toBeVisible({ timeout: 10000 })
+    await expect(panel.locator('[data-ui="explanation-content"]')).toBeVisible({
+      timeout: 10000,
+    })
+    // Wait for the loaded data — the metric heading / value renders only
+    // after the explanation API resolves; KaTeX rendering settles ~500ms.
+    await page.waitForTimeout(1500)
+
     await docScreenshot(page, 'core', 'show-your-work', testInfo)
   })
 
   // ---------------------------------------------------------------------------
-  // COMMERCIAL (5 tests)
+  // COMMERCIAL (8 tests)
   // ---------------------------------------------------------------------------
 
   test('msa study', async ({ page }, testInfo) => {
@@ -145,6 +212,16 @@ test.describe('Screenshot Tour', () => {
     await page.goto(`/msa/${m.msa_study_id}`)
     await page.waitForTimeout(3000)
     await docScreenshot(page, 'commercial', 'msa-study', testInfo)
+  })
+
+  // --- NEW: MSA overview — completed Gage R&R study with results ---
+  // Goes straight to the seeded study so the screenshot shows the
+  // ANOVA table + verdict, not an empty list.
+  test('msa overview', async ({ page }, testInfo) => {
+    const m = getManifest().screenshot_tour
+    await page.goto(`/msa/${m.msa_study_id}`)
+    await page.waitForTimeout(4000)
+    await docScreenshot(page, 'commercial', 'msa-overview', testInfo)
   })
 
   test('fai report', async ({ page }, testInfo) => {
@@ -161,10 +238,25 @@ test.describe('Screenshot Tour', () => {
     await docScreenshot(page, 'commercial', 'doe-study', testInfo)
   })
 
+  // --- NEW: DOE overview — completed study with main effects + interactions ---
+  test('doe overview', async ({ page }, testInfo) => {
+    const m = getManifest().screenshot_tour
+    await page.goto(`/doe/${m.doe_study_id}`)
+    await page.waitForTimeout(4000)
+    await docScreenshot(page, 'commercial', 'doe-overview', testInfo)
+  })
+
   test('analytics', async ({ page }, testInfo) => {
     await page.goto('/analytics')
     await page.waitForTimeout(3000)
     await docScreenshot(page, 'commercial', 'analytics', testInfo)
+  })
+
+  // --- NEW: Analytics overview — multivariate tab with charts ---
+  test('analytics overview', async ({ page }, testInfo) => {
+    await page.goto('/analytics?tab=multivariate')
+    await page.waitForTimeout(4000)
+    await docScreenshot(page, 'commercial', 'analytics-overview', testInfo)
   })
 
   test('galaxy', async ({ page }, testInfo) => {
@@ -274,13 +366,22 @@ test.describe('Screenshot Tour', () => {
   })
 
   // ---------------------------------------------------------------------------
-  // CONNECTIVITY (3 tests)
+  // CONNECTIVITY (4 tests)
   // ---------------------------------------------------------------------------
 
   test('connectivity monitor', async ({ page }, testInfo) => {
     await page.goto('/connectivity')
     await page.waitForTimeout(2000)
     await docScreenshot(page, 'connectivity', 'monitor', testInfo)
+  })
+
+  // --- NEW: connectivity hub overview (README hero shot) ---
+  // Same view as monitor — README references `connectivity.png` showing
+  // the seeded "Shop Floor Broker" with live tag preview.
+  test('connectivity hub', async ({ page }, testInfo) => {
+    await page.goto('/connectivity')
+    await page.waitForTimeout(2500)
+    await docScreenshot(page, 'connectivity', 'connectivity', testInfo)
   })
 
   test('connectivity servers', async ({ page }, testInfo) => {
@@ -303,6 +404,172 @@ test.describe('Screenshot Tour', () => {
       await page.waitForTimeout(1500)
     }
     await docScreenshot(page, 'connectivity', 'mapping', testInfo)
+  })
+
+  // ---------------------------------------------------------------------------
+  // FEATURES (3 tests)
+  // ---------------------------------------------------------------------------
+
+  // --- NEW: streaming CEP rules — Monaco editor with a meaningful YAML rule ---
+  test('cep rules', async ({ page }, testInfo) => {
+    await page.goto('/cep-rules')
+    await page.waitForTimeout(1500)
+
+    // Click "New Rule" so the editor mounts. The seed plant has no CEP
+    // rules pre-populated, so we author one inline for the screenshot.
+    await page.getByRole('button', { name: 'New Rule' }).click()
+    await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15000 })
+
+    // Replace the default template with a meaningful cross-stream rule.
+    // Monaco exposes a global API on its instance; setting the value via
+    // the model is far more reliable than synthetic keystrokes (which
+    // can race against Monaco's own command bindings).
+    const ruleYaml = [
+      '# Cross-stream drift — fires when shaft OD trends up while bore ID',
+      '# trends down inside the same 5-minute window.',
+      'name: cross-station-drift',
+      'description: Detect coupled drift between mating features',
+      'window: 5m',
+      'conditions:',
+      '  - characteristic: Screenshot Tour Plant > Test Dept > Test Line > Test Station > Test Char',
+      '    rule: above_mean_consecutive',
+      '    count: 3',
+      '  - characteristic: Screenshot Tour Plant > Test Dept > Test Line > Test Station > Test Char',
+      '    rule: below_mean_consecutive',
+      '    count: 3',
+      'action:',
+      '  violation: CROSS_STATION_DRIFT',
+      '  severity: high',
+      '  message: Mating features drifting in opposite directions',
+    ].join('\n')
+
+    // Monaco's hidden textarea hosts the editing surface. Focus it,
+    // select-all, then type the YAML. Type with no delay so the debounced
+    // validator only fires once at the end.
+    const monacoTextarea = page.locator('.monaco-editor textarea').first()
+    await expect(monacoTextarea).toBeAttached({ timeout: 5000 })
+    await monacoTextarea.focus()
+    await page.keyboard.press('Control+A')
+    await monacoTextarea.fill(ruleYaml)
+
+    // Let Monaco repaint syntax highlighting and the debounced validator
+    // (~500ms) settle before snapshotting.
+    await page.waitForTimeout(1500)
+
+    await docScreenshot(page, 'features', 'cep-rules', testInfo)
+  })
+
+  // --- NEW: SOP-grounded RAG with mocked answer (real seed corpus) ---
+  // Seeds a real SopDoc + chunks in the unified seed script, then mocks
+  // the /sop-rag/query endpoint so the screenshot shows a populated
+  // answer pane with citation pills — no ANTHROPIC_API_KEY required.
+  test('sop rag', async ({ page }, testInfo) => {
+    // Mock the SOP-RAG query so we get a deterministic, populated answer
+    // without hitting Anthropic's API. The seeded corpus has chunk IDs
+    // that we cite back here — the citation pill renders the chunk_id.
+    await page.route('**/api/v1/sop-rag/query**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          refused: false,
+          answer:
+            'Tighten the M6 bolt to 12 Nm using a calibrated torque ' +
+            'wrench [citation:1]. The operator must sign the inspection ' +
+            'sheet in section 3-B after the 24-hour cure period [citation:2].',
+          answer_stripped:
+            'Tighten the M6 bolt to 12 Nm using a calibrated torque wrench. ' +
+            'The operator must sign the inspection sheet in section 3-B ' +
+            'after the 24-hour cure period.',
+          citations: [
+            {
+              chunk_id: 1,
+              doc_id: 1,
+              doc_title: 'M6 Bolt Assembly Procedure',
+              chunk_index: 0,
+              paragraph_label: 'section 1 / page 1',
+              text:
+                'Tighten the M6 bolt to 12 Nm using the calibrated torque ' +
+                'wrench. Apply Loctite 243 to the threads before assembly.',
+              score: 0.92,
+            },
+            {
+              chunk_id: 2,
+              doc_id: 1,
+              doc_title: 'M6 Bolt Assembly Procedure',
+              chunk_index: 1,
+              paragraph_label: 'section 3-B / page 2',
+              text:
+                'After the cure period the operator must sign the ' +
+                'inspection sheet in section 3-B. Operator ID is logged ' +
+                'with timestamp.',
+              score: 0.84,
+            },
+          ],
+          sentences: [
+            {
+              text: 'Tighten the M6 bolt to 12 Nm using a calibrated torque wrench.',
+              chunk_ids: [1],
+            },
+            {
+              text:
+                'The operator must sign the inspection sheet in section 3-B ' +
+                'after the 24-hour cure period.',
+              chunk_ids: [2],
+            },
+          ],
+          candidate_chunk_ids: [1, 2, 3],
+          cost_usd: 0.0021,
+          input_tokens: 412,
+          output_tokens: 78,
+          model: 'claude-sonnet-4-6',
+        }),
+      })
+    })
+
+    await page.goto('/sop-rag')
+    await page.waitForTimeout(1500)
+
+    // The seeded corpus list should populate — wait for the doc row.
+    await expect(page.locator('[data-ui="sop-doc-row"]').first()).toBeVisible({
+      timeout: 10000,
+    })
+
+    // Type a question and click Ask.
+    const input = page.getByLabel('SOP question')
+    await expect(input).toBeVisible({ timeout: 5000 })
+    await input.fill(
+      'What is the M6 bolt torque spec and when do I sign off?',
+    )
+    await page.getByRole('button', { name: /^Ask$/ }).click()
+
+    // Wait for the mocked answer + citation pills to render.
+    await expect(page.locator('[data-ui="citation-pill"]').first()).toBeVisible({
+      timeout: 10000,
+    })
+    await page.waitForTimeout(800)
+
+    await docScreenshot(page, 'features', 'sop-rag', testInfo)
+  })
+
+  // --- NEW: Lakehouse data product page with table picker + snippet ---
+  test('lakehouse', async ({ page }, testInfo) => {
+    await page.goto('/lakehouse')
+    await page.waitForTimeout(1500)
+
+    // The page renders a `data-ui="lakehouse-page"` wrapper once the
+    // license check resolves; the catalog query then populates the
+    // table picker and snippet preview.
+    await expect(page.locator('[data-ui="lakehouse-page"]')).toBeVisible({
+      timeout: 10000,
+    })
+
+    // Wait for the curl + python snippets to render — the catalog query
+    // populates them once it resolves.
+    await expect(page.locator('pre').first()).toBeVisible({ timeout: 10000 })
+    await page.waitForTimeout(500)
+
+    await docScreenshot(page, 'features', 'lakehouse', testInfo)
   })
 
   // ---------------------------------------------------------------------------

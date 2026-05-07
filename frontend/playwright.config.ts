@@ -89,6 +89,8 @@ export default defineConfig({
       cwd: backendDir,
       env: {
         CASSINI_DATABASE_URL: cassiniDbUrl,
+        CASSINI_ENVIRONMENT: 'development',
+        CASSINI_ENABLE_DEV_TIER_OVERRIDE: '1',
         CASSINI_DEV_MODE: 'true',
         CASSINI_DEV_TIER: 'enterprise',
         CASSINI_SANDBOX: 'true',
