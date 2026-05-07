@@ -100,7 +100,14 @@ The response is a flat `ReplaySnapshot` object — no `snapshot.{...}` wrapper. 
 }
 ```
 
-> **What is and isn't historical (Phase 1 scope).** Sprint 15 ships the snapshot's UCL, LCL, center line, and signature validity reconstructed at the requested timestamp — those values are walked from the audit log. The remaining characteristic configuration fields (name, target, USL/LSL, sigma method, rule parameters, etc.) and per-sample fields reflect the **current** row state. Per-field reconstruction of every column from `audit_log.detail.body` is documented as Phase 2 in the design note. For audit / regulatory use today, treat limits, center line, and signature state as historical; treat config metadata as the row's present value.
+> **What is and isn't historical.** The snapshot's UCL, LCL, center line, and
+> signature validity are reconstructed at the requested timestamp — those values
+> are walked from the audit log. The remaining characteristic configuration fields
+> (name, target, USL/LSL, sigma method, rule parameters, etc.) and per-sample
+> fields currently reflect the **current** row state. Per-field reconstruction
+> of every column from `audit_log.detail.body` is on the roadmap. For audit /
+> regulatory use today, treat limits, center line, and signature state as
+> historical; treat config metadata as the row's present value.
 
 ## Error responses
 

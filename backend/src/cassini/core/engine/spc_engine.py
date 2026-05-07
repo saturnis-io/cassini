@@ -580,7 +580,7 @@ class SPCEngine:
                 for rule in char.rules
             }
 
-            # Build rule configs with custom parameters (Sprint 5 - A2)
+            # Build rule configs with custom parameters (- A2)
             import json as _json
             rule_configs = []
             for rule in char.rules:

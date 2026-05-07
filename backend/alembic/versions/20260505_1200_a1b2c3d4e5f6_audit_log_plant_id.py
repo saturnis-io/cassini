@@ -12,7 +12,7 @@ endpoint context provides one.
 
 Idempotent: the initial migration ``f5006ab282e0`` uses
 ``Base.metadata.create_all()`` which already provisions ``plant_id`` on
-fresh databases (model state is current). Existing pre-Sprint-15 databases
+fresh databases (model state is current). Existing pre-v0.1.0 databases
 upgraded incrementally still need the column added. Guard with
 ``inspect()`` so both paths succeed.
 """

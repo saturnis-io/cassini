@@ -6,16 +6,16 @@ import { getManifest } from './helpers/manifest'
 test.describe('Audit Log', () => {
   let token: string
   let phaseCharId: number | null = null
-  let hasSprint13: boolean = false
+  let hasExtended: boolean = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
     try {
       const manifest = getManifest()
-      phaseCharId = manifest.sprint13?.phase_char_id ?? null
-      hasSprint13 = phaseCharId !== null
+      phaseCharId = manifest.extended?.phase_char_id ?? null
+      hasExtended = phaseCharId !== null
     } catch {
-      hasSprint13 = false
+      hasExtended = false
     }
   })
 
@@ -137,10 +137,10 @@ test.describe('Audit Log', () => {
 
   // ----------------------------------------------------------------
   // Audit log API: freeze/unfreeze actions captured by middleware
-  // (ported from sprint13-audit.spec.ts)
+  //
   // ----------------------------------------------------------------
   test('audit log captures freeze/unfreeze actions via API', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     // Trigger freeze + unfreeze to ensure middleware captures them.
     await request.post(`${API_BASE}/characteristics/${phaseCharId}/freeze-limits`, {
@@ -187,7 +187,7 @@ test.describe('Audit Log', () => {
   // Username recycling blocked: deactivated username returns 409
   // ----------------------------------------------------------------
   test('creating user with deactivated username returns 409', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     const res = await request.post(`${API_BASE}/users/`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

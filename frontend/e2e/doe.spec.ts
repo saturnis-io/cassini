@@ -20,7 +20,7 @@ test.describe('DOE - Design of Experiments', () => {
   })
 
   // -----------------------------------------------------------------------
-  // Helpers shared by advanced design tests (ported from sprint13-doe.spec.ts)
+  // Helpers shared by advanced design tests
   // -----------------------------------------------------------------------
   async function createAndAnalyzeStudy(
     request: import('@playwright/test').APIRequestContext,
@@ -272,7 +272,7 @@ test.describe('DOE - Design of Experiments', () => {
   })
 
   // ========================================================================
-  // Advanced design types & analysis (ported from sprint13-doe.spec.ts)
+  // Advanced design types & analysis
   // ========================================================================
 
   test('Plackett-Burman study (7 factors) generates 8-run design', async ({ page, request }) => {

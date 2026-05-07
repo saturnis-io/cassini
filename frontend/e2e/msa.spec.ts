@@ -51,7 +51,7 @@ test.describe('MSA - Measurement System Analysis', () => {
 
   // -----------------------------------------------------------------------
   // Helpers for advanced MSA study types
-  // (ported from sprint13-msa.spec.ts)
+  //
   // -----------------------------------------------------------------------
   async function createStabilityStudy(request: import('@playwright/test').APIRequestContext) {
     const study = await apiPost(request, '/msa/studies', token, {
@@ -437,7 +437,7 @@ test.describe('MSA - Measurement System Analysis', () => {
 
   // ========================================================================
   // Advanced study types: stability, bias, operator charts, attribute MSA
-  // (ported from sprint13-msa.spec.ts)
+  //
   // ========================================================================
 
   test('stability study shows I-MR chart with verdict', async ({ page, request }) => {

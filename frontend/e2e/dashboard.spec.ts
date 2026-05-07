@@ -7,20 +7,20 @@ import { getManifest } from './helpers/manifest'
 test.describe('Dashboard', () => {
   let token: string
   let characteristicId: number
-  let sprint13CharId: number | null = null
-  let sprint13PooledCharId: number | null = null
-  let sprint13PhaseCharId: number | null = null
-  let hasSprint13 = false
+  let extendedCharId: number | null = null
+  let extendedPooledCharId: number | null = null
+  let extendedPhaseCharId: number | null = null
+  let hasExtended = false
 
   test.beforeAll(async ({ request }) => {
     token = await getAuthToken(request)
     const manifest = getManifest()
     characteristicId = manifest.dashboard.char_id
-    if (manifest.sprint13) {
-      sprint13CharId = manifest.sprint13.char_id
-      sprint13PooledCharId = manifest.sprint13.pooled_char_id
-      sprint13PhaseCharId = manifest.sprint13.phase_char_id
-      hasSprint13 = true
+    if (manifest.extended) {
+      extendedCharId = manifest.extended.char_id
+      extendedPooledCharId = manifest.extended.pooled_char_id
+      extendedPhaseCharId = manifest.extended.phase_char_id
+      hasExtended = true
     }
   })
 
@@ -288,16 +288,16 @@ test.describe('Dashboard', () => {
   })
 
   // ========================================================================
-  // Sprint 13 SPC features (ported from sprint13-spc.spec.ts)
+  // SPC features
   // Capability fields, freeze/unfreeze, pooled sigma, capability card UI.
   // ========================================================================
 
-  // Helper: navigate to Sprint 13 char on dashboard
-  async function selectSprint13Char(
+  // Helper: navigate to char on dashboard
+  async function selectExtendedChar(
     page: import('@playwright/test').Page,
     charName: string,
   ) {
-    await switchToPlant(page, 'Sprint 13 Tests')
+    await switchToPlant(page, 'Tests')
     await page.goto('/dashboard')
     await page.waitForTimeout(2000)
     await collapseNavSection(page)
@@ -317,12 +317,12 @@ test.describe('Dashboard', () => {
     await page.waitForTimeout(2000)
   }
 
-  // Helper: navigate to configuration and select Sprint 13 char
-  async function selectSprint13CharInConfig(
+  // Helper: navigate to configuration and select char
+  async function selectExtendedCharInConfig(
     page: import('@playwright/test').Page,
     charName: string,
   ) {
-    await switchToPlant(page, 'Sprint 13 Tests')
+    await switchToPlant(page, 'Tests')
     await page.goto('/configuration')
     await page.waitForTimeout(2000)
 
@@ -339,11 +339,11 @@ test.describe('Dashboard', () => {
   }
 
   test('capability API returns z_bench and ppm fields', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     const capability = await apiGet(
       request,
-      `/characteristics/${sprint13CharId}/capability`,
+      `/characteristics/${extendedCharId}/capability`,
       token,
     )
 
@@ -365,11 +365,11 @@ test.describe('Dashboard', () => {
   })
 
   test('capability API returns stability warning when violations exist', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     const capability = await apiGet(
       request,
-      `/characteristics/${sprint13CharId}/capability`,
+      `/characteristics/${extendedCharId}/capability`,
       token,
     )
 
@@ -381,18 +381,18 @@ test.describe('Dashboard', () => {
   })
 
   test('pooled sigma method is set on characteristic via API', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
-    const charData = await apiGet(request, `/characteristics/${sprint13PooledCharId}`, token)
+    const charData = await apiGet(request, `/characteristics/${extendedPooledCharId}`, token)
     expect(charData).toBeTruthy()
     expect(charData.sigma_method).toBe('pooled')
   })
 
   test('sigma method dropdown visible in characteristic config', async ({ page }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     await loginAsAdmin(page)
-    await selectSprint13CharInConfig(page, 'S13 Variable')
+    await selectExtendedCharInConfig(page, 'S13 Variable')
 
     await page.getByText('Limits', { exact: true }).click()
     await page.waitForTimeout(1000)
@@ -407,10 +407,10 @@ test.describe('Dashboard', () => {
   })
 
   test('freeze and unfreeze limits via API', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     const freezeRes = await request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/freeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
@@ -419,14 +419,14 @@ test.describe('Dashboard', () => {
 
     const afterFreeze = await apiGet(
       request,
-      `/characteristics/${sprint13PhaseCharId}`,
+      `/characteristics/${extendedPhaseCharId}`,
       token,
     )
     expect(afterFreeze.limits_frozen).toBe(true)
     expect(afterFreeze.limits_frozen_at).toBeTruthy()
 
     const unfreezeRes = await request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/unfreeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
@@ -435,25 +435,25 @@ test.describe('Dashboard', () => {
 
     const afterUnfreeze = await apiGet(
       request,
-      `/characteristics/${sprint13PhaseCharId}`,
+      `/characteristics/${extendedPhaseCharId}`,
       token,
     )
     expect(afterUnfreeze.limits_frozen).toBe(false)
   })
 
   test('Phase I/II banner visible in configuration UI when frozen', async ({ page }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     await loginAsAdmin(page)
     const freezeRes = await page.request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/freeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
     )
     expect(freezeRes.ok()).toBeTruthy()
 
-    await selectSprint13CharInConfig(page, 'S13 Phase')
+    await selectExtendedCharInConfig(page, 'S13 Phase')
 
     await page.getByText('Limits', { exact: true }).click()
     await page.waitForTimeout(1000)
@@ -468,7 +468,7 @@ test.describe('Dashboard', () => {
 
     // Cleanup
     await page.request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/unfreeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
@@ -476,17 +476,17 @@ test.describe('Dashboard', () => {
   })
 
   test('recalculate-limits returns 409 when limits are frozen', async ({ request }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+    test.skip(!hasExtended, 'seed data not present')
 
     await request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/freeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/freeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
     )
 
     const recalcRes = await request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/recalculate-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/recalculate-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
@@ -498,7 +498,7 @@ test.describe('Dashboard', () => {
 
     // Cleanup
     await request.post(
-      `${API_BASE}/characteristics/${sprint13PhaseCharId}/unfreeze-limits`,
+      `${API_BASE}/characteristics/${extendedPhaseCharId}/unfreeze-limits`,
       {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       },
@@ -511,7 +511,7 @@ test.describe('Dashboard', () => {
     // The explain capability endpoint supports: cp, cpk, pp, ppk, cpm.
     // z_bench_within is not yet registered as an explain metric.
     const res = await request.get(
-      `${API_BASE}/explain/capability/z_bench_within/${sprint13CharId}`,
+      `${API_BASE}/explain/capability/z_bench_within/${extendedCharId}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -528,17 +528,17 @@ test.describe('Dashboard', () => {
     }
   })
 
-  test('capability card renders on dashboard for Sprint 13 char', async ({ page }) => {
-    test.skip(!hasSprint13, 'Sprint 13 seed data not present')
+  test('capability card renders on dashboard for char', async ({ page }) => {
+    test.skip(!hasExtended, 'seed data not present')
 
     await loginAsAdmin(page)
-    await selectSprint13Char(page, 'S13 Variable')
+    await selectExtendedChar(page, 'S13 Variable')
 
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Process Capability').first()).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Cpk').first()).toBeVisible({ timeout: 10000 })
 
-    await test.info().attach('sprint13-capability-card', {
+    await test.info().attach('capability-card', {
       body: await page.screenshot({ fullPage: true }),
       contentType: 'image/png',
     })

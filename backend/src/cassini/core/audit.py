@@ -150,6 +150,10 @@ _RESOURCE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/api/v1/lakehouse/[\w-]+"), "lakehouse"),
     (re.compile(r"/api/v1/cep_rules/validate"), "cep_rule"),
     (re.compile(r"/api/v1/cep_rules(?:/(\d+))?"), "cep_rule"),
+    (re.compile(r"/api/v1/sop-rag/docs/(\d+)/reindex"), "sop_doc"),
+    (re.compile(r"/api/v1/sop-rag/docs(?:/(\d+))?"), "sop_doc"),
+    (re.compile(r"/api/v1/sop-rag/query"), "sop_rag_query"),
+    (re.compile(r"/api/v1/sop-rag/budget"), "sop_rag_budget"),
 ]
 
 # Paths to skip auditing (health checks, reads, auth refresh, websocket)
@@ -232,6 +236,10 @@ def _method_to_action(method: str, path: str) -> str:
         return "reset"
     if "cep_rules/validate" in path:
         return "validate"
+    if "/sop-rag/query" in path:
+        return "query"
+    if "/reindex" in path:
+        return "reindex"
     if "/forecast" in path:
         return "forecast"
     if "/test" in path:

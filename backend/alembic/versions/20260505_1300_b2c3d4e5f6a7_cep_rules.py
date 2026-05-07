@@ -10,7 +10,7 @@ plant removal).
 
 Idempotent: the initial migration ``f5006ab282e0`` uses
 ``Base.metadata.create_all()`` which already creates ``cep_rule`` on fresh
-databases. Existing pre-Sprint-15 databases upgraded incrementally still need
+databases. Existing pre-v0.1.0 databases upgraded incrementally still need
 the table created. Guard with ``inspect()`` so both paths succeed.
 """
 from alembic import op

@@ -84,6 +84,9 @@ const LakehousePage = lazy(() =>
 const CepRulesPage = lazy(() =>
   import('@/pages/CepRulesPage').then((m) => ({ default: m.CepRulesPage })),
 )
+const SopRagPage = lazy(() =>
+  import('@/pages/SopRagPage').then((m) => ({ default: m.SopRagPage })),
+)
 
 // Lazy-loaded settings sub-pages
 const AppearanceSettings = lazy(() =>
@@ -508,6 +511,20 @@ function App() {
                         <ErrorBoundary>
                           <Suspense fallback={<PageSpinner />}>
                             <CepRulesPage />
+                          </Suspense>
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    </RequiresTier>
+                  }
+                />
+                <Route
+                  path="sop-rag"
+                  element={
+                    <RequiresTier tier="enterprise" fallback={<UpgradePage />}>
+                      <ProtectedRoute requiredRole="operator">
+                        <ErrorBoundary>
+                          <Suspense fallback={<PageSpinner />}>
+                            <SopRagPage />
                           </Suspense>
                         </ErrorBoundary>
                       </ProtectedRoute>

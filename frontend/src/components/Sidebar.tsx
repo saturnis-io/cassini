@@ -23,6 +23,7 @@ import {
   X,
   Building2,
   Workflow,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/uiStore'
@@ -216,6 +217,13 @@ export function Sidebar({ className }: SidebarProps) {
       labelKey: 'cepRules',
       icon: <Workflow className="h-5 w-5" />,
       requiredRole: 'engineer',
+      requiredTier: 'enterprise',
+    },
+    {
+      path: '/sop-rag',
+      labelKey: 'sopRag',
+      icon: <BookOpen className="h-5 w-5" />,
+      requiredRole: 'operator',
       requiredTier: 'enterprise',
     },
     {

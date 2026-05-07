@@ -148,6 +148,24 @@ export function LakehousePage() {
             role="radiogroup"
             aria-labelledby="lakehouse-format-label"
             className="grid grid-cols-2 gap-2"
+            onKeyDown={(e) => {
+              if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key))
+                return
+              e.preventDefault()
+              const idx = FORMATS.findIndex((x) => x.value === format)
+              let next = idx
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+                next = (idx + 1) % FORMATS.length
+              else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+                next = (idx - 1 + FORMATS.length) % FORMATS.length
+              else if (e.key === 'Home') next = 0
+              else if (e.key === 'End') next = FORMATS.length - 1
+              setFormat(FORMATS[next].value)
+              const target = e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[
+                next
+              ]
+              target?.focus()
+            }}
           >
             {FORMATS.map((f) => {
               const selected = format === f.value
@@ -158,11 +176,12 @@ export function LakehousePage() {
                   role="radio"
                   aria-checked={selected}
                   aria-label={`${f.label} format`}
+                  tabIndex={selected ? 0 : -1}
                   onClick={() => setFormat(f.value)}
                   className={
                     selected
-                      ? 'border-primary bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm font-medium'
-                      : 'border-input bg-background text-foreground hover:bg-accent rounded-md border px-3 py-2 text-sm'
+                      ? 'border-primary bg-primary/10 text-primary cursor-pointer rounded-md border px-3 py-2 text-sm font-medium'
+                      : 'border-input bg-background text-foreground hover:bg-accent cursor-pointer rounded-md border px-3 py-2 text-sm'
                   }
                 >
                   {f.label}
@@ -176,12 +195,12 @@ export function LakehousePage() {
         </div>
 
         {selectedTable?.plant_scoped && selectedPlant && (
-          <label className="text-foreground flex items-center gap-2 text-sm">
+          <label className="text-foreground hover:bg-accent flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md px-2 text-sm">
             <input
               type="checkbox"
               checked={scopeToPlant}
               onChange={(e) => setScopeToPlant(e.target.checked)}
-              className="border-input h-4 w-4"
+              className="border-input h-4 w-4 cursor-pointer"
             />
             Scope to {selectedPlant.name}
           </label>

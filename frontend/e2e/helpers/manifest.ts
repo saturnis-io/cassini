@@ -58,8 +58,8 @@ export interface SeedManifest {
     broker_id: number
     workflow_id: number
   }
-  // Sprint 13 (SPC, auth, audit features)
-  sprint13: StandardHierarchy & {
+  // Extended SPC, auth, and audit fixtures
+  extended: StandardHierarchy & {
     pooled_char_id: number
     phase_char_id: number
     locked_user_id: number

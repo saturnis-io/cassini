@@ -920,7 +920,7 @@ async def update_sample(
 
         rule_library = NelsonRuleLibrary()
 
-        # Apply custom rule parameters from characteristic config (Sprint 5 - A2)
+        # Apply custom rule parameters from characteristic config (- A2)
         import json as _json
         rule_configs = []
         for rule in characteristic.rules:

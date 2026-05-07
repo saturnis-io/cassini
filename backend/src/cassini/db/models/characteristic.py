@@ -82,17 +82,17 @@ class Characteristic(Base):
     # Display formatting
     decimal_precision: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
 
-    # Distribution fitting (Sprint 5 - A1)
+    # Distribution fitting (- A1)
     distribution_method: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     box_cox_lambda: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     distribution_params: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 
-    # Laney correction (Sprint 5 - A3)
+    # Laney correction (- A3)
     use_laney_correction: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.False_(), nullable=False
     )
 
-    # Short-run charts (Sprint 6 - B2)
+    # Short-run charts (- B2)
     short_run_mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     # Sigma estimation method override (null = auto-select based on subgroup size)
@@ -159,7 +159,7 @@ class CharacteristicRule(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     require_acknowledgement: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Custom rule parameters (Sprint 5 - A2) — JSON string
+    # Custom rule parameters (- A2) — JSON string
     parameters: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 
     # Relationship

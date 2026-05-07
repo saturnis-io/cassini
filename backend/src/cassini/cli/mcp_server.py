@@ -188,6 +188,43 @@ _READ_TOOLS: dict[str, dict[str, Any]] = {
         },
         "required": ["yaml_text"],
     },
+    "cassini_sop_rag_list": {
+        "description": (
+            "(Enterprise) List SOP / work-instruction documents indexed "
+            "for citation-locked RAG, scoped to a single plant."
+        ),
+        "properties": {
+            "plant_id": {
+                "type": "integer",
+                "description": "Plant ID.",
+            },
+        },
+        "required": ["plant_id"],
+    },
+    "cassini_sop_rag_query": {
+        "description": (
+            "(Enterprise) Ask a question against the SOP corpus. The "
+            "response is citation-locked: every claim is backed by a "
+            "[citation:<chunk_id>] marker pointing at a chunk from the "
+            "caller's plant. Returns 422-style refusal payloads when the "
+            "model cannot cite or strays out of the corpus."
+        ),
+        "properties": {
+            "plant_id": {
+                "type": "integer",
+                "description": "Plant ID.",
+            },
+            "question": {
+                "type": "string",
+                "description": "User question (3-2000 chars).",
+            },
+            "top_k": {
+                "type": "integer",
+                "description": "Number of candidate chunks to retrieve (1-20, default 8).",
+            },
+        },
+        "required": ["plant_id", "question"],
+    },
 }
 
 _WRITE_TOOLS: dict[str, dict[str, Any]] = {
@@ -369,6 +406,14 @@ async def _dispatch_tool(
         return await client.cep_rules_list(plant_id=args.get("plant_id"))
     elif name == "cassini_cep_rules_validate":
         return await client.cep_rules_validate(yaml_text=args["yaml_text"])
+    elif name == "cassini_sop_rag_list":
+        return await client.sop_rag_list(plant_id=args["plant_id"])
+    elif name == "cassini_sop_rag_query":
+        return await client.sop_rag_query(
+            plant_id=args["plant_id"],
+            question=args["question"],
+            top_k=args.get("top_k", 8),
+        )
     # Write tools (guarded)
     elif name == "cassini_samples_submit" and allow_writes:
         return await client.samples_submit(

@@ -18,7 +18,7 @@ test.describe('Reports', () => {
     await switchToPlant(page, 'Reports Plant')
   })
 
-  // Helpers shared by ported sprint13-reporting tests
+  // Helpers shared by ported tests
   async function selectCapabilityReport(page: import('@playwright/test').Page) {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
@@ -134,7 +134,7 @@ test.describe('Reports', () => {
   })
 
   // ========================================================================
-  // Report rendering & export (ported from sprint13-reporting.spec.ts)
+  // Report rendering & export
   // ========================================================================
 
   test('PDF export triggers a download', async ({ page }) => {

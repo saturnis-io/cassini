@@ -82,6 +82,12 @@ lakehouse = [
 mcp = [
     "mcp>=1.0",
 ]
+rag = [
+    "sentence-transformers>=3.0",
+    "rank-bm25>=0.2.2",
+    "pypdf>=4.0",
+    "python-docx>=1.1",
+]
 test-containerized = [
     "testcontainers[postgres,mysql,mssql,redis]>=4.5",
     "aiomqtt>=2.3",

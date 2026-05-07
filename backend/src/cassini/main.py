@@ -43,6 +43,7 @@ from cassini.api.v1.database_admin import router as database_admin_router
 from cassini.api.v1.characteristic_config import router as config_router
 from cassini.api.v1.capability import router as capability_router
 from cassini.api.v1.cep_rules import router as cep_rules_router
+from cassini.api.v1.sop_rag import router as sop_rag_router
 from cassini.api.v1.characteristics import router as characteristics_router
 from cassini.api.v1.data_entry import router as data_entry_router
 from cassini.api.v1.distributions import router as distributions_router
@@ -138,6 +139,7 @@ _ENTERPRISE_ROUTERS = [
     database_admin_router,
     system_settings_router,
     cep_rules_router,
+    sop_rag_router,
 ]
 
 

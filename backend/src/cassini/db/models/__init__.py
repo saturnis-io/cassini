@@ -57,6 +57,7 @@ from cassini.db.models.retention_policy import RetentionPolicy
 from cassini.db.models.rule_preset import RulePreset
 from cassini.db.models.sample import Measurement, Sample
 from cassini.db.models.system_settings import SystemSettings
+from cassini.db.models.sop_doc import SopChunk, SopDoc, SopRagBudget
 from cassini.db.models.signature import (
     ElectronicSignature,
     PasswordPolicy,
@@ -136,7 +137,7 @@ __all__ = [
     "ERPFieldMapping",
     "ERPSyncSchedule",
     "ERPSyncLog",
-    # Sprint 9: Advanced analytics
+    # Advanced analytics
     "AIInsight",
     "AIProviderConfig",
     "CorrelationResult",
@@ -159,6 +160,10 @@ __all__ = [
     "PasswordResetToken",
     # System settings
     "SystemSettings",
+    # SOP-grounded RAG
+    "SopDoc",
+    "SopChunk",
+    "SopRagBudget",
     # Enums
     "DataSourceType",
     "HierarchyType",

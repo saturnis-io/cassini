@@ -56,6 +56,7 @@ ENTERPRISE_FEATURES = frozenset({
     "multivariate-spc", "anomaly-detection", "predictive-analytics",
     "ai-analysis", "sso-oidc", "erp-connectors", "data-retention",
     "database-admin", "async-spc", "dedicated-support", "cep-rules",
+    "sop-rag",
 })
 
 # Bundled public key ships with Cassini — used to verify license JWTs from saturnis.io

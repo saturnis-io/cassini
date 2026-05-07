@@ -1351,8 +1351,8 @@ def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
                 "workflow_id": tour_workflow_id,
             }
 
-            # 10. Sprint 13 Test Plant.
-            s13_plant = get_or_insert_plant(conn, "Sprint 13 Tests", "SPRINT13")
+            # 10. Test Plant.
+            s13_plant = get_or_insert_plant(conn, "Tests", "EXTENDED")
             s13_dept = get_or_insert_hierarchy(conn, s13_plant, "S13 Dept", "Area")
             s13_line = get_or_insert_hierarchy(conn, s13_plant, "S13 Line", "Line", s13_dept)
             s13_station = get_or_insert_hierarchy(
@@ -1389,7 +1389,7 @@ def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
 
             s13_raw_cls_id, _s13_raw_path = get_or_insert_material_class(
                 conn, s13_plant, "S13 Materials", "S13MAT",
-                description="Sprint 13 test materials",
+                description="test materials",
             )
             s13_mat_a = get_or_insert_material(
                 conn, s13_plant, s13_raw_cls_id, "S13 Material A", "S13-MAT-A"
@@ -1471,7 +1471,7 @@ def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
                     ],
                 )
 
-            manifest["sprint13"] = {
+            manifest["extended"] = {
                 "plant_id": s13_plant,
                 "dept_id": s13_dept,
                 "line_id": s13_line,

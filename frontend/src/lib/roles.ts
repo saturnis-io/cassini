@@ -59,6 +59,9 @@ export const VIEW_PERMISSIONS: Record<string, Role> = {
   '/doe': 'engineer',
   '/lakehouse': 'engineer',
 
+  // SOP-grounded RAG — operators can query, engineers can manage
+  '/sop-rag': 'operator',
+
   // Settings — accessible to all (personal tabs), role-guarded per sub-route
   '/settings': 'operator',
 

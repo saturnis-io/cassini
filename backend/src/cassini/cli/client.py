@@ -324,3 +324,21 @@ class CassiniClient:
         resp = await client.put(f"/cep_rules/{rule_id}", json=body)
         self._check_response(resp)
         return resp.json()
+
+    async def sop_rag_list(self, plant_id: int) -> dict[str, Any]:
+        return await self._get("/sop-rag/docs", params={"plant_id": plant_id})
+
+    async def sop_rag_query(
+        self, plant_id: int, question: str, top_k: int = 8
+    ) -> dict[str, Any]:
+        client = self._ensure_client()
+        resp = await client.post(
+            "/sop-rag/query",
+            params={"plant_id": plant_id},
+            json={"question": question, "top_k": top_k},
+        )
+        # 422/402 carry structured RagRefusalResponse — return body as-is.
+        if resp.status_code in (200, 402, 422):
+            return resp.json()
+        self._check_response(resp)
+        return resp.json()

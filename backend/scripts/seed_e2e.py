@@ -895,8 +895,8 @@ def seed(db_path: str) -> dict:
         "workflow_id": tour_workflow_id,
     }
 
-    # ── 10. Sprint 13 Test Plant ──────────────────────────────────────────
-    s13_plant = insert_plant(cur, "Sprint 13 Tests", "SPRINT13")
+    # ── 10. Test Plant ──────────────────────────────────────────
+    s13_plant = insert_plant(cur, "Tests", "EXTENDED")
     s13_dept = insert_hierarchy(cur, s13_plant, "S13 Dept", "Area")
     s13_line = insert_hierarchy(cur, s13_plant, "S13 Line", "Line", s13_dept)
     s13_station = insert_hierarchy(cur, s13_plant, "S13 Station", "Cell", s13_line)
@@ -936,7 +936,7 @@ def seed(db_path: str) -> dict:
     # Create materials for pooled sigma char
     s13_raw_cls_id, s13_raw_path = insert_material_class(
         cur, s13_plant, "S13 Materials", "S13MAT",
-        description="Sprint 13 test materials",
+        description="test materials",
     )
     s13_mat_a = insert_material(cur, s13_plant, s13_raw_cls_id, "S13 Material A", "S13-MAT-A")
     s13_mat_b = insert_material(cur, s13_plant, s13_raw_cls_id, "S13 Material B", "S13-MAT-B")
@@ -983,7 +983,7 @@ def seed(db_path: str) -> dict:
     insert_role(cur, s13_deactivated_user, s13_plant, "operator")
     cur.execute("UPDATE user SET is_active = 0 WHERE id = ?", (s13_deactivated_user,))
 
-    # Audit log entries for Sprint 13 (freeze/unfreeze actions)
+    # Audit log entries for (freeze/unfreeze actions)
     for action, summary in [
         ("freeze", "Control limits frozen for 'S13 Phase' (Phase II)"),
         ("unfreeze", "Control limits unfrozen for 'S13 Phase' (back to Phase I)"),
@@ -996,7 +996,7 @@ def seed(db_path: str) -> dict:
              json.dumps({"summary": summary}), "192.168.1.100", utcnow()),
         )
 
-    manifest["sprint13"] = {
+    manifest["extended"] = {
         "plant_id": s13_plant,
         "dept_id": s13_dept,
         "line_id": s13_line,
