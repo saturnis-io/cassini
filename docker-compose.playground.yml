@@ -1,0 +1,72 @@
+# Cassini Playground — one-command repeatable testing/screenshot environment.
+#
+# Usage:
+#   docker compose -f docker-compose.playground.yml up -d --build
+#   open http://localhost:8001  (admin / admin)
+#
+# Includes:
+#   - PostgreSQL 16 with seeded Screenshot Tour Plant (50 samples,
+#     3 violations, MSA Gage R&R study, FAI report, DOE study,
+#     SOP corpus, MQTT broker config)
+#   - Cassini backend + frontend on port 8001
+#   - All Pro/Enterprise features unlocked via dev-tier override
+#     (development environment only — never trust this binary in prod)
+#
+# Tear down:
+#   docker compose -f docker-compose.playground.yml down -v   # -v wipes data
+
+services:
+  postgres-playground:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=cassini
+      - POSTGRES_PASSWORD=cassini
+      - POSTGRES_DB=cassini
+    ports:
+      - "5433:5432"
+    volumes:
+      - playground-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cassini -d cassini"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  cassini-playground:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - CASSINI_DATABASE_URL=postgresql+asyncpg://cassini:cassini@postgres-playground:5432/cassini
+      - CASSINI_JWT_SECRET=playground-secret-do-not-use-in-prod-32chars
+      - CASSINI_ADMIN_PASSWORD=admin
+      - CASSINI_COOKIE_SECURE=false
+      - CASSINI_HOST=0.0.0.0
+      - CASSINI_PORT=8000
+      # Development environment + explicit dev-tier override unlocks
+      # all Pro/Enterprise features for the playground. Production
+      # builds will refuse this combination.
+      - CASSINI_ENVIRONMENT=development
+      - CASSINI_ENABLE_DEV_TIER_OVERRIDE=1
+      - CASSINI_DEV_TIER=enterprise
+      - CASSINI_DEV_MODE=true
+      - CASSINI_SANDBOX=true
+      # Auto-seed the Screenshot Tour Plant on first boot (idempotent
+      # — checks for existing entities and skips if already populated).
+      - CASSINI_PLAYGROUND_SEED=1
+    depends_on:
+      postgres-playground:
+        condition: service_healthy
+    entrypoint: ["/app/docker-entrypoint.playground.sh"]
+    volumes:
+      - playground-cassini-data:/app/data
+      - ./docker-entrypoint.playground.sh:/app/docker-entrypoint.playground.sh:ro
+      - ./backend/scripts:/app/backend/scripts:ro
+    restart: unless-stopped
+
+volumes:
+  playground-postgres-data:
+  playground-cassini-data:

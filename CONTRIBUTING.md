@@ -106,6 +106,34 @@ cassini/
 └── Dockerfile            Multi-stage build
 ```
 
+## Playground (one-command demo + screenshot environment)
+
+Need to look at a feature without re-deriving the dev setup? The
+playground brings up Postgres + Cassini in Docker, runs migrations,
+seeds the Screenshot Tour Plant (50 samples, 3 violations, MSA Gage R&R
+study, FAI report, DOE study, SOP corpus, MQTT broker), and unlocks all
+Pro/Enterprise features behind the development-only dev-tier override.
+
+From the monorepo root (Docker Desktop must be running):
+
+```bash
+pnpm playground:up      # build, start, wait for health (~3-5 min on first build)
+pnpm playground:logs    # tail backend logs
+pnpm playground:down    # stop containers, keep data
+pnpm playground:reset   # nuke volumes + rebuild from scratch
+```
+
+After `playground:up`:
+
+- Backend + frontend: <http://localhost:8001>
+- Postgres: `localhost:5433` (`cassini` / `cassini` / `cassini`)
+- Login: `admin` / `admin`
+
+The playground is **development-only**. The `CASSINI_ENABLE_DEV_TIER_OVERRIDE`
+flag in `docker-compose.playground.yml` is what unlocks Pro/Enterprise
+features locally; production builds refuse this flag and clear
+`CASSINI_DEV_TIER` at startup.
+
 ## Coding Standards
 
 ### TypeScript (Frontend)
