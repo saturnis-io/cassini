@@ -112,6 +112,20 @@ test.describe('Screenshot Tour', () => {
     await page.goto('/reports')
     await page.waitForTimeout(2000)
 
+    // The sidebar's Characteristics panel is collapsed by default — open it
+    // via the persisted Zustand store so the hierarchy tree mounts. We can't
+    // rely on UI clicks because the chevron may be off-screen on small
+    // viewports.
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('cassini-ui')
+      const store = raw ? JSON.parse(raw) : { state: {}, version: 0 }
+      store.state = store.state || {}
+      store.state.characteristicsPanelOpen = true
+      store.state.navSectionCollapsed = true
+      localStorage.setItem('cassini-ui', JSON.stringify(store))
+    })
+    await page.reload({ waitUntil: 'networkidle' })
+
     // Pick a characteristic from the hierarchy selector so the report
     // preview has data to render — otherwise the page shows only an
     // empty state.
@@ -412,49 +426,41 @@ test.describe('Screenshot Tour', () => {
 
   // --- NEW: streaming CEP rules — Monaco editor with a meaningful YAML rule ---
   test('cep rules', async ({ page }, testInfo) => {
+    // Larger viewport so Monaco's font reads clearly in the README screenshot.
+    await page.setViewportSize({ width: 1600, height: 1000 })
     await page.goto('/cep-rules')
     await page.waitForTimeout(1500)
 
-    // Click "New Rule" so the editor mounts. The seed plant has no CEP
-    // rules pre-populated, so we author one inline for the screenshot.
+    // Click "New Rule" so Monaco mounts with the DEFAULT_CEP_RULE_TEMPLATE
+    // — a meaningful sample rule with comments, conditions, and action.
     await page.getByRole('button', { name: 'New Rule' }).click()
+
+    // Wait for Monaco to fully mount AND start painting. The skeleton
+    // loader is shown until Monaco's bundle loads. The view-lines element
+    // is the rendering surface — wait for visible content.
     await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('[data-ui="cep-editor-skeleton"]')).toBeHidden({
+      timeout: 15000,
+    })
+    const viewLines = page.locator('.monaco-editor .view-lines').first()
+    await expect(viewLines).toBeVisible({ timeout: 10000 })
+    // First visible line of DEFAULT_CEP_RULE_TEMPLATE is a comment.
+    await expect(viewLines).toContainText('CEP rule', { timeout: 10000 })
 
-    // Replace the default template with a meaningful cross-stream rule.
-    // Monaco exposes a global API on its instance; setting the value via
-    // the model is far more reliable than synthetic keystrokes (which
-    // can race against Monaco's own command bindings).
-    const ruleYaml = [
-      '# Cross-stream drift — fires when shaft OD trends up while bore ID',
-      '# trends down inside the same 5-minute window.',
-      'name: cross-station-drift',
-      'description: Detect coupled drift between mating features',
-      'window: 5m',
-      'conditions:',
-      '  - characteristic: Screenshot Tour Plant > Test Dept > Test Line > Test Station > Test Char',
-      '    rule: above_mean_consecutive',
-      '    count: 3',
-      '  - characteristic: Screenshot Tour Plant > Test Dept > Test Line > Test Station > Test Char',
-      '    rule: below_mean_consecutive',
-      '    count: 3',
-      'action:',
-      '  violation: CROSS_STATION_DRIFT',
-      '  severity: high',
-      '  message: Mating features drifting in opposite directions',
-    ].join('\n')
+    // Force Monaco to layout + reveal line 1 so the screenshot shows the
+    // top of the template, not a scrolled mid-section.
+    await page.evaluate(() => {
+      const m = (window as unknown as {
+        monaco?: {
+          editor: { getEditors(): { revealLine(n: number): void; layout(): void }[] }
+        }
+      }).monaco
+      m?.editor.getEditors()[0]?.revealLine(1)
+      m?.editor.getEditors()[0]?.layout()
+    })
 
-    // Monaco's hidden textarea hosts the editing surface. Focus it,
-    // select-all, then type the YAML. Type with no delay so the debounced
-    // validator only fires once at the end.
-    const monacoTextarea = page.locator('.monaco-editor textarea').first()
-    await expect(monacoTextarea).toBeAttached({ timeout: 5000 })
-    await monacoTextarea.focus()
-    await page.keyboard.press('Control+A')
-    await monacoTextarea.fill(ruleYaml)
-
-    // Let Monaco repaint syntax highlighting and the debounced validator
-    // (~500ms) settle before snapshotting.
-    await page.waitForTimeout(1500)
+    // Final settle for syntax highlighting paint.
+    await page.waitForTimeout(2000)
 
     await docScreenshot(page, 'features', 'cep-rules', testInfo)
   })

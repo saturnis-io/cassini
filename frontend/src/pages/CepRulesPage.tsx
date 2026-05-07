@@ -271,7 +271,7 @@ export function CepRulesPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 p-4">
+              <div className="min-h-0 flex-1 p-4">
                 <CepRuleEditor
                   value={draftYaml}
                   onChange={(next) => {

@@ -112,7 +112,7 @@ export function CepRuleEditor({
   }
 
   return (
-    <div className="border-border flex flex-col overflow-hidden rounded-md border">
+    <div className="border-border flex h-full min-h-0 flex-col overflow-hidden rounded-md border">
       <Editor
         height={height}
         defaultLanguage="yaml"
