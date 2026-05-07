@@ -9,6 +9,7 @@ Resolution order (highest priority wins):
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -16,10 +17,27 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 VALID_ROLES = {"all", "api", "spc", "ingestion", "reports", "erp", "purge", "ai"}
 VALID_ENVIRONMENTS = {"development", "production"}
 
-# Loopback addresses where dev_mode / dev_tier may safely remain enabled in
+# Loopback addresses where dev_mode may safely remain enabled in
 # production builds. Anything else is treated as an externally-reachable bind
 # and triggers a startup refusal.
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "0.0.0.0.localhost"}
+
+# Sentinel env var that opts the operator into honoring CASSINI_DEV_TIER. The
+# var must be set to a truthy value AND CASSINI_ENVIRONMENT must be
+# "development" — both conditions are required so a stray production env var
+# cannot pirate commercial features. This is intentionally NOT a Settings
+# field so it cannot be hidden in cassini.toml or a stale .env file.
+_DEV_TIER_OVERRIDE_ENV_VAR = "CASSINI_ENABLE_DEV_TIER_OVERRIDE"
+
+
+def _dev_tier_override_enabled() -> bool:
+    """Whether the developer has opted into honoring CASSINI_DEV_TIER.
+
+    Read directly from os.environ (not Settings) so a stale .env or TOML
+    cannot pre-authorize production. Truthy values: 1, true, yes, on.
+    """
+    raw = os.environ.get(_DEV_TIER_OVERRIDE_ENV_VAR, "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
 
 
 class Settings(BaseSettings):
@@ -171,39 +189,75 @@ class Settings(BaseSettings):
         return host in _LOOPBACK_HOSTS
 
     def apply_production_guards(self) -> list[str]:
-        """Disable dev-only toggles in production unless safely bound.
+        """Disable dev-only toggles unless explicitly authorized.
 
         Mutates the settings instance in place. Returns a list of structured
         warning messages so the caller (typically application startup) can
         log them once the logger is initialized.
 
-        Behaviour:
-          - In development: no changes; warnings list is empty.
-          - In production on loopback: dev_mode/dev_tier may remain set, but
-            a warning is recorded so the operator sees the override.
-          - In production on a non-loopback bind: dev_mode is forced False
-            and dev_tier is cleared, with explicit warnings.
+        ``dev_mode`` (rate-limit / password bypass) follows the legacy
+        loopback rule — production prod-mode laptops can still keep it on
+        for smoke testing.
+
+        ``dev_tier`` is treated as a SECURITY-SENSITIVE feature unlock and
+        is held to a stricter standard. It is honored only when BOTH
+        conditions are true:
+
+          1. ``CASSINI_ENVIRONMENT=development``
+          2. ``CASSINI_ENABLE_DEV_TIER_OVERRIDE`` env var is set to a truthy
+             value (1/true/yes/on).
+
+        Otherwise dev_tier is cleared with a structured warning. This
+        prevents Cassini's open-source mirror from being weaponized to
+        unlock paid features on a public server by simply setting one
+        environment variable.
+
+        Behaviour matrix:
+          - dev environment + override env var: dev_tier honored (warning
+            "dev_tier_override_active" emitted).
+          - dev environment, no override env var: dev_tier cleared with
+            "dev_tier_cleared_no_override".
+          - production, override env var, loopback: dev_tier still cleared
+            with "dev_tier_cleared_production" — the override only applies
+            in development.
+          - production, anything else: dev_tier cleared with
+            "dev_tier_cleared_production".
+
+        ``dev_mode`` keeps its loopback-friendly behavior in production.
         """
         warnings: list[str] = []
-        if not self.is_production:
-            return warnings
-
         loopback = self.is_loopback_bind
+        override_enabled = _dev_tier_override_enabled()
 
-        if self.dev_mode:
+        # ---------- dev_mode (rate-limit bypass, password bypass) ----------
+        # Production-only check. dev_mode in development is freely allowed.
+        if self.is_production and self.dev_mode:
             if loopback:
-                warnings.append(
-                    "production_dev_mode_loopback_only"
-                )
+                warnings.append("production_dev_mode_loopback_only")
             else:
                 warnings.append("production_dev_mode_disabled_non_loopback")
                 self.dev_mode = False
 
+        # ---------- dev_tier (commercial feature unlock — security-sensitive) ----------
+        # Stricter rules: dev_tier requires BOTH environment=development AND
+        # the explicit override env var. Anything else clears it.
         if self.dev_tier:
-            if loopback:
-                warnings.append("production_dev_tier_loopback_only")
+            if not self.is_production and override_enabled:
+                # Sanctioned dev workflow — honor the tier and emit a clear
+                # "OVERRIDE ACTIVE" log line so the operator knows.
+                warnings.append("dev_tier_override_active")
+            elif self.is_production:
+                # In production we never honor dev_tier, regardless of bind
+                # address or override env var. The override is a
+                # development-only escape hatch.
+                warnings.append("dev_tier_cleared_production")
+                self.dev_tier = ""
             else:
-                warnings.append("production_dev_tier_cleared_non_loopback")
+                # Development environment but the operator did not explicitly
+                # opt in — refuse to honor it. This is the case that
+                # protects users who pulled an open-source mirror with a
+                # leftover CASSINI_DEV_TIER in their environment.
+                warnings.append("dev_tier_cleared_no_override")
                 self.dev_tier = ""
 
         return warnings
@@ -225,14 +279,25 @@ def get_settings() -> Settings:
 
         log = structlog.get_logger(__name__)
         for code in warnings:
-            log.warning(
-                "production_guard_triggered",
-                code=code,
-                environment=s.environment,
-                server_host=s.server_host,
-                dev_mode=s.dev_mode,
-                dev_tier=s.dev_tier,
-            )
+            if code == "dev_tier_override_active":
+                # Surface the override prominently so it's visible in CI logs
+                # and laptop terminals — operators MUST know dev_tier is on.
+                log.warning(
+                    "DEV TIER OVERRIDE ACTIVE — non-production only",
+                    code=code,
+                    environment=s.environment,
+                    server_host=s.server_host,
+                    dev_tier=s.dev_tier,
+                )
+            else:
+                log.warning(
+                    "production_guard_triggered",
+                    code=code,
+                    environment=s.environment,
+                    server_host=s.server_host,
+                    dev_mode=s.dev_mode,
+                    dev_tier=s.dev_tier,
+                )
     return s
 
 

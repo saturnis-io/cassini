@@ -63,9 +63,9 @@ compliance, and advanced analytics.
 
 Default login: `admin` / `cassini` (you'll be prompted to change the password).
 
-> **Want to see what Pro and Enterprise look like first?** Set
-> `CASSINI_DEV_TIER=enterprise` to unlock all commercial features locally. No
-> license required for local evaluation.
+> **Want to see what Pro and Enterprise look like first?** Request a 30-day
+> trial license at [saturnis.io/pricing](https://saturnis.io/pricing) — same
+> binary, no reinstall.
 
 ---
 
@@ -505,7 +505,6 @@ variable.
 | `CASSINI_ROLES` | Comma-separated node roles | `all` |
 | `CASSINI_DATA_DIR` | Directory for `.signature_key`, license file, instance ID | `<backend>/data` |
 | `CASSINI_JWT_SECRET` | JWT signing secret (≥32 chars in production on non-loopback) | (auto in dev) |
-| `CASSINI_DEV_TIER` | Unlock commercial features locally without a license JWT | (none) |
 | `CASSINI_SERVER_URL` | Server URL for CLI / MCP client | `http://localhost:8000` |
 | `CASSINI_API_KEY` | API key for CLI / MCP authentication | (none) |
 
