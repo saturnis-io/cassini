@@ -152,6 +152,46 @@ test.describe('Screenshot Tour', () => {
     await docScreenshot(page, 'core', 'configuration', testInfo)
   })
 
+  // --- NEW: time-travel replay (Pro+) — ReplayScrubber on dashboard ---
+  test('time travel replay', async ({ page }, testInfo) => {
+    // Larger viewport so the chart + ReplayScrubber + ReplayBanner all fit
+    // in one frame for the marketing screenshot.
+    await page.setViewportSize({ width: 1600, height: 1100 })
+    await page.goto('/dashboard')
+    await page.waitForTimeout(2000)
+    await expandHierarchyToChar(page)
+    await page.getByText('Test Char').first().click()
+    await page.waitForTimeout(2000)
+    await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+
+    // ReplayScrubber renders below the chart for Pro+. Scroll it into
+    // view, then set a timestamp ~30 minutes in the past via the
+    // datetime-local input — that triggers the snapshot fetch and the
+    // ReplayBanner.
+    const scrubber = page.locator('[data-ui="replay-scrubber"]')
+    await expect(scrubber).toBeVisible({ timeout: 10000 })
+    await scrubber.scrollIntoViewIfNeeded()
+
+    // Pick a recent past timestamp the seed data contains. The Screenshot
+    // Tour Plant has 50 samples spanning the last few weeks; ~1 hour ago
+    // is reliably within the data window.
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const localDt =
+      `${oneHourAgo.getFullYear()}-${pad(oneHourAgo.getMonth() + 1)}` +
+      `-${pad(oneHourAgo.getDate())}T${pad(oneHourAgo.getHours())}:${pad(oneHourAgo.getMinutes())}`
+
+    const dtInput = page.locator('[data-ui="replay-scrubber-datetime"]')
+    await dtInput.fill(localDt)
+    await dtInput.blur()
+
+    // Wait for the ReplayBanner ("Viewing snapshot at ...") to mount and
+    // for the snapshot fetch to settle.
+    await page.waitForTimeout(2500)
+
+    await docScreenshot(page, 'features', 'time-travel-replay', testInfo)
+  })
+
   // --- NEW: capability analysis screenshot ---
   test('capability analysis', async ({ page }, testInfo) => {
     await expandHierarchyToChar(page)
