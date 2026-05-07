@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   AlertTriangle,
   BookOpen,
@@ -376,10 +378,18 @@ function AnswerView({
 }) {
   return (
     <div className="space-y-3 text-sm">
-      <div className="space-y-1.5">
+      <div className="prose prose-sm dark:prose-invert prose-p:text-foreground/90 prose-strong:text-foreground prose-code:text-foreground prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-li:text-foreground/90 max-w-none space-y-1.5">
         {answer.sentences.map((s, i) => (
           <div key={i} className="leading-relaxed">
-            <span>{stripCitations(s.text)}</span>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                // Render sentence body inline so citation pills sit next to it.
+                p: ({ children }) => <span>{children}</span>,
+              }}
+            >
+              {stripCitations(s.text)}
+            </ReactMarkdown>
             {s.chunk_ids.map((cid) => (
               <CitationPill key={cid} chunkId={cid} citation={citationsById.get(cid)} />
             ))}
