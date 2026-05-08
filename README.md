@@ -25,7 +25,7 @@
 
 </div>
 
-![Cassini control chart](docs/screenshots/core/hero.png)
+![Cassini I-MR control chart with Nelson rule violations highlighted in red, capability indices in the stats bar, and the hierarchy tree expanded to a real "Aerospace Forge" plant characteristic](docs/feature-audit/B/B2-dashboard-single-char-variable/07-with-violations.png)
 
 Cassini is the SPC platform that lives next to the production line. Charts update in
 real time as samples flow in. Every number on every chart links back to the formula
@@ -81,13 +81,13 @@ I-MR, CUSUM, EWMA) and attribute charts (p, np, c, u with Laney p'/u'
 overdispersion correction). Pin views, compare side-by-side, deviation mode for
 short-run, standardized Z-score for high-mix.
 
-![I-MR chart with control limits and out-of-control samples](docs/screenshots/core/dashboard.png)
+![I-MR dual chart with control limits and out-of-control samples](docs/feature-audit/B/B2-dashboard-single-char-variable/05-i-mr-dual.png)
 
 Display modes for the factory floor:
 
 | Kiosk | Wall |
 |---|---|
-| ![Kiosk display rotating through characteristics](docs/screenshots/display/kiosk.png) | Multi-chart grid layouts (2×2, 3×3, 4×4) with saved presets for control room displays. |
+| ![Kiosk display showing a single characteristic with a Nelson rule violation badge](docs/feature-audit/K/K1-kiosk-view/06-with-violation.png) | Multi-chart grid layouts (2×2, 3×3, 4×4) with saved presets for control room displays. |
 
 ### Catch problems
 
@@ -96,7 +96,7 @@ characteristic with parameterized thresholds. Violations are detected in real
 time and bubble up to the violations page, the kiosk, the wall, and (optional)
 push notifications.
 
-![Violations dashboard with rule details and acknowledgement workflow](docs/screenshots/core/violations.png)
+![Violations dashboard with stats cards, severity breakdown, rule details, and bulk acknowledgement workflow](docs/feature-audit/B/B8-violations-view/03-stats-cards-populated.png)
 
 Every violation references the specific rule triggered, the sample that caused
 it, and the characteristic's current state. Bulk acknowledgement, filter by
@@ -109,7 +109,7 @@ every intermediate step, and the AIAG citation it came from. The displayed
 value must equal the explained value — verified by a contract test that runs
 on every PR.
 
-![Show Your Work — formula, inputs, intermediate steps, and AIAG citation](docs/screenshots/core/show-your-work.png)
+![Show Your Work — clicking the Process Capability Cpk value opens a slide-out with the KaTeX-rendered formula, normality test, step-by-step computation, USL/LSL inputs, and the AIAG citation](docs/feature-audit/C/C1-show-your-work/03-panel-cpk.png)
 
 For regulated manufacturing — FDA, ISO, AS9100 — Cassini reconstructs any
 chart's control limits, rule configuration, signatures, and contributing
@@ -122,7 +122,7 @@ Operators ask the SOP corpus questions and get cited answers. Every claim in
 the response must point to a chunk from a document you uploaded — uncited
 claims are rejected. The model can't drift outside your controlled documents.
 
-![SOP-RAG — operator question, cited answer, source-document pills](docs/screenshots/features/sop-rag.png)
+![SOP-RAG — operator question with a cited answer, source-document pills, and the budget panel showing per-plant monthly cost](docs/feature-audit/M/M2-sop-rag/10-answer-citations.png)
 
 Hybrid retrieval (vector + BM25), local embedder by default (no data leaves
 your network), per-plant monthly cost cap, full audit trail.
@@ -134,26 +134,26 @@ indices and full computation traceability. Non-normal capability via Box-Cox
 and a 6-distribution auto-fit (Pro+) — automatic Shapiro-Wilk test with
 fallback through Box-Cox, distribution fitting, and percentile methods.
 
-![Capability indices with distribution fit and snapshot history](docs/screenshots/core/capability.png)
+![Capability indices with distribution fit, snapshot history, and recent samples — bottom drawer Capability tab](docs/feature-audit/B/B6-bottom-drawer/02-capability-tab-open.png)
 
 **MSA / Gage R&R** — Crossed ANOVA, range method, nested ANOVA, and attribute
 agreement (Cohen's and Fleiss' Kappa). AIAG MSA 4th Edition d2* tables. Full
 wizard from study setup through results interpretation.
 
-![MSA Gage R&R study](docs/screenshots/commercial/msa-overview.png)
+![Bore Diameter Gage R&R study — Crossed ANOVA, %Study GRR = 13.3% (Marginal), ndc = 10, variance components bar chart, and full source table](docs/feature-audit/G/G2-msa-crossed-anova/07-results-variance.png)
 
 **DOE** — Full factorial, fractional factorial, Plackett-Burman, and central
 composite designs. Interactive design matrix, run table, ANOVA, main-effects
 plot, and interaction plots.
 
-![DOE study with interaction plots](docs/screenshots/commercial/doe-overview.png)
+![DOE Press Force Optimization — full factorial 2³ with completed run matrix, ANOVA table, and Pareto of effects showing Force as the dominant main effect](docs/feature-audit/G/G6-doe-editor/05-effects-pareto.png)
 
 **Advanced analytics** *(Enterprise)* — Multivariate SPC (Hotelling T²,
 MEWMA), anomaly detection (PELT changepoint, Kolmogorov-Smirnov drift,
 Isolation Forest), predictive forecasting (ARIMA / Prophet), AI-powered chart
 analysis with guardrails.
 
-![Multivariate analytics overlaid on control charts](docs/screenshots/commercial/analytics-overview.png)
+![Predictive forecasting — exponential smoothing model trained on Punch Wear, 10-step forecast with confidence intervals, sigma ratio, and "Stable" verdict](docs/feature-audit/I/I3-predictions/04-forecast-overlay.png)
 
 ### Connect
 
@@ -161,7 +161,7 @@ The Connectivity Hub manages every data source with a visual data flow
 pipeline showing source health, ingestion metrics, and SPC engine status at a
 glance.
 
-![Connectivity Hub — MQTT broker management with live tag preview](docs/screenshots/connectivity/connectivity.png)
+![Connectivity Hub — MQTT broker connected with live tag flow, OPC-UA server registered, gage bridge attached, and the data-flow pipeline panel showing source health](docs/feature-audit/E/E1-monitor-tab/02-sources-healthy.png)
 
 | Source | What it does | Tier |
 |--------|--------------|------|
@@ -178,7 +178,7 @@ The compliance surface is layered: a community-edition install already gives
 you the bones of a defensible record; Pro and Enterprise add the formal
 workflows on top.
 
-![21 CFR Part 11 electronic signatures with multi-step workflows](docs/screenshots/settings/signatures.png)
+![21 CFR Part 11 electronic signatures — workflow list with FAI approval (engineer + supervisor) and retention purge (admin only) workflows configured](docs/feature-audit/H/H1-electronic-signatures-settings/02-workflow-list.png)
 
 | Capability | Tier | What it provides |
 |------------|------|------------------|
@@ -212,7 +212,7 @@ natively. Read-only by default; writes require the `--allow-writes` flag.
 exported as JSON / CSV / Parquet / Arrow IPC, plant-scoped, audited,
 rate-limited.
 
-![Lakehouse data product page — table picker, format toggle, snippet preview](docs/screenshots/features/lakehouse.png)
+![Cassini Lakehouse — table picker (samples selected), format toggle (Arrow IPC / Parquet / CSV / JSON), columns metadata, and the export URL ready to copy](docs/feature-audit/M/M3-lakehouse/02-table-selector.png)
 
 **CLI.** `cassini plants list`, `cassini samples submit`, `cassini login` —
 structured output for operators and scripts.
@@ -224,7 +224,7 @@ or more characteristics holds inside a sliding time window. Rules are authored
 in YAML, edited live in a Monaco editor with inline validation, and
 hot-reloaded into the running engine without restarting the backend.
 
-![Streaming CEP rules — Monaco editor with inline validation](docs/screenshots/features/cep-rules.png)
+![Streaming CEP rules — selected rule in the Monaco YAML editor with multi-stream conditions, sliding window, and action; rule list on the left showing enabled/disabled status](docs/feature-audit/M/M1-cep-rules/04-rule-selected.png)
 
 Catches what no single Nelson rule sees: shaft OD drifts up while bore ID
 drifts down, every station on a line walks the same way at once, coolant
@@ -235,7 +235,7 @@ temperature climbs while cut diameter grows.
 PDF, Excel, and PNG export with built-in templates. Scheduled report delivery
 *(Pro)* — cron-based scheduling with email delivery and run history.
 
-![Reports — PDF and Excel templates with scheduling](docs/screenshots/core/reports.png)
+![Reports — Characteristic Summary template with the live control chart, capability indices, recent violations, and an Executive Summary verdict; PDF/Excel/PNG export buttons in the toolbar](docs/feature-audit/J/J1-reports-view/04-characteristic-summary.png)
 
 ---
 
