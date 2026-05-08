@@ -60,12 +60,17 @@ test.describe('Group J — Reports', () => {
     // Reuse the existing helper that drills into "Test Char" hierarchy —
     // for the feature-tour seed we need realistic names. Try our own
     // expansion using the SEED_SPEC paths.
-    for (const label of ['Forge Area', 'Press Line A', 'Station 1: Turbine Housing']) {
+    for (const label of [
+      'Aerospace Forge Site',
+      'Forge Area',
+      'Press Line A',
+      'Station 1: Turbine Housing',
+    ]) {
       const node = page.getByText(label, { exact: true }).first()
-      if (await node.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await node.click({ force: true })
-        await page.waitForTimeout(700)
-      }
+      await expect(node).toBeVisible({ timeout: 8000 })
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(700)
     }
     const charLeaf = page.getByText('Bore Diameter OD-A', { exact: true }).first()
     if (await charLeaf.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -96,12 +101,17 @@ test.describe('Group J — Reports', () => {
     await page.waitForTimeout(2000)
     await primeSidebarForCharacteristics(page)
     await page.reload({ waitUntil: 'networkidle' })
-    for (const label of ['Forge Area', 'Press Line A', 'Station 1: Turbine Housing']) {
+    for (const label of [
+      'Aerospace Forge Site',
+      'Forge Area',
+      'Press Line A',
+      'Station 1: Turbine Housing',
+    ]) {
       const node = page.getByText(label, { exact: true }).first()
-      if (await node.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await node.click({ force: true })
-        await page.waitForTimeout(700)
-      }
+      await expect(node).toBeVisible({ timeout: 8000 })
+      await node.scrollIntoViewIfNeeded()
+      await node.click({ force: true })
+      await page.waitForTimeout(700)
     }
     const charLeaf = page.getByText('Bore Diameter OD-A', { exact: true }).first()
     if (await charLeaf.isVisible({ timeout: 3000 }).catch(() => false)) {

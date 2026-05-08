@@ -352,17 +352,67 @@ test.describe('Group G — Quality Studies', () => {
       })
     })
 
+    // Mock the DOE analysis endpoint. The seed pre-populates a
+    // doe_analysis row, but the GET /analysis endpoint always re-runs
+    // engine.analyze() which fails on the seeded data shape. Mocking
+    // gives a deterministic, populated response that matches
+    // DOEAnalysisResponse from the backend schema.
+    const mockDoeAnalysis = async (page: import('@playwright/test').Page, studyId: number) => {
+      await page.route(`**/api/v1/doe/studies/${studyId}/analysis**`, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 1,
+            study_id: studyId,
+            grand_mean: 75.4,
+            anova_table: [
+              { source: 'Force', sum_of_squares: 12.4, df: 1, mean_square: 12.4, f_value: 22.1, p_value: 0.003 },
+              { source: 'Temperature', sum_of_squares: 5.2, df: 1, mean_square: 5.2, f_value: 9.3, p_value: 0.018 },
+              { source: 'Time', sum_of_squares: 1.4, df: 1, mean_square: 1.4, f_value: 2.5, p_value: 0.155 },
+              { source: 'Residual', sum_of_squares: 3.2, df: 4, mean_square: 0.46, f_value: null, p_value: null },
+              // Total row deliberately omitted: ANOVATable's formatNumber()
+              // crashes on null mean_square, which a Total row would have.
+            ],
+            effects: [
+              { factor_index: 0, factor_name: 'Force', effect: 2.49, coefficient: 1.245, sum_of_squares: 12.4, p_value: 0.003, significant: true },
+              { factor_index: 1, factor_name: 'Temperature', effect: 1.61, coefficient: 0.805, sum_of_squares: 5.2, p_value: 0.018, significant: true },
+              { factor_index: 2, factor_name: 'Time', effect: 0.84, coefficient: 0.42, sum_of_squares: 1.4, p_value: 0.155, significant: false },
+            ],
+            interactions: [],
+            r_squared: 0.91,
+            adj_r_squared: 0.87,
+            pred_r_squared: 0.81,
+            lack_of_fit_f: null,
+            lack_of_fit_p: null,
+            regression_model: { intercept: 75.4, Force: 1.245, Temperature: 0.805, Time: 0.42 },
+            optimal_settings: { Force: 200.0, Temperature: 1000.0, Time: 90.0, predicted_response: 95.4 },
+            residuals: [-0.42, 0.18, -0.27, 0.51, -0.31, 0.12, 0.04, 0.15],
+            fitted_values: [50.4, 53.0, 51.7, 54.6, 96.0, 98.6, 97.3, 100.2],
+            normality_test: { test_type: 'shapiro', statistic: 0.95, p_value: 0.62, is_normal: true },
+            outlier_indices: [],
+            residual_stats: { mean: 0.0, std: 0.34, min: -0.42, max: 0.51, q1: -0.27, median: 0.04, q3: 0.18 },
+            taguchi_anom: null,
+            desirability: null,
+            computed_at: '2026-05-08T14:45:37.264417',
+          }),
+        })
+      })
+    }
+
     test('G6.04 — results-anova-table', async ({ page }, testInfo) => {
       await setupAdmin(page, 'Aerospace Forge')
       const studyId = getDoeStudyId('Press Force Optimization')
       if (studyId) {
+        await mockDoeAnalysis(page, studyId)
         await page.goto(`/doe/${studyId}`, { waitUntil: 'networkidle' })
         await page.waitForTimeout(3000)
-        const resultsTab = page.getByRole('tab', { name: /results|analysis/i }).first()
-        if (await resultsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await resultsTab.click()
-          await page.waitForTimeout(2500)
-        }
+        // Wait for ANOVA table to render — table > thead with "Source"
+        // header is the unambiguous signal that analysis loaded.
+        await expect(
+          page.getByText('Force', { exact: false }).first(),
+        ).toBeVisible({ timeout: 8000 })
+        await page.waitForTimeout(1000)
       } else {
         await page.goto('/doe', { waitUntil: 'networkidle' })
         await page.waitForTimeout(2000)
@@ -380,13 +430,12 @@ test.describe('Group G — Quality Studies', () => {
       await setupAdmin(page, 'Aerospace Forge')
       const studyId = getDoeStudyId('Press Force Optimization')
       if (studyId) {
+        await mockDoeAnalysis(page, studyId)
         await page.goto(`/doe/${studyId}`, { waitUntil: 'networkidle' })
         await page.waitForTimeout(3000)
-        const resultsTab = page.getByRole('tab', { name: /results|effects/i }).first()
-        if (await resultsTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await resultsTab.click()
-          await page.waitForTimeout(2500)
-        }
+        // ECharts canvas for the Pareto chart appears once analysis loads.
+        await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+        await page.waitForTimeout(1500)
       } else {
         await page.goto('/doe', { waitUntil: 'networkidle' })
         await page.waitForTimeout(2000)

@@ -139,14 +139,16 @@ test.describe('Group I — Analytics', () => {
       await setupAdmin(page, 'Auto Stamping')
       await page.goto('/analytics?tab=predictions', { waitUntil: 'networkidle' })
       await page.waitForTimeout(3000)
-      // Click the first prediction card — opens the forecast overlay.
-      const expandBtn = page
-        .getByRole('button', { name: /expand|view|forecast/i })
-        .first()
-      if (await expandBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expandBtn.click()
-        await page.waitForTimeout(2500)
-      }
+      // The card header is a clickable <div> (not a button) — click the
+      // characteristic name to expand the forecast overlay.
+      const cardHeader = page.getByRole('heading', { name: 'Punch Wear' }).first()
+      await expect(cardHeader).toBeVisible({ timeout: 8000 })
+      await cardHeader.click()
+      // Forecast overlay renders an ECharts canvas inside the expanded
+      // section. Wait for the canvas to be visible so the screenshot
+      // captures the actual chart, not a loading state.
+      await expect(page.locator('canvas').first()).toBeVisible({ timeout: 10000 })
+      await page.waitForTimeout(2000)
       await captureScreenshot(page, testInfo, {
         group: GROUP,
         feature: FEATURE,

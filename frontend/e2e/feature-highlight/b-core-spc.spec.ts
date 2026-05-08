@@ -205,11 +205,15 @@ test.describe('Group B — Core SPC', () => {
     })
 
     test('B6.02 — capability-tab-open', async ({ page }, testInfo) => {
-      const capTab = page.getByRole('tab', { name: /capability/i })
-      if (await capTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await capTab.click()
-        await page.waitForTimeout(2000)
-      }
+      // BottomDrawer uses <button> not <role="tab">. Click via text.
+      // Clicking a tab when the drawer is closed opens it (see
+      // handleTabClick in BottomDrawer.tsx).
+      const capTab = page.getByRole('button', { name: /^Capability/ }).first()
+      await expect(capTab).toBeVisible({ timeout: 5000 })
+      await capTab.click()
+      // Wait for drawer height transition + capability data fetch +
+      // ECharts paint of the histogram inside the panel.
+      await page.waitForTimeout(2500)
       await captureScreenshot(page, testInfo, {
         group: GROUP,
         feature: FEATURE,
@@ -220,11 +224,10 @@ test.describe('Group B — Core SPC', () => {
     })
 
     test('B6.05 — annotations-tab-with-entries', async ({ page }, testInfo) => {
-      const annTab = page.getByRole('tab', { name: /annotation/i })
-      if (await annTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await annTab.click()
-        await page.waitForTimeout(1500)
-      }
+      const annTab = page.getByRole('button', { name: /^Annotations/ }).first()
+      await expect(annTab).toBeVisible({ timeout: 5000 })
+      await annTab.click()
+      await page.waitForTimeout(2000)
       await captureScreenshot(page, testInfo, {
         group: GROUP,
         feature: FEATURE,

@@ -197,8 +197,11 @@ test.describe('Group M — Enterprise Features', () => {
     })
 
     test('M2.10 — answer-with-citations', async ({ page }, testInfo) => {
-      // Mock the RAG endpoint deterministically (per screenshot-tour
-      // pattern) so we don't need ANTHROPIC_API_KEY.
+      // Mock RAG response that matches the actual `RagAnswer` shape —
+      // `sentences[]` is required (the AnswerView iterates it), plus
+      // model/token/cost fields render in the footer. The previous
+      // mock omitted these and the page crashed with
+      // "Cannot read properties of undefined (reading 'map')".
       await page.route('**/api/v1/sop-rag/query**', async (route) => {
         await route.fulfill({
           status: 200,
@@ -209,6 +212,18 @@ test.describe('Group M — Enterprise Features', () => {
               'For the M6 turbine housing fastener, torque to 12 Nm using a calibrated wrench [citation:1]. Sign the inspection sheet in section 3-B [citation:2].',
             answer_stripped:
               'For the M6 turbine housing fastener, torque to 12 Nm using a calibrated wrench. Sign the inspection sheet in section 3-B.',
+            sentences: [
+              {
+                text:
+                  'For the M6 turbine housing fastener, torque to **12 Nm** using a calibrated wrench [citation:1].',
+                chunk_ids: [1],
+              },
+              {
+                text:
+                  'Sign the inspection sheet in **section 3-B** [citation:2].',
+                chunk_ids: [2],
+              },
+            ],
             citations: [
               {
                 chunk_id: 1,
@@ -227,7 +242,11 @@ test.describe('Group M — Enterprise Features', () => {
                 text: 'Operator signs the inspection sheet at the cure period.',
               },
             ],
-            metrics: { tokens_used: 245, latency_ms: 1300, cost_usd: 0.0042 },
+            candidate_chunk_ids: [1, 2, 3, 5, 7],
+            cost_usd: 0.0042,
+            input_tokens: 412,
+            output_tokens: 78,
+            model: 'claude-sonnet-4-6',
           }),
         })
       })
