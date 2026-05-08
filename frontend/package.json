@@ -11,7 +11,10 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "feature-tour:setup-db": "node ./e2e/feature-highlight/prepare-db.mjs",
+    "test:feature-tour": "node ./e2e/feature-highlight/prepare-db.mjs && playwright test --project=feature-highlight",
+    "feature-tour:manifest": "node ./e2e/feature-highlight/generate-manifest.mjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

@@ -12,10 +12,20 @@ const dbUrlMap: Record<string, string> = {
   mysql: 'mysql+aiomysql://cassini:cassini@localhost:3306/cassini_test',
   mssql: 'mssql+aioodbc://sa:CassiniTest1!@localhost:1433/cassini_test',
 }
+// When the feature-highlight project is active, point uvicorn at the
+// feature-tour SQLite database so the seeded plants/chars are visible.
+// Detection: PLAYWRIGHT_PROFILE=feature-tour env var (set by the npm
+// script `test:feature-tour`) OR `--project=feature-highlight` in argv
+// (covers manual invocations).
+const isFeatureHighlight =
+  process.env.PLAYWRIGHT_PROFILE === 'feature-tour' ||
+  process.argv.some((arg) => arg.includes('feature-highlight'))
 const cassiniDbUrl =
   dbDialect && dbUrlMap[dbDialect]
     ? dbUrlMap[dbDialect]
-    : 'sqlite+aiosqlite:///./test-e2e.db'
+    : isFeatureHighlight
+      ? 'sqlite+aiosqlite:///./test-feature-tour.db'
+      : 'sqlite+aiosqlite:///./test-e2e.db'
 
 export default defineConfig({
   testDir: './e2e',
@@ -80,6 +90,27 @@ export default defineConfig({
       name: 'license-flow',
       testMatch: 'license-flow.spec.ts',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      // The feature-highlight project walks CATALOG.md against the
+      // feature-tour seed, capturing every P0 (and stubbing P1/P2)
+      // UI state described in apps/cassini/docs/feature-audit/.
+      // Uses its own globalSetup that runs the feature-tour seed
+      // profile — does NOT share state with the screenshot-tour
+      // / functional projects.
+      name: 'feature-highlight',
+      testDir: './e2e/feature-highlight',
+      testMatch: '*.spec.ts',
+      // Override the top-level globalSetup so this project seeds the
+      // feature-tour profile rather than the default e2e fixtures.
+      // Playwright's CLI uses the top-level globalSetup; per-project
+      // globalSetup is honored when the project is run alone via
+      // `--project=feature-highlight`.
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+      },
+      metadata: { profile: 'feature-tour' },
     },
   ],
 

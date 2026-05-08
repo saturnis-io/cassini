@@ -2,6 +2,7 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import type { FullConfig } from '@playwright/test'
+import featureTourSetup from './feature-highlight/feature-tour-setup'
 
 const BACKEND_DIR = path.resolve(process.cwd(), '../backend')
 const TEST_DB = path.join(BACKEND_DIR, 'test-e2e.db')
@@ -189,11 +190,26 @@ function setupExternalDb(dialect: DbDialect) {
   console.log(`[global-setup] Setup complete for ${dialect}`)
 }
 
-export default function globalSetup(_config: FullConfig) {
+export default function globalSetup(config: FullConfig) {
   // Playwright passes ALL projects to globalSetup, not just the active one.
   // Use the E2E_DB_DIALECT env var to select multi-DB mode explicitly.
   // Set it when running: E2E_DB_DIALECT=postgresql npx playwright test --project=multi-db-pg
   const dialect = process.env.E2E_DB_DIALECT as DbDialect | undefined
+
+  // Feature-highlight project uses its own seed profile — detect via the
+  // PLAYWRIGHT_PROFILE env var or `--project=feature-highlight` in argv,
+  // and delegate to the dedicated setup that runs
+  // `seed_e2e_unified.py --profile feature-tour`.
+  const isFeatureHighlight =
+    process.env.PLAYWRIGHT_PROFILE === 'feature-tour' ||
+    process.argv.some((a) => a.includes('feature-highlight'))
+
+  if (isFeatureHighlight) {
+    console.log('[global-setup] Detected feature-highlight project — using feature-tour setup')
+    featureTourSetup(config)
+    return
+  }
+  console.log('[global-setup] Default setup path')
 
   if (dialect && BACKEND_URL_MAP[dialect]) {
     setupExternalDb(dialect)
