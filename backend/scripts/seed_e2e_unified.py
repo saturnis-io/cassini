@@ -571,12 +571,21 @@ CUSUM_EWMA_VALUES = [
 # ── Main seed routine ────────────────────────────────────────────────────
 
 
-def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
+def seed(
+    url: str,
+    *,
+    minimal: bool = False,
+    profile: str = "default",
+) -> dict[str, Any]:
     """Seed the database at ``url`` with E2E fixtures.
 
     Args:
         url: SQLAlchemy URL (sync or async driver).
         minimal: If True, only seed the minimum (admin user + dashboard plant).
+        profile: Seed profile. ``"default"`` runs the existing E2E fixtures
+            (used by Playwright global-setup, multi-DB CI, screenshot-tour).
+            ``"feature-tour"`` runs the feature-highlight dataset described
+            in ``apps/cassini/docs/feature-audit/SEED_SPEC.md``.
 
     Returns:
         Manifest dict mapping fixture keys to created IDs.
@@ -587,6 +596,30 @@ def seed(url: str, *, minimal: bool = False) -> dict[str, Any]:
     manifest: dict[str, Any] = {}
 
     try:
+        if profile == "feature-tour":
+            # Feature-tour profile is opt-in. It runs every section in
+            # SEED_SPEC.md, all inside a single transaction to keep
+            # idempotency tight. Existing default-profile fixtures are
+            # not touched by this code path.
+            #
+            # Import lazily and via a path-based loader so this works
+            # whether ``seed_e2e_unified.py`` is run as a script
+            # (``python scripts/seed_e2e_unified.py``) or imported as a
+            # module (``python -m scripts.seed_e2e_unified``).
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(
+                "_seed_feature_tour",
+                Path(__file__).parent / "seed_feature_tour.py",
+            )
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            with engine.begin() as conn:
+                manifest = module.seed_feature_tour(conn)
+            return manifest
+
         with engine.begin() as conn:
             # 1. Admin user — always seeded.
             admin_id = get_or_insert_user(conn, "admin", "admin", must_change=False)
@@ -1585,6 +1618,16 @@ def main() -> None:
         action="store_true",
         help="Seed only the admin user + dashboard plant (smoke test).",
     )
+    parser.add_argument(
+        "--profile",
+        choices=["default", "feature-tour"],
+        default="default",
+        help=(
+            "Seed profile. 'default' runs the existing E2E fixtures used by "
+            "Playwright global-setup and multi-DB CI. 'feature-tour' runs "
+            "the feature-highlight dataset (SEED_SPEC.md)."
+        ),
+    )
     args = parser.parse_args()
 
     if not args.db_url:
@@ -1601,20 +1644,34 @@ def main() -> None:
         print(f"ERROR: Invalid database URL: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    manifest = seed(args.db_url, minimal=args.minimal)
+    manifest = seed(args.db_url, minimal=args.minimal, profile=args.profile)
 
     with open(args.manifest, "w") as f:
         json.dump(manifest, f, indent=2, default=str)
 
-    plant_count = sum(
-        1
-        for v in manifest.values()
-        if isinstance(v, dict) and "plant_id" in v
-    )
-    print(f"Seeded {parsed.get_backend_name()} successfully.")
-    print(f"Manifest written to {args.manifest}")
-    print(f"  Plants: {plant_count}")
-    print(f"  Admin user ID: {manifest['admin_user_id']}")
+    if args.profile == "feature-tour":
+        print(f"Seeded {parsed.get_backend_name()} (profile=feature-tour) successfully.")
+        print(f"Manifest written to {args.manifest}")
+        print(f"  Plants: {len(manifest.get('plants', {}))}")
+        print(f"  Users: {len(manifest.get('users', {}))}")
+        print(f"  Characteristics: {len(manifest.get('characteristics', {}))}")
+        print(f"  Samples seeded: {manifest.get('sample_count', 0)}")
+        print(f"  Violations seeded: {manifest.get('violations_seeded', 0)}")
+        print(f"  MSA studies: {len(manifest.get('msa_studies', {}))}")
+        print(f"  DOE studies: {len(manifest.get('doe_studies', {}))}")
+        print(f"  FAI reports: {len(manifest.get('fai_reports', {}))}")
+        print(f"  CEP rules: {len(manifest.get('cep_rules', {}))}")
+        print(f"  SOP docs: {len(manifest.get('sop_rag', {}).get('docs', {}))}")
+    else:
+        plant_count = sum(
+            1
+            for v in manifest.values()
+            if isinstance(v, dict) and "plant_id" in v
+        )
+        print(f"Seeded {parsed.get_backend_name()} successfully.")
+        print(f"Manifest written to {args.manifest}")
+        print(f"  Plants: {plant_count}")
+        print(f"  Admin user ID: {manifest.get('admin_user_id')}")
 
 
 if __name__ == "__main__":
