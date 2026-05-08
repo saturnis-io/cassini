@@ -74,25 +74,16 @@ test.describe('Group A — Authentication & Onboarding', () => {
     const FEATURE = 'A2-change-password'
 
     test('A2.01 — default', async ({ page, context }, testInfo) => {
-      // The seed leaves admin with must_change_password=true on first run.
-      // Logging in for the first time triggers a redirect to /change-password.
-      // To capture this state reliably, we navigate directly after a login
-      // attempt that is rejected for password-change requirement.
+      // Use the dedicated `change.me.user` (must_change_password=true)
+      // so admin's normal-login flow is not affected. Logging in as this
+      // user triggers a redirect to /change-password.
       await context.clearCookies()
       await page.goto('/login', { waitUntil: 'networkidle' })
       await expect(page.locator('#username')).toBeVisible({ timeout: 10000 })
-      await page.locator('#username').fill('admin')
-      await page.locator('#password').fill('admin')
+      await page.locator('#username').fill('change.me.user')
+      await page.locator('#password').fill('seed-pass-1')
       await page.getByRole('button', { name: 'Log In', exact: true }).click()
-      // Either the dashboard or the change-password page may load depending
-      // on must_change_password state. If we're not on change-password
-      // yet, try direct navigation — the route is publicly reachable
-      // when authenticated.
-      try {
-        await page.waitForURL('**/change-password', { timeout: 5000 })
-      } catch {
-        await page.goto('/change-password', { waitUntil: 'networkidle' })
-      }
+      await page.waitForURL('**/change-password', { timeout: 10000 })
       await page.waitForTimeout(1000)
       await captureScreenshot(page, testInfo, {
         group: GROUP,
@@ -103,10 +94,9 @@ test.describe('Group A — Authentication & Onboarding', () => {
     })
 
     test('A2.03 — success-to-dashboard', async ({ page }, testInfo) => {
-      // Captures the dashboard immediately after password change. We
-      // don't actually change the seed admin's password (would break
-      // other tests), so we capture the dashboard landing as proxy for
-      // "successful redirect after change-password".
+      // Captures the dashboard immediately after a successful login.
+      // Admin has must_change_password=false in this seed, so a normal
+      // admin login lands directly on /dashboard.
       await loginAsAdmin(page)
       await expect(page).toHaveURL(/\/dashboard/)
       await page.waitForTimeout(1500)

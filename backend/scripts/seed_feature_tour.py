@@ -151,8 +151,24 @@ USERS_SPEC: list[dict[str, Any]] = [
         "username": "admin",
         "password": "admin",
         "full_name": "Cassini Admin",
-        "must_change_password": True,
+        # Admin used by every test as the productive user. Keeping
+        # must_change_password=True here breaks every login that
+        # follows — it redirects to /change-password and never reaches
+        # /dashboard. The "force-change-on-first-login" state is
+        # captured by `change.me.user` below instead.
+        "must_change_password": False,
         "global_role": "admin",  # All plants
+    },
+    {
+        "username": "change.me.user",
+        "password": "seed-pass-1",
+        "full_name": "Change-Password Demo User",
+        # Dedicated user for the A2 (Change Password) catalog state.
+        # Seeded with must_change_password=True so the A2 test can
+        # log in and capture the forced-change form without breaking
+        # admin's normal login flow.
+        "must_change_password": True,
+        "global_role": "operator",
     },
     {
         "username": "engineer.aero",

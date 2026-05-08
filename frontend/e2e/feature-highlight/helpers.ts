@@ -221,27 +221,28 @@ export async function selectCharacteristic(
  * Volume appears in both Filler 1 and Filler 2) we suffix with a parent.
  */
 export const HIERARCHY_PATHS = {
-  // Aerospace Forge
-  'Bore Diameter OD-A': ['Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
-  'Wall Thickness': ['Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
-  'Mating Surface Flatness': ['Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
-  'Shaft OD': ['Forge Area', 'Press Line A', 'Station 2: Compressor Shaft'],
-  'Surface Roughness Ra': ['Forge Area', 'Press Line A', 'Station 2: Compressor Shaft'],
-  'Coolant Temp': ['Forge Area', 'Heat Treat Line', 'Furnace 1'],
-  'Hole Position True Position': ['Inspection Area', 'CMM Station'],
+  // Aerospace Forge — seed_feature_tour.py prepends a "<Plant> Site" root above
+  // the Area level so the path is full ISA-95. Tests must expand from that root.
+  'Bore Diameter OD-A': ['Aerospace Forge Site', 'Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
+  'Wall Thickness': ['Aerospace Forge Site', 'Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
+  'Mating Surface Flatness': ['Aerospace Forge Site', 'Forge Area', 'Press Line A', 'Station 1: Turbine Housing'],
+  'Shaft OD': ['Aerospace Forge Site', 'Forge Area', 'Press Line A', 'Station 2: Compressor Shaft'],
+  'Surface Roughness Ra': ['Aerospace Forge Site', 'Forge Area', 'Press Line A', 'Station 2: Compressor Shaft'],
+  'Coolant Temp': ['Aerospace Forge Site', 'Forge Area', 'Heat Treat Line', 'Furnace 1'],
+  'Hole Position True Position': ['Aerospace Forge Site', 'Inspection Area', 'CMM Station'],
   // Pharma Fill (Filler 1)
-  'Fill Volume': ['Aseptic Fill Area', 'Fill Line 1', 'Filler 1'],
-  'Particulate Count': ['Aseptic Fill Area', 'Fill Line 1', 'Filler 1'],
-  'Seal Defects': ['Aseptic Fill Area', 'Fill Line 1', 'Sealing Station'],
-  'Reject Rate': ['Aseptic Fill Area', 'Fill Line 1', 'Visual Inspection'],
+  'Fill Volume': ['Pharma Fill Site', 'Aseptic Fill Area', 'Fill Line 1', 'Filler 1'],
+  'Particulate Count': ['Pharma Fill Site', 'Aseptic Fill Area', 'Fill Line 1', 'Filler 1'],
+  'Seal Defects': ['Pharma Fill Site', 'Aseptic Fill Area', 'Fill Line 1', 'Sealing Station'],
+  'Reject Rate': ['Pharma Fill Site', 'Aseptic Fill Area', 'Fill Line 1', 'Visual Inspection'],
   // Auto Stamping
-  'Blank Hole Position OD': ['Stamping Area', 'Press Line 1', 'Press 1'],
-  'Trim Length': ['Stamping Area', 'Press Line 1', 'Press 1'],
-  'Spring Force': ['Stamping Area', 'Press Line 1', 'Press 1'],
-  'Punch Wear': ['Stamping Area', 'Press Line 1', 'Press 2'],
-  'Defect Count': ['Stamping Area', 'Press Line 1', 'Press 2'],
-  'Surface Defect Rate': ['Stamping Area', 'Final Inspection'],
-  'Box-Whisker Demo Char': ['Stamping Area', 'Final Inspection'],
+  'Blank Hole Position OD': ['Auto Stamping Site', 'Stamping Area', 'Press Line 1', 'Press 1'],
+  'Trim Length': ['Auto Stamping Site', 'Stamping Area', 'Press Line 1', 'Press 1'],
+  'Spring Force': ['Auto Stamping Site', 'Stamping Area', 'Press Line 1', 'Press 1'],
+  'Punch Wear': ['Auto Stamping Site', 'Stamping Area', 'Press Line 1', 'Press 2'],
+  'Defect Count': ['Auto Stamping Site', 'Stamping Area', 'Press Line 1', 'Press 2'],
+  'Surface Defect Rate': ['Auto Stamping Site', 'Stamping Area', 'Final Inspection'],
+  'Box-Whisker Demo Char': ['Auto Stamping Site', 'Stamping Area', 'Final Inspection'],
 } as const
 
 /**

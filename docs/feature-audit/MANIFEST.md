@@ -7,9 +7,9 @@ Walk every captured P0 / P1 state from `CATALOG.md`.
 | Group | Features | States | Per-group manifest |
 |------:|--------:|------:|--------------------|
 | A | 3 | 5 | [`A/MANIFEST.md`](A/MANIFEST.md) |
-| B | 2 | 6 | [`B/MANIFEST.md`](B/MANIFEST.md) |
-| C | 1 | 1 | [`C/MANIFEST.md`](C/MANIFEST.md) |
-| D | 4 | 11 | [`D/MANIFEST.md`](D/MANIFEST.md) |
+| B | 6 | 15 | [`B/MANIFEST.md`](B/MANIFEST.md) |
+| C | 2 | 5 | [`C/MANIFEST.md`](C/MANIFEST.md) |
+| D | 4 | 13 | [`D/MANIFEST.md`](D/MANIFEST.md) |
 | E | 5 | 11 | [`E/MANIFEST.md`](E/MANIFEST.md) |
 | F | 2 | 7 | [`F/MANIFEST.md`](F/MANIFEST.md) |
 | G | 6 | 25 | [`G/MANIFEST.md`](G/MANIFEST.md) |
@@ -21,14 +21,20 @@ Walk every captured P0 / P1 state from `CATALOG.md`.
 | M | 3 | 17 | [`M/MANIFEST.md`](M/MANIFEST.md) |
 | N | 3 | 4 | [`N/MANIFEST.md`](N/MANIFEST.md) |
 
-Total captured states: **127**.
+Total captured states: **142**.
 
 ## Marketing slot index
 
 | Slot | Capture |
 |------|---------|
 | marketing/login-shot | `A/A1-login-page/01-default.png` |
+| website/hero | `B/B2-dashboard-single-char-variable/02-stats-bar-populated.png` |
+| README/dashboard | `B/B2-dashboard-single-char-variable/02-stats-bar-populated.png` |
+| website/spc-attribute | `B/B3-attribute-charts/01-p-chart.png` |
+| website/capability-card | `B/B6-bottom-drawer/01-drawer-collapsed.png` |
 | website/violations | `B/B8-violations-view/02-default-required.png` |
+| website/show-your-work | `C/C1-show-your-work/01-syw-off.png` |
+| README/syw | `C/C1-show-your-work/01-syw-off.png` |
 | website/compliance/audit-log | `C/C2-audit-log/01-default.png` |
 | website/data-entry | `D/D1-manual-entry/01-no-char-selected.png` |
 | website/collection-plans | `D/D2-collection-plans/01-no-plant-selected.png` |
